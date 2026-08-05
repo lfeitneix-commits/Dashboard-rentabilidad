@@ -1312,7 +1312,7 @@ function renderAnalisis(){
     meses2.forEach(m=>{
       const md=ST.mesData[m];if(!md)return;
       md.rows.forEach(row=>{
-        const nom=String(row['']||'').trim();
+        const nom=String(row['']||row[md.nameCol]||'').trim();
         if(!nom||PNAMES.has(nom))return;
         if(!/^Sueldos y CS/i.test(nom))return;
         tot+=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
@@ -1334,12 +1334,12 @@ function renderAnalisis(){
       const deltaRubro={};
       Object.keys(RUBROS_FIJOS).forEach(r=>deltaRubro[r]=0);
       mdUlt.rows.forEach(row=>{
-        const nom=String(row['']||'').trim();
+        const nom=String(row['']||row[mdUlt.nameCol]||'').trim();
         if(!nom||SKIP_RE2.test(nom)||PNAMES2.has(nom))return;
         const rubro=NOMBRE_A_RUBRO_FIJO[nom];
         if(!rubro)return;
         const vUlt=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
-        const rowPri=mdPri.rows.find(r=>String(r['']||'').trim()===nom);
+        const rowPri=mdPri.rows.find(r=>String(r['']||r[mdPri.nameCol]||'').trim()===nom);
         const vPri=rowPri?AREAS.reduce((s,a)=>s+getAreaVal(rowPri,a),0):0;
         deltaRubro[rubro]=(deltaRubro[rubro]||0)+(vUlt-vPri);
       });
@@ -1582,11 +1582,11 @@ function drawCharts(tab){
         let com=0;
         if(isCons2){
           ST.meses.forEach(m=>{
-            const r=ST.mesData[m]?.rows?.find(row=>String(row['']||'').trim()==='Comisiones Productores');
+            const r=ST.mesData[m]?.rows?.find(row=>String(row['']||row[ST.mesData[m].nameCol]||'').trim()==='Comisiones Productores');
             if(r) com+=getAreaVal(r,'FAs');
           });
         } else if(md){
-          const r=md.rows?.find(row=>String(row['']||'').trim()==='Comisiones Productores');
+          const r=md.rows?.find(row=>String(row['']||row[md.nameCol]||'').trim()==='Comisiones Productores');
           if(r) com=getAreaVal(r,'FAs');
         }
         return Math.max(0,bruto-com);
@@ -1695,7 +1695,7 @@ function drawCharts(tab){
           const CF2=new Map();Object.entries(PARENT_CHILDREN).forEach(([p,ch])=>{if(GASTOS_FIJOS.has(p))ch.forEach(c=>CF2.set(c,true));});
           let tot=0;
           md.rows.forEach(row=>{
-            const nom=String(row['']||'').trim();
+            const nom=String(row['']||row[md.nameCol]||'').trim();
             if(!nom||PNAMES.has(nom))return;
             const esFijo=GASTOS_FIJOS.has(nom)||(CF2.has(nom)?CF2.get(nom):false);
             if(!esFijo)return;
