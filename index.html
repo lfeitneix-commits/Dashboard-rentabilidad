@@ -1525,44 +1525,72 @@ function renderCostos(){
 }
 
 function renderGastosFijosDetalleTable(){
-  const d=ST.gastosFijosDetalle;
-  if(!d){
-    return `<div class="tc"><div class="tc-hd">Gastos Fijos por proveedor/cuenta</div></div>
-      <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No se pudo cargar esta hoja.</div>`;
+  if(!ST.gastosFijosDetalle){
+    return `<div class="tc"><div class="tc-hd">Gastos Fijos por proveedor/cuenta</div>
+      <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No se pudo cargar esta hoja.</div></div>`;
   }
+  return `<div class="tc" style="margin-top:4px">
+    <div class="tc-hd">Gastos Fijos por proveedor/cuenta
+      <div class="tc-hd-r">
+        <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
+      </div>
+    </div>
+    <div id="gfd-table-wrap">${buildGfdTableHTML('')}</div>
+  </div>`;
+}
+
+function buildGfdTableHTML(q){
+  const d=ST.gastosFijosDetalle;
+  if(!d) return '';
   const {valCols,cuentas,grandTotal}=d;
+  const query=(q||'').toLowerCase().trim();
   let rowsHtml='';
   cuentas.forEach((c,ci)=>{
+    const cuentaMatches=query&&c.nombre.toLowerCase().includes(query);
+    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>p.nombre.toLowerCase().includes(query));
+    if(query&&!cuentaMatches&&!providers.length) return;
     const cid='cf-'+ci;
+    const open=!!query;
     const totalVals=c.total?c.total.vals:valCols.map(()=>0);
-    rowsHtml+=`<tr class="row-parent" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
+    rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
       <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c.nombre}</div></td>
       ${totalVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
     </tr>`;
-    c.providers.forEach(p=>{
-      rowsHtml+=`<tr class="row-child hidden" data-parentid="${cid}">
+    providers.forEach(p=>{
+      rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
         <td class="indent">${p.nombre}</td>
         ${p.vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     });
-    if(c.ajuste){
-      rowsHtml+=`<tr class="row-child hidden" data-parentid="${cid}" style="color:var(--muted);font-style:italic">
+    if(c.ajuste&&(!query||cuentaMatches)){
+      rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}" style="color:var(--muted);font-style:italic">
         <td class="indent">${c.ajuste.label}</td>
         ${c.ajuste.vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     }
   });
-  if(grandTotal){
+  if(!query&&grandTotal){
     rowsHtml+=`<tr class="row-total-bordeaux">
       <td>${grandTotal.label}</td>
       ${grandTotal.vals.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
     </tr>`;
   }
-  return `<div class="tc" style="margin-top:4px">
-    <div class="tc-hd">Gastos Fijos por proveedor/cuenta<span>USD</span></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Cuenta / Proveedor</th>${valCols.map(v=>`<th class="r">${v}</th>`).join('')}</tr></thead>
-    <tbody>${rowsHtml}</tbody></table></div>
-  </div>`;
+  if(query&&!rowsHtml) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Cuenta / Proveedor</th>${valCols.map(v=>`<th class="r">${v}</th>`).join('')}</tr></thead>
+    <tbody>${rowsHtml}</tbody></table></div>`;
+}
+
+function filterGastosFijosDetalle(q){
+  const wrap=document.getElementById('gfd-table-wrap');
+  if(wrap) wrap.innerHTML=buildGfdTableHTML(q);
+  const clr=document.getElementById('gfd-search-clear');
+  if(clr) clr.classList.toggle('visible',q.length>0);
+}
+
+function clearGfdSearch(){
+  const el=document.getElementById('gfd-search');
+  if(el) el.value='';
+  filterGastosFijosDetalle('');
 }
 
 function toggleCostosCuenta(cid,el){
