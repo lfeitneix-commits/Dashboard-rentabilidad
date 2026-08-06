@@ -1509,6 +1509,7 @@ function renderCostos(){
   const tablaRanking=`<div class="tc" style="margin-bottom:20px">
     <div class="tc-hd">Principales rubros
       <div class="tc-hd-r">
+        <button class="export-btn" onclick="exportRubrosRanking()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
         <select class="filter-sel" id="rubros-cat" onchange="filterRubrosRanking()">
           <option>Todas las categorías</option>
           <option>Fijo</option>
@@ -1565,6 +1566,7 @@ function renderGastosFijosDetalleTable(){
   return `<div class="tc" style="margin-top:4px">
     <div class="tc-hd">Gastos Fijos por proveedor/cuenta
       <div class="tc-hd-r">
+        <button class="export-btn" onclick="exportGastosFijosDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
         <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
       </div>
     </div>
@@ -2785,6 +2787,47 @@ function exportDetalle(){
   });
 
   XLSX.writeFile(wb,'cuentas_'+mes+'.xlsx');
+}
+
+function exportRubrosRanking(){
+  if(typeof XLSX==='undefined'){alert('Exportación no disponible');return;}
+  const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
+  const label=ST.consolidado?'Consolidado':mes;
+  const sel=document.getElementById('rubros-cat');
+  const cat=sel?sel.value:'';
+  const full=getClasifRubrosRanking(mes);
+  const totalGasto=full.reduce((s,r)=>s+r.monto,0);
+  const ranking=(!cat||cat==='Todas las categorías')?full:full.filter(r=>r.cat===cat);
+  const data=[['Rubro','Categoría','Monto USD','% del total']];
+  ranking.forEach(r=>data.push([r.nombre,r.cat||'',+r.monto.toFixed(2),totalGasto?+(r.monto/totalGasto*100).toFixed(1):0]));
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb,ws,'Rubros');
+  XLSX.writeFile(wb,`principales_rubros_${label}.xlsx`);
+}
+
+function exportGastosFijosDetalle(){
+  if(typeof XLSX==='undefined'){alert('Exportación no disponible');return;}
+  const d=ST.gastosFijosDetalle;
+  if(!d) return;
+  const searchEl=document.getElementById('gfd-search');
+  const query=normSearch(searchEl?searchEl.value:'').trim();
+  const {valCols,cuentas,grandTotal}=d;
+  const data=[['Cuenta / Proveedor',...valCols]];
+  cuentas.forEach(c=>{
+    const cuentaMatches=query&&normSearch(c.nombre).includes(query);
+    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>normSearch(p.nombre).includes(query));
+    if(query&&!cuentaMatches&&!providers.length) return;
+    const totalVals=c.total?c.total.vals:valCols.map(()=>0);
+    data.push([c.nombre,...totalVals]);
+    providers.forEach(p=>data.push(['  '+p.nombre,...p.vals]));
+    if(c.ajuste&&(!query||cuentaMatches)) data.push(['  '+c.ajuste.label,...c.ajuste.vals]);
+  });
+  if(!query&&grandTotal) data.push([grandTotal.label,...grandTotal.vals]);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb,ws,'Gastos Fijos');
+  XLSX.writeFile(wb,'gastos_fijos_proveedor.xlsx');
 }
 
 function clearDetSearch(){
