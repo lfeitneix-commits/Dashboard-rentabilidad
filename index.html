@@ -1615,7 +1615,7 @@ function buildGfdTableHTML(q){
       </tr>`;
     } else {
       rowsHtml+=`<tr class="row-parent">
-        <td>${c.nombre}</td>
+        <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${c.nombre}</div></td>
         ${totalVals.map(v=>`<td class="${alignCls}">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     }
