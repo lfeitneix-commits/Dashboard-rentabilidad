@@ -1502,28 +1502,26 @@ function renderComparativa(){return renderAnalisis();}
 
 function renderIndicadores(){return renderAnalisis();}
 
+const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7D'};
+
 function renderCostos(){
   document.getElementById('topbar-title').textContent='Centro de costos';
   const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
   const label=ST.consolidado?'Consolidado':mes;
 
-  // "Principales rubros" usa los nombres/categorías tal como están en la
-  // hoja "Clasificación de gastos" (no las agrupaciones internas del código)
-  const ranking=getClasifRubrosRanking(mes);
-  const totalGasto=ranking.reduce((s,r)=>s+r.monto,0);
-
-  const CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7D'};
-  const rankingRows=ranking.map(r=>`<tr>
-    <td>${r.nombre}</td>
-    <td class="c"><span class="badge" style="color:${CAT_COLOR[r.cat]||'var(--muted)'};border-color:${CAT_COLOR[r.cat]||'var(--border)'}">${r.cat||'—'}</span></td>
-    <td class="r">${fmt(r.monto,true)}</td>
-    <td class="r">${totalGasto?(r.monto/totalGasto*100).toFixed(1):0}%</td>
-  </tr>`).join('');
-
   const tablaRanking=`<div class="tc" style="margin-bottom:20px">
-    <div class="tc-hd">Principales rubros<span>USD</span></div>
-    <table><thead><tr><th>Rubro</th><th class="c">Categoría</th><th class="r">Monto</th><th class="r">% del total</th></tr></thead>
-    <tbody>${rankingRows||'<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>'}</tbody></table>
+    <div class="tc-hd">Principales rubros
+      <div class="tc-hd-r">
+        <select class="filter-sel" id="rubros-cat" onchange="filterRubrosRanking()">
+          <option>Todas las categorías</option>
+          <option>Fijo</option>
+          <option>Semi-fijo</option>
+          <option>Variable</option>
+        </select>
+        <span>USD</span>
+      </div>
+    </div>
+    <div id="rubros-table-wrap">${buildRubrosTableHTML('')}</div>
   </div>`;
 
   return`<div class="sec-hd"><div class="sec-title">Análisis de Costos</div><div class="sec-sub">${label} · USD</div></div>
@@ -1534,6 +1532,30 @@ function renderCostos(){
   </div>
   ${tablaRanking}
   ${renderGastosFijosDetalleTable()}`;
+}
+
+// "Principales rubros" usa los nombres/categorías tal como están en la
+// hoja "Clasificación de gastos" (no las agrupaciones internas del código).
+// El % siempre es sobre el total general, aunque se filtre por categoría.
+function buildRubrosTableHTML(cat){
+  const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
+  const full=getClasifRubrosRanking(mes);
+  const totalGasto=full.reduce((s,r)=>s+r.monto,0);
+  const ranking=(!cat||cat==='Todas las categorías')?full:full.filter(r=>r.cat===cat);
+  const rankingRows=ranking.map(r=>`<tr>
+    <td>${r.nombre}</td>
+    <td class="c"><span class="badge" style="color:${RUBRO_CAT_COLOR[r.cat]||'var(--muted)'};border-color:${RUBRO_CAT_COLOR[r.cat]||'var(--border)'}">${r.cat||'—'}</span></td>
+    <td class="r">${fmt(r.monto,true)}</td>
+    <td class="r">${totalGasto?(r.monto/totalGasto*100).toFixed(1):0}%</td>
+  </tr>`).join('');
+  return `<table><thead><tr><th>Rubro</th><th class="c">Categoría</th><th class="r">Monto</th><th class="r">% del total</th></tr></thead>
+    <tbody>${rankingRows||'<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>'}</tbody></table>`;
+}
+
+function filterRubrosRanking(){
+  const sel=document.getElementById('rubros-cat');
+  const wrap=document.getElementById('rubros-table-wrap');
+  if(wrap) wrap.innerHTML=buildRubrosTableHTML(sel?sel.value:'');
 }
 
 function renderGastosFijosDetalleTable(){
