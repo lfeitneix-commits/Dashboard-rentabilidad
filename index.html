@@ -481,16 +481,11 @@ const RUBROS_VARIABLES={
   'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV'],
   'Intereses e Impuestos':['Intereses y multas impositivos'],
 };
-const RUBROS_SEMIFIJOS={
-  'Semi-fijos':['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores'],
-};
 // Índice invertido nombre→rubro
 const NOMBRE_A_RUBRO_FIJO={};
 Object.entries(RUBROS_FIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_FIJO[n]=r));
 const NOMBRE_A_RUBRO_VAR={};
 Object.entries(RUBROS_VARIABLES).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_VAR[n]=r));
-const NOMBRE_A_RUBRO_SEMI={};
-Object.entries(RUBROS_SEMIFIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_SEMI[n]=r));
 
 const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Seguros','Pagina Web/Publicidad']);
 const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores']);
@@ -1310,7 +1305,8 @@ function calcRubros(mes){
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
   const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
   const rf={Personal:0,Tecnología:0,Infraestructura:0,'Servicios Financieros':0};
-  const rs={'Semi-fijos':0};
+  const rs={};
+  new Set(Array.from(GASTOS_SEMIFIJOS).map(semifijoGrupoNombre)).forEach(n=>rs[n]=0);
   const rv={Comercial:0,Honorarios:0,Generales:0,'Intereses e Impuestos':0};
   let totalFijos=0,totalSemifijos=0,totalVars=0;
   meses.forEach(m=>{
@@ -1323,7 +1319,7 @@ function calcRubros(mes){
       if(PARENT_NAMES.has(nom))return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
       if(total===0)return;
-      if(NOMBRE_A_RUBRO_SEMI[nom]){rs[NOMBRE_A_RUBRO_SEMI[nom]]=(rs[NOMBRE_A_RUBRO_SEMI[nom]]||0)+total;totalSemifijos+=total;}
+      if(GASTOS_SEMIFIJOS.has(nom)){const g=semifijoGrupoNombre(nom);rs[g]=(rs[g]||0)+total;totalSemifijos+=total;}
       else if(NOMBRE_A_RUBRO_FIJO[nom]){rf[NOMBRE_A_RUBRO_FIJO[nom]]=(rf[NOMBRE_A_RUBRO_FIJO[nom]]||0)+total;totalFijos+=total;}
       else if(NOMBRE_A_RUBRO_VAR[nom]){rv[NOMBRE_A_RUBRO_VAR[nom]]=(rv[NOMBRE_A_RUBRO_VAR[nom]]||0)+total;totalVars+=total;}
     });
@@ -1810,10 +1806,10 @@ function drawCharts(tab){
     dc('ch-an3');const an3=document.getElementById('ch-an3');
     if(an3){
       const COLS_F=['rgba(0,63,97,.85)','rgba(0,63,97,.62)','rgba(0,63,97,.40)','rgba(0,63,97,.20)'];
-      const COLS_S=['rgba(71,103,133,.85)'];
+      const COLS_S=['rgba(71,103,133,.9)','rgba(71,103,133,.68)','rgba(71,103,133,.46)','rgba(71,103,133,.24)'];
       const COLS_V=['rgba(171,25,48,.85)','rgba(171,25,48,.62)','rgba(171,25,48,.40)','rgba(171,25,48,.20)'];
       const rbF=Object.keys(RUBROS_FIJOS);
-      const rbS=Object.keys(RUBROS_SEMIFIJOS);
+      const rbS=Object.keys(rs);
       const rbV=Object.keys(RUBROS_VARIABLES);
       rc('ch-an3',new Chart(an3,{type:'bar',
         data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[
