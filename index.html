@@ -2515,6 +2515,9 @@ function switchMes(mes){
   } else if(ST.currentTab==='analisis'){
     renderCurrentTab();
     setTimeout(()=>drawCharts('analisis'),60);
+  } else if(ST.currentTab==='costos'){
+    renderCurrentTab();
+    setTimeout(()=>drawCharts('costos'),60);
   }
 }
 function renderCurrentTab(){
