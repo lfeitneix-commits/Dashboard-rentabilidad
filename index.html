@@ -1503,6 +1503,7 @@ const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7
 
 function renderCostos(){
   document.getElementById('topbar-title').textContent='Centro de costos';
+  loadGastosFijosDetalleLazy();
   const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
   const label=ST.consolidado?'Consolidado':mes;
 
@@ -1560,10 +1561,11 @@ function filterRubrosRanking(){
 
 function renderGastosFijosDetalleTable(){
   if(!ST.gastosFijosDetalle){
-    return `<div class="tc"><div class="tc-hd">Gastos Fijos por proveedor/cuenta</div>
-      <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No se pudo cargar esta hoja.</div></div>`;
+    const msg=ST.gastosFijosDetalleLoading?'Cargando datos de proveedores…':'No se pudo cargar esta hoja.';
+    return `<div class="tc" id="gfd-card"><div class="tc-hd">Gastos Fijos por proveedor/cuenta</div>
+      <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">${msg}</div></div>`;
   }
-  return `<div class="tc" style="margin-top:4px">
+  return `<div class="tc" id="gfd-card" style="margin-top:4px">
     <div class="tc-hd">Gastos Fijos por proveedor/cuenta
       <div class="tc-hd-r">
         <button class="export-btn" onclick="exportGastosFijosDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
@@ -2045,7 +2047,26 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizError:null,gastosFijosDetalle:null,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{}};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{}};
+
+// Se carga recién al entrar a Análisis de Costos (no en el load inicial)
+// para no sumar un fetch más al arranque del dashboard.
+async function loadGastosFijosDetalleLazy(){
+  if(ST.gastosFijosDetalle||ST.gastosFijosDetalleLoading) return;
+  ST.gastosFijosDetalleLoading=true;
+  try{
+    const csv=await fetchCSV(BASE+GASTOS_FIJOS_DETALLE_GID+'&t='+Date.now());
+    ST.gastosFijosDetalle=parseGastosFijosDetalle(csv);
+  }catch(e){
+    console.error('GASTOS_FIJOS_DETALLE:',e);
+  }finally{
+    ST.gastosFijosDetalleLoading=false;
+    if(ST.currentTab==='costos'){
+      const card=document.getElementById('gfd-card');
+      if(card) card.outerHTML=renderGastosFijosDetalleTable();
+    }
+  }
+}
 function getConsolidadoDetalle(){
   if(!ST.meses.length) return null;
   const base=ST.mesData[ST.meses[0]];
@@ -2948,7 +2969,6 @@ async function loadData(){
       fetchCSV(BASE+MATRIZ_GID+ts).catch(()=>null),
       fetchCSV(BASE+CAPN_GID+ts).catch(()=>null),
       fetchCSV(BASE+CLASIF_GID+ts).catch(e=>{console.error('CLASIF:',e);return null;}),
-      fetchCSV(BASE+GASTOS_FIJOS_DETALLE_GID+ts).catch(e=>{console.error('GASTOS_FIJOS_DETALLE:',e);return null;}),
     ];
     const results=await Promise.allSettled(fetches);
     let loaded=0;
@@ -3023,11 +3043,6 @@ async function loadData(){
     if(capnResult&&capnResult.status==='fulfilled'&&capnResult.value){
       const{headers,rows}=parseCSV(capnResult.value);
       ST.capnData={headers,rows};
-    }
-    // Process Gastos Fijos por proveedor/cuenta
-    const gastosFijosDetResult=results[SHEETS.length+3];
-    if(gastosFijosDetResult&&gastosFijosDetResult.status==='fulfilled'&&gastosFijosDetResult.value){
-      ST.gastosFijosDetalle=parseGastosFijosDetalle(gastosFijosDetResult.value);
     }
     if(!loaded)throw new Error('Ninguna hoja devolvió datos');
     if(!ST.currentMes) ST.currentMes=ST.meses[0];
