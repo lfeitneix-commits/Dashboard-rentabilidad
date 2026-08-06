@@ -1539,15 +1539,17 @@ function renderGastosFijosDetalleTable(){
   </div>`;
 }
 
+const DIACRITICS_RE=new RegExp('[̀-ͯ]','g');
+const normSearch=s=>String(s||'').toLowerCase().normalize('NFD').replace(DIACRITICS_RE,'');
 function buildGfdTableHTML(q){
   const d=ST.gastosFijosDetalle;
   if(!d) return '';
   const {valCols,cuentas,grandTotal}=d;
-  const query=(q||'').toLowerCase().trim();
+  const query=normSearch(q).trim();
   let rowsHtml='';
   cuentas.forEach((c,ci)=>{
-    const cuentaMatches=query&&c.nombre.toLowerCase().includes(query);
-    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>p.nombre.toLowerCase().includes(query));
+    const cuentaMatches=query&&normSearch(c.nombre).includes(query);
+    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>normSearch(p.nombre).includes(query));
     if(query&&!cuentaMatches&&!providers.length) return;
     const cid='cf-'+ci;
     const open=!!query;
