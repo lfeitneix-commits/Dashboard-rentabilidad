@@ -494,6 +494,9 @@ Object.entries(RUBROS_SEMIFIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_
 
 const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Seguros','Pagina Web/Publicidad']);
 const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores']);
+// Agrupa las 3 variantes de "Gastos Bancarios" en una sola cuenta para mostrar en gráficos/tablas
+const SEMIFIJO_GRUPO={'Gastos Bancarios':'Gastos Bancarios','Gastos Bancarios 10,5%':'Gastos Bancarios','Gastos Bancarios Exentos':'Gastos Bancarios'};
+const semifijoGrupoNombre=nom=>SEMIFIJO_GRUPO[nom]||nom;
 
 const PARENT_CHILDREN={
   'Sueldos y CS Directos':['Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle'],
@@ -1672,14 +1675,14 @@ function calcSemifijosPorCuenta(mes){
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   const out={};
-  GASTOS_SEMIFIJOS.forEach(n=>out[n]=0);
+  new Set(Array.from(GASTOS_SEMIFIJOS).map(semifijoGrupoNombre)).forEach(n=>out[n]=0);
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
     md.rows.forEach(row=>{
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!GASTOS_SEMIFIJOS.has(nom))return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
-      out[nom]+=total;
+      out[semifijoGrupoNombre(nom)]+=total;
     });
   });
   return out;
