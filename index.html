@@ -1576,10 +1576,25 @@ function renderGastosFijosDetalleTable(){
 
 const DIACRITICS_RE=new RegExp('[̀-ͯ]','g');
 const normSearch=s=>String(s||'').toLowerCase().normalize('NFD').replace(DIACRITICS_RE,'');
+// En Consolidado se muestran todos los meses de la hoja (+ Total Semestre).
+// Con un mes puntual seleccionado, se muestra solo la columna de ese mes.
+function gfdVisibleColIdxs(valCols){
+  if(ST.consolidado) return valCols.map((_,i)=>i);
+  const curMes=ST.currentMes||ST.meses[0];
+  const idx=valCols.indexOf(curMes);
+  return idx>=0?[idx]:[];
+}
+
 function buildGfdTableHTML(q){
   const d=ST.gastosFijosDetalle;
   if(!d) return '';
   const {valCols,cuentas,grandTotal}=d;
+  const colIdxs=gfdVisibleColIdxs(valCols);
+  if(!colIdxs.length){
+    return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Esta hoja no tiene datos para ${ST.currentMes||ST.meses[0]}</div>`;
+  }
+  const cols=colIdxs.map(i=>valCols[i]);
+  const pick=vals=>colIdxs.map(i=>vals[i]);
   const query=normSearch(q).trim();
   let rowsHtml='';
   cuentas.forEach((c,ci)=>{
@@ -1588,7 +1603,7 @@ function buildGfdTableHTML(q){
     if(query&&!cuentaMatches&&!providers.length) return;
     const cid='cf-'+ci;
     const open=!!query;
-    const totalVals=c.total?c.total.vals:valCols.map(()=>0);
+    const totalVals=pick(c.total?c.total.vals:valCols.map(()=>0));
     rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
       <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c.nombre}</div></td>
       ${totalVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
@@ -1596,24 +1611,24 @@ function buildGfdTableHTML(q){
     providers.forEach(p=>{
       rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
         <td class="indent">${p.nombre}</td>
-        ${p.vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        ${pick(p.vals).map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     });
     if(c.ajuste&&(!query||cuentaMatches)){
       rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}" style="color:var(--muted);font-style:italic">
         <td class="indent">${c.ajuste.label}</td>
-        ${c.ajuste.vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        ${pick(c.ajuste.vals).map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     }
   });
   if(!query&&grandTotal){
     rowsHtml+=`<tr class="row-total-bordeaux">
       <td>${grandTotal.label}</td>
-      ${grandTotal.vals.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
+      ${pick(grandTotal.vals).map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
     </tr>`;
   }
   if(query&&!rowsHtml) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Cuenta / Proveedor</th>${valCols.map(v=>`<th class="r">${v}</th>`).join('')}</tr></thead>
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Cuenta / Proveedor</th>${cols.map(v=>`<th class="r">${v}</th>`).join('')}</tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
 }
 
@@ -2813,17 +2828,20 @@ function exportGastosFijosDetalle(){
   const searchEl=document.getElementById('gfd-search');
   const query=normSearch(searchEl?searchEl.value:'').trim();
   const {valCols,cuentas,grandTotal}=d;
-  const data=[['Cuenta / Proveedor',...valCols]];
+  const colIdxs=gfdVisibleColIdxs(valCols);
+  const cols=colIdxs.map(i=>valCols[i]);
+  const pick=vals=>colIdxs.map(i=>vals[i]);
+  const data=[['Cuenta / Proveedor',...cols]];
   cuentas.forEach(c=>{
     const cuentaMatches=query&&normSearch(c.nombre).includes(query);
     const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>normSearch(p.nombre).includes(query));
     if(query&&!cuentaMatches&&!providers.length) return;
-    const totalVals=c.total?c.total.vals:valCols.map(()=>0);
+    const totalVals=pick(c.total?c.total.vals:valCols.map(()=>0));
     data.push([c.nombre,...totalVals]);
-    providers.forEach(p=>data.push(['  '+p.nombre,...p.vals]));
-    if(c.ajuste&&(!query||cuentaMatches)) data.push(['  '+c.ajuste.label,...c.ajuste.vals]);
+    providers.forEach(p=>data.push(['  '+p.nombre,...pick(p.vals)]));
+    if(c.ajuste&&(!query||cuentaMatches)) data.push(['  '+c.ajuste.label,...pick(c.ajuste.vals)]);
   });
-  if(!query&&grandTotal) data.push([grandTotal.label,...grandTotal.vals]);
+  if(!query&&grandTotal) data.push([grandTotal.label,...pick(grandTotal.vals)]);
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet(data);
   XLSX.utils.book_append_sheet(wb,ws,'Gastos Fijos');
