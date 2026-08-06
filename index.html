@@ -272,7 +272,7 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 const BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4gdsYZTOZlI1jllNuQ2mBWBjabHVL5vJ9dPGVso5lnUVOOuRsQ_xhKVfa0XYDlKpPGr61FUnO3kvy/pub?output=csv&gid=';
 const SHEETS=[{mes:'Enero',gid:'226754153'},{mes:'Febrero',gid:'1511706532'},{mes:'Marzo',gid:'1921579671'},{mes:'Abril',gid:'921185054'},{mes:'Mayo',gid:'1385764727'},{mes:'Junio',gid:'519131833'}];
 const CAPN_GID='314640513';
-const CLASIF_GID='2122908998';
+const CLASIF_GID='263291172';
 const MATRIZ_GID='44234235';
 const MATRIZ_COLS=['Mesa','Middle Office + Mza','Banca Corporativa','Banca Privada'];
 const MATRIZ_ROWS1=['Neix','Back Office','RRHH','IT','Administración','MKTG','Performance'];
@@ -444,21 +444,27 @@ const RUBROS_FIJOS={
   'Personal':['Sueldos y CS Directos','Sueldos y CS Indirectos','Sueldos y CS','Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle','Sueldos y CS Back','Sueldos y CS Adm','Sueldos y CS RRHH','Sueldos y CS IT','Sueldos y CS General','Sueldos y CS MKT','Sueldos y CS Performance','Sueldos y CS FAs','Adicional Obra Social'],
   'Tecnología':['Suscripciones Directas','Suscripciones Indirectas','Suscripciones','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados Directos','Servicios Contratados Indirectos','Suscripciones Mesa','Suscripciones BC','Suscripciones Prods','Suscripciones BP','Suscripciones Mza','Suscripciones Back','Suscripciones IT','Suscripciones Adm','Suscripciones RRHH','Suscripciones MKTG','Suscripciones Neix','Gtos Hardw y Comp Mesa','Gtos Hardw y Comp BC','Gtos Hardw y Comp Prods','Gtos Hardw y Comp BP','Gtos Hardw y Comp Mza','Gtos Hardw y Comp Back','Gtos Hardw y Comp IT','Gtos Hardw y Comp Adm','Gtos Hardw y Comp RRHH','Gtos Hardw y Comp MKTG','Gtos Hardw y Comp Neix','Serv. Contratados Mesa','Serv. Contratados Prods','Serv. Contratados BP','Serv. Contratados Mza','Serv. Contratados BC','Serv. Contratados Back','Serv. Contratados IT','Serv. Contratados Adm','Serv. Contratados RRHH','Serv. Contratados MKTG','Serv. Contratados Neix'],
   'Infraestructura':['Alquileres y Expensas','Electricidad','Telefonia e Internet','Refrigerios y Cafetería'],
-  'Servicios Financieros':['Gastos bancarios','Gastos Corresp. Ext. u$s','Gastos Bancarios','Int. Desc Bcario','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Seguros','Pagina Web/Publicidad'],
+  'Servicios Financieros':['Gastos bancarios','Int. Desc Bcario','Seguros','Pagina Web/Publicidad'],
 };
 const RUBROS_VARIABLES={
-  'Comercial':['Comisiones Productores','Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Pagina Web/Publicidad','Gastos de Publicidad Cable'],
+  'Comercial':['Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Pagina Web/Publicidad','Gastos de Publicidad Cable'],
   'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
   'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV'],
-  'Intereses e Impuestos':['Impuestos','Intereses y multas impositivos'],
+  'Intereses e Impuestos':['Intereses y multas impositivos'],
+};
+const RUBROS_SEMIFIJOS={
+  'Semi-fijos':['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores'],
 };
 // Índice invertido nombre→rubro
 const NOMBRE_A_RUBRO_FIJO={};
 Object.entries(RUBROS_FIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_FIJO[n]=r));
 const NOMBRE_A_RUBRO_VAR={};
 Object.entries(RUBROS_VARIABLES).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_VAR[n]=r));
+const NOMBRE_A_RUBRO_SEMI={};
+Object.entries(RUBROS_SEMIFIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_SEMI[n]=r));
 
-const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Gastos Bancarios','Int. Desc Bcario','Gastos Bancarios 10,5%','Seguros','Pagina Web/Publicidad','Gastos Corresp. Ext. u$s','Gastos Bancarios Exentos']);
+const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Seguros','Pagina Web/Publicidad']);
+const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores']);
 
 const PARENT_CHILDREN={
   'Sueldos y CS Directos':['Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle'],
@@ -821,7 +827,7 @@ function renderResumenContent(agg,label,isConsolidado,mes){
     ${kpiGrid(agg,getCapNAgg(capnMes))}
     <div class="g2">
       <div class="cc"><div class="cc-t">Ingresos · Egresos · Resultado</div><div class="cc-s">por área</div><div style="height:250px"><canvas id="ch-g"></canvas></div></div>
-      <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos vs. Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
+      <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos · Semi-fijos · Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
     </div>
     ${isConsolidado?`<div class="cc" style="margin-bottom:18px"><div class="cc-t">Evolución mensual de ingresos</div><div class="cc-s">stacked por área</div><div style="height:240px"><canvas id="ch-st"></canvas></div></div>`:''}
     ${areaTable(agg,getCapNAgg(capnMes))}`;
@@ -1272,8 +1278,9 @@ function calcRubros(mes){
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
   const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
   const rf={Personal:0,Tecnología:0,Infraestructura:0,'Servicios Financieros':0};
+  const rs={'Semi-fijos':0};
   const rv={Comercial:0,Honorarios:0,Generales:0,'Intereses e Impuestos':0};
-  let totalFijos=0,totalVars=0;
+  let totalFijos=0,totalSemifijos=0,totalVars=0;
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
     md.rows.forEach(row=>{
@@ -1284,18 +1291,19 @@ function calcRubros(mes){
       if(PARENT_NAMES.has(nom))return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
       if(total===0)return;
-      if(NOMBRE_A_RUBRO_FIJO[nom]){rf[NOMBRE_A_RUBRO_FIJO[nom]]=(rf[NOMBRE_A_RUBRO_FIJO[nom]]||0)+total;totalFijos+=total;}
+      if(NOMBRE_A_RUBRO_SEMI[nom]){rs[NOMBRE_A_RUBRO_SEMI[nom]]=(rs[NOMBRE_A_RUBRO_SEMI[nom]]||0)+total;totalSemifijos+=total;}
+      else if(NOMBRE_A_RUBRO_FIJO[nom]){rf[NOMBRE_A_RUBRO_FIJO[nom]]=(rf[NOMBRE_A_RUBRO_FIJO[nom]]||0)+total;totalFijos+=total;}
       else if(NOMBRE_A_RUBRO_VAR[nom]){rv[NOMBRE_A_RUBRO_VAR[nom]]=(rv[NOMBRE_A_RUBRO_VAR[nom]]||0)+total;totalVars+=total;}
     });
   });
-  return{rf,rv,totalFijos,totalVars};
+  return{rf,rs,rv,totalFijos,totalSemifijos,totalVars};
 }
 
 function renderAnalisis(){
   const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
   const label=ST.consolidado?'Consolidado':mes;
   const fv=calcFijosVariables(mes);
-  const {rf,rv}=calcRubros(mes);
+  const {rf,rs,rv}=calcRubros(mes);
   const isCons=mes==='__consolidado__';
 
   // KPIs
@@ -1304,6 +1312,7 @@ function renderAnalisis(){
   const tR=AREAS.reduce((s,a)=>s+(agg[a]?.resultado||0),0);
   const margen=tI?tR/tI*100:0;
   const ratioFijos=tI?(fv.fijos/tI*100):0;
+  const ratioSemifijos=tI?(fv.semifijos/tI*100):0;
   const suelTot=(()=>{
     const isCons2=mes==='__consolidado__';
     const meses2=isCons2?ST.meses:[mes];
@@ -1411,10 +1420,10 @@ function renderAnalisis(){
   // Gráficos
   const chartsHtml=`
   <div class="chart-grid">
-    <div class="cc"><div class="cc-t">Fijos vs. Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
+    <div class="cc"><div class="cc-t">Fijos · Semi-fijos · Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
     <div class="cc"><div class="cc-t">Directos vs. Indirectos</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an8"></canvas></div></div>
     <div class="cc wide"><div class="cc-t">Ingresos vs. Costos</div><div class="cc-s">${isCons?'Evolución mensual':'Por área · '+label}</div><div style="height:280px"><canvas id="ch-an2"></canvas></div></div>
-    <div class="cc wide"><div class="cc-t">Desglose por rubros</div><div class="cc-s">Fijos y variables · ${label}</div><div style="height:280px"><canvas id="ch-an3"></canvas></div></div>
+    <div class="cc wide"><div class="cc-t">Desglose por rubros</div><div class="cc-s">Fijos, semi-fijos y variables · ${label}</div><div style="height:280px"><canvas id="ch-an3"></canvas></div></div>
     <div class="cc"><div class="cc-t">Facturación bruta</div><div class="cc-s">Por área · ${label}</div><div style="height:280px"><canvas id="ch-an4"></canvas></div></div>
     <div class="cc"><div class="cc-t">Facturación neta</div><div class="cc-s">Bruta − Comisiones FAs · ${label}</div><div style="height:280px"><canvas id="ch-an5"></canvas></div></div>
     ${isCons?`<div class="cc wide"><div class="cc-t">Evolución de margen neto y costos fijos / facturación</div><div class="cc-s"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px"><span style="display:inline-block;width:16px;height:2px;background:#003F61;vertical-align:middle"></span>Margen neto %</span><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:rgba(171,25,48,.7);border-top:2px dashed rgba(171,25,48,.7);vertical-align:middle"></span>CF / Facturación %</span></div><div style="height:280px"><canvas id="ch-an6"></canvas></div></div>`:''}
@@ -1426,9 +1435,10 @@ function renderAnalisis(){
   const coberturaFijos=fv.fijos>0?+(tI/fv.fijos).toFixed(2):0;
   const eficiencia=tI-tR>0?+(tR/(tI-tR)*100).toFixed(1):0;
   return`<div class="sec-hd"><div class="sec-title">Análisis Neix</div><div class="sec-sub">${label} · USD</div></div>
-  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
     <div class="kc"><div class="kl">MARGEN NETO</div><div class="kv ${sgn(margen)}">${margen.toFixed(1)}%</div><div class="kh">Resultado / Facturación</div></div>
     <div class="kc"><div class="kl">COSTOS FIJOS / FACT.</div><div class="kv">${ratioFijos.toFixed(1)}%</div><div class="kh">Fijos sobre ingresos</div></div>
+    <div class="kc"><div class="kl">COSTOS SEMI-FIJOS / FACT.</div><div class="kv">${ratioSemifijos.toFixed(1)}%</div><div class="kh">Semi-fijos sobre ingresos</div></div>
     <div class="kc"><div class="kl">SUELDOS / FACT.</div><div class="kv">${ratioSueldos.toFixed(1)}%</div><div class="kh">Sueldos y CS sobre ingresos</div></div>
   </div>
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:28px">
@@ -1513,7 +1523,7 @@ function calcFijosVariables(mes){
   if(ST.clasifData&&ST.clasifData[mes]) return ST.clasifData[mes];
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
-  let fijos=0,variables=0;
+  let fijos=0,semifijos=0,variables=0;
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
   const CHILD_FIJO=new Map();
   Object.entries(PARENT_CHILDREN).forEach(([parent,children])=>{
@@ -1533,12 +1543,13 @@ function calcFijosVariables(mes){
       if(PARENT_NAMES.has(nom)) return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
       if(total===0) return;
+      if(GASTOS_SEMIFIJOS.has(nom)){ semifijos+=total; return; }
       const esFijo=GASTOS_FIJOS.has(nom)||(CHILD_FIJO.has(nom)?CHILD_FIJO.get(nom):false);
       if(esFijo) fijos+=total;
       else variables+=total;
     });
   });
-  return{fijos,variables};
+  return{fijos,semifijos,variables};
 }
 
 function drawCharts(tab){
@@ -1551,13 +1562,13 @@ function drawCharts(tab){
     } else {
       const d=ST.mesData[mesCons];if(d){mkGrouped('ch-g',AREAS,d.agg);}
     }
-    // Torta fijos vs variables
+    // Torta fijos vs semifijos vs variables
     const fv=calcFijosVariables(mesCons);
     dc('ch-cost');const ctxFV=document.getElementById('ch-cost');
-    if(ctxFV&&(fv.fijos||fv.variables)){
-      const total=fv.fijos+fv.variables;
+    if(ctxFV&&(fv.fijos||fv.semifijos||fv.variables)){
+      const total=fv.fijos+fv.semifijos+fv.variables;
       rc('ch-cost',new Chart(ctxFV,{type:'doughnut',
-        data:{labels:['Fijos','Variables'],datasets:[{data:[fv.fijos,fv.variables],backgroundColor:['#003F61','#E4E4E4'],borderWidth:0,hoverOffset:4}]},
+        data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[{data:[fv.fijos,fv.semifijos,fv.variables],backgroundColor:['#003F61','#476785','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
         options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:16,usePointStyle:true}},
             tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw)} (${(c.raw/total*100).toFixed(1)}%)`}}}}}));
@@ -1568,7 +1579,7 @@ function drawCharts(tab){
     // ── ANALISIS CHARTS ──
     const mesCons2=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
     const fv2=calcFijosVariables(mesCons2);
-    const {rf,rv}=calcRubros(mesCons2);
+    const {rf,rs,rv}=calcRubros(mesCons2);
     const isCons2=mesCons2==='__consolidado__';
     const agg2b=isCons2?getAgg():(ST.mesData[mesCons2]?.agg||{});
     const tI2=AREAS.reduce((s,a)=>s+(agg2b[a]?.ingresos||0),0);
@@ -1633,13 +1644,16 @@ function drawCharts(tab){
     dc('ch-an3');const an3=document.getElementById('ch-an3');
     if(an3){
       const COLS_F=['rgba(0,63,97,.85)','rgba(0,63,97,.62)','rgba(0,63,97,.40)','rgba(0,63,97,.20)'];
+      const COLS_S=['rgba(71,103,133,.85)'];
       const COLS_V=['rgba(171,25,48,.85)','rgba(171,25,48,.62)','rgba(171,25,48,.40)','rgba(171,25,48,.20)'];
       const rbF=Object.keys(RUBROS_FIJOS);
+      const rbS=Object.keys(RUBROS_SEMIFIJOS);
       const rbV=Object.keys(RUBROS_VARIABLES);
       rc('ch-an3',new Chart(an3,{type:'bar',
-        data:{labels:['Fijos','Variables'],datasets:[
-          ...rbF.map((r,i)=>({label:r,data:[rf[r]||0,0],backgroundColor:COLS_F[i],borderRadius:2,stack:'s'})),
-          ...rbV.map((r,i)=>({label:r,data:[0,rv[r]||0],backgroundColor:COLS_V[i],borderRadius:2,stack:'s'})),
+        data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[
+          ...rbF.map((r,i)=>({label:r,data:[rf[r]||0,0,0],backgroundColor:COLS_F[i],borderRadius:2,stack:'s'})),
+          ...rbS.map((r,i)=>({label:r,data:[0,rs[r]||0,0],backgroundColor:COLS_S[i],borderRadius:2,stack:'s'})),
+          ...rbV.map((r,i)=>({label:r,data:[0,0,rv[r]||0],backgroundColor:COLS_V[i],borderRadius:2,stack:'s'})),
         ]},
         options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:10},padding:8,usePointStyle:true,boxWidth:10}},
@@ -1714,12 +1728,12 @@ function drawCharts(tab){
           scales:{x:{grid:{display:false}},y:{grid:{color:'#E8E6E3'},ticks:{callback:v=>$c(v,true),font:{family:'DM Mono',size:10}}}}}}));
     }
 
-    // ch-an7: Torta fijos vs variables
+    // ch-an7: Torta fijos vs semifijos vs variables
     dc('ch-an7');const an7=document.getElementById('ch-an7');
     if(an7){
-      const total7=fv2.fijos+fv2.variables;
+      const total7=fv2.fijos+fv2.semifijos+fv2.variables;
       rc('ch-an7',new Chart(an7,{type:'doughnut',
-        data:{labels:['Fijos','Variables'],datasets:[{data:[fv2.fijos,fv2.variables],backgroundColor:['#003F61','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
+        data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[{data:[fv2.fijos,fv2.semifijos,fv2.variables],backgroundColor:['#003F61','#476785','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
         options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:14,usePointStyle:true}},
             tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw)} (${total7?(c.raw/total7*100).toFixed(1):0}%)`}}}}}));
@@ -2672,19 +2686,23 @@ async function loadData(){
       const{rows:clasifRows,headers:clasifHeaders}=parseCSV(clasifResult.value);
       ST.clasifData={};
       const normMes=m=>m.charAt(0).toUpperCase()+m.slice(1).toLowerCase();
-      const fijoRow=clasifRows.find(r=>String(r[clasifHeaders[0]]||'').trim().toUpperCase().includes('GASTOS FIJOS'));
-      const varRow=clasifRows.find(r=>String(r[clasifHeaders[0]]||'').trim().toUpperCase().includes('GASTOS VARIABLES'));
+      const normLabel=s=>String(s||'').toUpperCase().replace(/[-\s]/g,'');
+      const fijoRow=clasifRows.find(r=>normLabel(r[clasifHeaders[0]]).includes('GASTOSFIJOS'));
+      const semiRow=clasifRows.find(r=>normLabel(r[clasifHeaders[0]]).includes('SEMIFIJOS'));
+      const varRow=clasifRows.find(r=>normLabel(r[clasifHeaders[0]]).includes('GASTOSVARIABLES'));
       clasifHeaders.slice(1).forEach(m=>{
         if(!m) return;
         const mNorm=normMes(m.trim());
         ST.clasifData[mNorm]={
           fijos:fijoRow?parseNum(fijoRow[m]||''):0,
+          semifijos:semiRow?parseNum(semiRow[m]||''):0,
           variables:varRow?parseNum(varRow[m]||''):0,
         };
       });
       const totFijos=Object.values(ST.clasifData).reduce((s,v)=>s+v.fijos,0);
+      const totSemifijos=Object.values(ST.clasifData).reduce((s,v)=>s+v.semifijos,0);
       const totVars=Object.values(ST.clasifData).reduce((s,v)=>s+v.variables,0);
-      ST.clasifData['__consolidado__']={fijos:totFijos,variables:totVars};
+      ST.clasifData['__consolidado__']={fijos:totFijos,semifijos:totSemifijos,variables:totVars};
     }
     // Process CapN sheet
     const capnResult=results[SHEETS.length+1];
