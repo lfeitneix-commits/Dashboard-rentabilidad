@@ -820,10 +820,10 @@ function areaTable(data,capn){
   const capnTable=capn?`<div class="tc" style="margin-top:16px"><div class="tc-hd" style="text-align:center">Capital N <span>USD</span></div>
     <table>
     <tbody>
-      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Ingresos</td><td class="r">${fmt(capn.ingresos)}</td></tr>
-      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Gastos</td><td class="r">${fmt(capn.egresos)}</td></tr>
-      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Resultado</td><td class="r"><span class="${sgn(capn.resultado)}">${fmt(capn.resultado)}</span></td></tr>
-      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Margen</td><td class="r"><span class="chip ${sgn(capn.ingresos?(capn.resultado/capn.ingresos*100):0)}">${capn.ingresos?(capn.resultado/capn.ingresos*100).toFixed(1):0}%</span></td></tr>
+      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Ingresos</td><td class="c">${fmt(capn.ingresos)}</td></tr>
+      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Gastos</td><td class="c">${fmt(capn.egresos)}</td></tr>
+      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Resultado</td><td class="c"><span class="${sgn(capn.resultado)}">${fmt(capn.resultado)}</span></td></tr>
+      <tr><td style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Margen</td><td class="c"><span class="chip ${sgn(capn.ingresos?(capn.resultado/capn.ingresos*100):0)}">${capn.ingresos?(capn.resultado/capn.ingresos*100).toFixed(1):0}%</span></td></tr>
     </tbody></table></div>`:'';
 
   return mainTable+capnTable;
@@ -1595,6 +1595,7 @@ function buildGfdTableHTML(q){
   }
   const cols=colIdxs.map(i=>valCols[i]);
   const pick=vals=>colIdxs.map(i=>vals[i]);
+  const alignCls=cols.length===1?'c':'r';
   const query=normSearch(q).trim();
   let rowsHtml='';
   cuentas.forEach((c,ci)=>{
@@ -1606,29 +1607,29 @@ function buildGfdTableHTML(q){
     const totalVals=pick(c.total?c.total.vals:valCols.map(()=>0));
     rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
       <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c.nombre}</div></td>
-      ${totalVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+      ${totalVals.map(v=>`<td class="${alignCls}">${v?fmtD(v):'—'}</td>`).join('')}
     </tr>`;
     providers.forEach(p=>{
       rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
         <td class="indent">${p.nombre}</td>
-        ${pick(p.vals).map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        ${pick(p.vals).map(v=>`<td class="${alignCls}">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     });
     if(c.ajuste&&(!query||cuentaMatches)){
       rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}" style="color:var(--muted);font-style:italic">
         <td class="indent">${c.ajuste.label}</td>
-        ${pick(c.ajuste.vals).map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        ${pick(c.ajuste.vals).map(v=>`<td class="${alignCls}">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     }
   });
   if(!query&&grandTotal){
     rowsHtml+=`<tr class="row-total-bordeaux">
       <td>${grandTotal.label}</td>
-      ${pick(grandTotal.vals).map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
+      ${pick(grandTotal.vals).map(v=>`<td class="${alignCls}">${fmtD(v)}</td>`).join('')}
     </tr>`;
   }
   if(query&&!rowsHtml) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Cuenta / Proveedor</th>${cols.map(v=>`<th class="r">${v}</th>`).join('')}</tr></thead>
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Cuenta / Proveedor</th>${cols.map(v=>`<th class="${alignCls}">${v}</th>`).join('')}</tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
 }
 
