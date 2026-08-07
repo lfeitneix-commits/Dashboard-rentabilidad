@@ -491,11 +491,12 @@ function buildAgg(rows,nameCol,numCol,notesCol){
 // ── RUBROS para Análisis ──────────────────────────────────────
 const RUBROS_FIJOS={
   'Personal':['Sueldos y CS Directos','Sueldos y CS Indirectos','Sueldos y CS','Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle','Sueldos y CS Back','Sueldos y CS Adm','Sueldos y CS RRHH','Sueldos y CS IT','Sueldos y CS General','Sueldos y CS MKT','Sueldos y CS Performance','Sueldos y CS FAs','Adicional Obra Social'],
-  'Tecnología':['Suscripciones Directas','Suscripciones Indirectas','Suscripciones','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados Directos','Servicios Contratados Indirectos','Suscripciones Mesa','Suscripciones BC','Suscripciones Prods','Suscripciones BP','Suscripciones Mza','Suscripciones Back','Suscripciones IT','Suscripciones Adm','Suscripciones RRHH','Suscripciones MKTG','Suscripciones Neix','Gtos Hardw y Comp Mesa','Gtos Hardw y Comp BC','Gtos Hardw y Comp Prods','Gtos Hardw y Comp BP','Gtos Hardw y Comp Mza','Gtos Hardw y Comp Back','Gtos Hardw y Comp IT','Gtos Hardw y Comp Adm','Gtos Hardw y Comp RRHH','Gtos Hardw y Comp MKTG','Gtos Hardw y Comp Neix','Serv. Contratados Mesa','Serv. Contratados Prods','Serv. Contratados BP','Serv. Contratados Mza','Serv. Contratados BC','Serv. Contratados Back','Serv. Contratados IT','Serv. Contratados Adm','Serv. Contratados RRHH','Serv. Contratados MKTG','Serv. Contratados Neix'],
+  'Tecnología':['Servicios Contratados Directos','Servicios Contratados Indirectos','Serv. Contratados Mesa','Serv. Contratados Prods','Serv. Contratados BP','Serv. Contratados Mza','Serv. Contratados BC','Serv. Contratados Back','Serv. Contratados IT','Serv. Contratados Adm','Serv. Contratados RRHH','Serv. Contratados MKTG','Serv. Contratados Neix'],
   'Infraestructura':['Alquileres y Expensas','Electricidad','Telefonia e Internet','Refrigerios y Cafetería'],
   'Servicios Financieros':['Gastos bancarios','Int. Desc Bcario','Seguros','Pagina Web/Publicidad'],
 };
 const RUBROS_VARIABLES={
+  'Tecnología':['Suscripciones Directas','Suscripciones Indirectas','Suscripciones','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Gastos de Hardware','Suscripciones Mesa','Suscripciones BC','Suscripciones Prods','Suscripciones BP','Suscripciones Mza','Suscripciones Back','Suscripciones IT','Suscripciones Adm','Suscripciones RRHH','Suscripciones MKTG','Suscripciones Neix','Gtos Hardw y Comp Mesa','Gtos Hardw y Comp BC','Gtos Hardw y Comp Prods','Gtos Hardw y Comp BP','Gtos Hardw y Comp Mza','Gtos Hardw y Comp Back','Gtos Hardw y Comp IT','Gtos Hardw y Comp Adm','Gtos Hardw y Comp RRHH','Gtos Hardw y Comp MKTG','Gtos Hardw y Comp Neix'],
   'Comercial':['Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable'],
   'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
   'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV','Seguros'],
@@ -507,7 +508,7 @@ Object.entries(RUBROS_FIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBR
 const NOMBRE_A_RUBRO_VAR={};
 Object.entries(RUBROS_VARIABLES).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_VAR[n]=r));
 
-const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Pagina Web/Publicidad']);
+const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Pagina Web/Publicidad']);
 const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores']);
 // Agrupa las 3 variantes de "Gastos Bancarios" en una sola cuenta para mostrar en gráficos/tablas
 const SEMIFIJO_GRUPO={'Gastos Bancarios':'Gastos Bancarios','Gastos Bancarios 10,5%':'Gastos Bancarios','Gastos Bancarios Exentos':'Gastos Bancarios'};
@@ -1902,7 +1903,7 @@ function drawCharts(tab){
     if(an3){
       const COLS_F=['rgba(0,63,97,.85)','rgba(0,63,97,.62)','rgba(0,63,97,.40)','rgba(0,63,97,.20)'];
       const COLS_S=['rgba(71,103,133,.9)','rgba(71,103,133,.68)','rgba(71,103,133,.46)','rgba(71,103,133,.24)'];
-      const COLS_V=['rgba(171,25,48,.85)','rgba(171,25,48,.62)','rgba(171,25,48,.40)','rgba(171,25,48,.20)'];
+      const COLS_V=['rgba(171,25,48,.85)','rgba(171,25,48,.66)','rgba(171,25,48,.48)','rgba(171,25,48,.30)','rgba(171,25,48,.15)'];
       const rbF=Object.keys(RUBROS_FIJOS);
       const rbS=Object.keys(rs);
       const rbV=Object.keys(RUBROS_VARIABLES);
@@ -2065,7 +2066,7 @@ function drawCharts(tab){
       const entries=Object.entries(rv).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
       const totalV=entries.reduce((s,e)=>s+e[1],0);
       rc('ch-cf3',new Chart(cf3,{type:'doughnut',
-        data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),backgroundColor:['rgba(154,142,125,.9)','rgba(154,142,125,.72)','rgba(154,142,125,.54)','rgba(154,142,125,.36)'],borderWidth:0,hoverOffset:4}]},
+        data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),backgroundColor:['rgba(154,142,125,.9)','rgba(154,142,125,.74)','rgba(154,142,125,.58)','rgba(154,142,125,.42)','rgba(154,142,125,.26)'],borderWidth:0,hoverOffset:4}]},
         options:pieOpts(totalV)}));
     }
   }
