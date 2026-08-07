@@ -496,7 +496,7 @@ const RUBROS_FIJOS={
   'Servicios Financieros':['Gastos bancarios','Int. Desc Bcario','Seguros','Pagina Web/Publicidad'],
 };
 const RUBROS_VARIABLES={
-  'Comercial':['Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Pagina Web/Publicidad','Gastos de Publicidad Cable'],
+  'Comercial':['Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable'],
   'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
   'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV'],
   'Intereses e Impuestos':['Intereses y multas impositivos'],
@@ -512,6 +512,27 @@ const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','G
 // Agrupa las 3 variantes de "Gastos Bancarios" en una sola cuenta para mostrar en gráficos/tablas
 const SEMIFIJO_GRUPO={'Gastos Bancarios':'Gastos Bancarios','Gastos Bancarios 10,5%':'Gastos Bancarios','Gastos Bancarios Exentos':'Gastos Bancarios'};
 const semifijoGrupoNombre=nom=>SEMIFIJO_GRUPO[nom]||nom;
+
+// Fuente de verdad: la categoría (Fijo/Semi-fijo/Variable) de cada cuenta se
+// lee de la hoja "Clasificación de gastos" (ST.clasifRubros). Las listas
+// hardcodeadas (GASTOS_FIJOS, GASTOS_SEMIFIJOS, RUBROS_FIJOS/VARIABLES) quedan
+// solo como respaldo para cuentas que todavía no estén en esa hoja.
+let _categoriaPorCuentaCache=null;
+function categoriaPorCuentaMap(){
+  if(_categoriaPorCuentaCache) return _categoriaPorCuentaCache;
+  const map=new Map();
+  if(ST.clasifRubros) ST.clasifRubros.rubros.forEach(r=>map.set(r.nombre,r.categoria));
+  _categoriaPorCuentaCache=map;
+  return map;
+}
+function getCategoriaFor(nom){
+  const fromSheet=categoriaPorCuentaMap().get(nom);
+  if(fromSheet) return fromSheet;
+  if(GASTOS_SEMIFIJOS.has(nom)) return 'Semi-fijo';
+  if(GASTOS_FIJOS.has(nom)||NOMBRE_A_RUBRO_FIJO[nom]) return 'Fijo';
+  if(NOMBRE_A_RUBRO_VAR[nom]) return 'Variable';
+  return null;
+}
 
 const PARENT_CHILDREN={
   'Sueldos y CS Directos':['Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle'],
@@ -1336,9 +1357,10 @@ function calcRubros(mes){
       if(PARENT_NAMES.has(nom))return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
       if(total===0)return;
-      if(GASTOS_SEMIFIJOS.has(nom)){const g=semifijoGrupoNombre(nom);rs[g]=(rs[g]||0)+total;totalSemifijos+=total;}
-      else if(NOMBRE_A_RUBRO_FIJO[nom]){rf[NOMBRE_A_RUBRO_FIJO[nom]]=(rf[NOMBRE_A_RUBRO_FIJO[nom]]||0)+total;totalFijos+=total;}
-      else if(NOMBRE_A_RUBRO_VAR[nom]){rv[NOMBRE_A_RUBRO_VAR[nom]]=(rv[NOMBRE_A_RUBRO_VAR[nom]]||0)+total;totalVars+=total;}
+      const cat=getCategoriaFor(nom);
+      if(cat==='Semi-fijo'){const g=semifijoGrupoNombre(nom);rs[g]=(rs[g]||0)+total;totalSemifijos+=total;}
+      else if(cat==='Fijo'){const g=NOMBRE_A_RUBRO_FIJO[nom]||nom;rf[g]=(rf[g]||0)+total;totalFijos+=total;}
+      else if(cat==='Variable'){const g=NOMBRE_A_RUBRO_VAR[nom]||nom;rv[g]=(rv[g]||0)+total;totalVars+=total;}
     });
   });
   return{rf,rs,rv,totalFijos,totalSemifijos,totalVars};
@@ -1735,11 +1757,6 @@ function calcFijosVariables(mes){
   const meses=isCons?ST.meses:[mes];
   let fijos=0,semifijos=0,variables=0;
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
-  const CHILD_FIJO=new Map();
-  Object.entries(PARENT_CHILDREN).forEach(([parent,children])=>{
-    const esFijo=GASTOS_FIJOS.has(parent);
-    children.forEach(ch=>CHILD_FIJO.set(ch,esFijo));
-  });
   const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
 
   meses.forEach(m=>{
@@ -1753,10 +1770,10 @@ function calcFijosVariables(mes){
       if(PARENT_NAMES.has(nom)) return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
       if(total===0) return;
-      if(GASTOS_SEMIFIJOS.has(nom)){ semifijos+=total; return; }
-      const esFijo=GASTOS_FIJOS.has(nom)||(CHILD_FIJO.has(nom)?CHILD_FIJO.get(nom):false);
-      if(esFijo) fijos+=total;
-      else variables+=total;
+      const cat=getCategoriaFor(nom);
+      if(cat==='Semi-fijo') semifijos+=total;
+      else if(cat==='Fijo') fijos+=total;
+      else variables+=total; // 'Variable' o sin clasificar → variable (comportamiento previo por defecto)
     });
   });
   return{fijos,semifijos,variables};
@@ -1766,14 +1783,14 @@ function calcSemifijosPorCuenta(mes){
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   const out={};
-  new Set(Array.from(GASTOS_SEMIFIJOS).map(semifijoGrupoNombre)).forEach(n=>out[n]=0);
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
     md.rows.forEach(row=>{
       const nom=String(row['']||row[md.nameCol]||'').trim();
-      if(!GASTOS_SEMIFIJOS.has(nom))return;
+      if(!nom||getCategoriaFor(nom)!=='Semi-fijo')return;
       const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
-      out[semifijoGrupoNombre(nom)]+=total;
+      const g=semifijoGrupoNombre(nom);
+      out[g]=(out[g]||0)+total;
     });
   });
   return out;
@@ -3045,6 +3062,7 @@ async function loadData(){
       const totVars=Object.values(ST.clasifData).reduce((s,v)=>s+v.variables,0);
       ST.clasifData['__consolidado__']={fijos:totFijos,semifijos:totSemifijos,variables:totVars};
       ST.clasifRubros=parseClasificacionRubros(clasifResult.value);
+      _categoriaPorCuentaCache=null;
     }
     // Process CapN sheet
     const capnResult=results[SHEETS.length+1];
