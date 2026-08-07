@@ -168,6 +168,8 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .export-btn{display:flex;align-items:center;gap:6px;background:var(--crema);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
 .export-btn:hover{color:var(--grafito);border-color:var(--arena)}
 .filter-sel{appearance:none;background:var(--crema);border:1px solid var(--border);border-radius:5px;padding:4px 24px 4px 9px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text);cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%239A8E7D'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.filter-sel-th{appearance:none;background:transparent;border:none;padding:0 16px 0 0;margin:0 auto;display:block;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%239A8E7D'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right center}
+.filter-sel-th:hover,.filter-sel-th:focus{color:var(--grafito)}
 .search-wrap{position:relative;display:flex;align-items:center}
 .search-wrap .search-icon{position:absolute;left:8px;width:13px;height:13px;color:var(--muted);pointer-events:none}
 .search-input{background:var(--crema);border:1px solid var(--border);border-radius:5px;padding:4px 24px 4px 28px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text);width:190px;outline:none;transition:border-color .15s,width .2s}
@@ -1538,12 +1540,6 @@ function renderCostos(){
     <div class="tc-hd">Principales rubros
       <div class="tc-hd-r">
         <button class="export-btn" onclick="exportRubrosRanking()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
-        <select class="filter-sel" id="rubros-cat" onchange="filterRubrosRanking()">
-          <option>Todas las categorías</option>
-          <option>Fijo</option>
-          <option>Semi-fijo</option>
-          <option>Variable</option>
-        </select>
         <span>USD</span>
       </div>
     </div>
@@ -1575,7 +1571,13 @@ function buildRubrosTableHTML(cat){
     <td class="r">${totalGasto?(r.monto/totalGasto*100).toFixed(1):0}%</td>
     <td style="width:110px"><div class="hbar-track"><div class="hbar-fill" style="width:${maxMonto?(r.monto/maxMonto*100).toFixed(1):0}%;background:${RUBRO_CAT_COLOR[r.cat]||'var(--arena)'}"></div></div></td>
   </tr>`).join('');
-  return `<table><thead><tr><th>Rubro</th><th class="c">Categoría</th><th class="r">Monto</th><th class="r">% del total</th><th></th></tr></thead>
+  const catSel=`<select class="filter-sel-th" id="rubros-cat" onchange="filterRubrosRanking()">
+    <option value="" ${!cat||cat==='Todas las categorías'?'selected':''}>Categoría</option>
+    <option ${cat==='Fijo'?'selected':''}>Fijo</option>
+    <option ${cat==='Semi-fijo'?'selected':''}>Semi-fijo</option>
+    <option ${cat==='Variable'?'selected':''}>Variable</option>
+  </select>`;
+  return `<table><thead><tr><th>Rubro</th><th class="c">${catSel}</th><th class="r">Monto</th><th class="r">% del total</th><th></th></tr></thead>
     <tbody>${rankingRows||'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>'}</tbody></table>`;
 }
 
