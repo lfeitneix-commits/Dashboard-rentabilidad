@@ -3001,7 +3001,12 @@ async function loadData(){
     results.slice(0,SHEETS.length).forEach((res,i)=>{
       const val = res.status==='fulfilled' ? res.value : null;
       if(val && !val._err){
-        const{headers,rows}=parseCSV(val);
+        const{headers,rows:rowsRaw}=parseCSV(val);
+        // Cortar todo lo que venga después de "GASTOS TOTALES" (fila de cierre del
+        // EERR) — lo que sigue en la hoja son datos contables/de caja aparte, que
+        // sin este corte quedaban cayendo sueltos dentro de Gastos Indirectos.
+        const gastosTotalesIdx=rowsRaw.findIndex(r=>/GASTOS?\s+TOTALES?/i.test(String(r[headers[0]]||'').trim()));
+        const rows=gastosTotalesIdx>=0?rowsRaw.slice(0,gastosTotalesIdx+1):rowsRaw;
         if(rows.length){
           // New structure: col0=nombre (header vacío), then area columns, then Total, then Notas
           const numCol  = null;
