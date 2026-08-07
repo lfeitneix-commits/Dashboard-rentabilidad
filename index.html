@@ -1574,7 +1574,6 @@ function buildRubrosTableHTML(cat){
   const catSel=`<select class="filter-sel-th" id="rubros-cat" onchange="filterRubrosRanking()">
     <option value="" ${!cat||cat==='Todas las categorías'?'selected':''}>Categoría</option>
     <option ${cat==='Fijo'?'selected':''}>Fijo</option>
-    <option ${cat==='Semi-fijo'?'selected':''}>Semi-fijo</option>
     <option ${cat==='Variable'?'selected':''}>Variable</option>
   </select>`;
   return `<table><thead><tr><th>Rubro</th><th class="c">${catSel}</th><th class="r">Monto</th><th class="r">% del total</th><th></th></tr></thead>
