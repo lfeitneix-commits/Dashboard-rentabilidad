@@ -1236,6 +1236,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       {row:d.resAntesRow,   style:'verde'},
       {row:d.impuestosRow,  style:'section'},
       {row:d.resDespuesRow, style:'verde-dark'},
+      {row:d.gastosTotalesRow, style:'bordeaux'},
     ];
     footerRows.forEach(({row:r,style})=>{
       if(!r) return;
@@ -1256,10 +1257,14 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         trStyle='background:rgba(0,72,54,.05);border-top:2px solid rgba(0,72,54,.15)';
         labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde)';
         valStyle=(v)=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:${v>=0?'var(--verde)':'var(--bordeaux)'}`;
-      } else {
+      } else if(style==='verde-dark'){
         trStyle='background:rgba(0,72,54,.09);border-top:2px solid rgba(0,72,54,.25)';
         labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde)';
         valStyle=(v)=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:${v>=0?'var(--verde)':'var(--bordeaux)'}`;
+      } else {
+        trStyle='background:rgba(171,25,48,.06);border-top:1px solid rgba(171,25,48,.2)';
+        labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--bordeaux)';
+        valStyle=()=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:var(--bordeaux)`;
       }
       html+=`<tr style="${trStyle}">
         ${showNumCol?'<td></td>':''}
@@ -2159,8 +2164,9 @@ function getConsolidadoDetalle(){
   const impuestosRow=mergeResultRow('impuestosRow');
   const resAntesRow=mergeResultRow('resAntesRow');
   const resDespuesRow=mergeResultRow('resDespuesRow');
+  const gastosTotalesRow=mergeResultRow('gastosTotalesRow');
 
-  return{...base,annotated:merged,totalGastosCell,subtotalRow,indirectosRow,impuestosRow,resAntesRow,resDespuesRow};
+  return{...base,annotated:merged,totalGastosCell,subtotalRow,indirectosRow,impuestosRow,resAntesRow,resDespuesRow,gastosTotalesRow};
 }
 
 
@@ -3024,11 +3030,12 @@ async function loadData(){
           // Also store result rows for detalle display
           const resAntesRow=annotated.find(r=>r._kind==='skip'&&/RESULTADO.*antes.*impuesto/i.test(r._nom));
           const resDespuesRow=annotated.find(r=>r._kind==='skip'&&/RESULTADO.*despu/i.test(r._nom));
+          const gastosTotalesRow=annotated.find(r=>r._kind==='skip'&&/^GASTOS?\s+TOTALES?$/i.test(r._nom));
           ST.mesData[SHEETS[i].mes]={
             agg:buildAgg(rows,nameCol,numCol,notesCol),
             annotated,
             nameCol,numCol,notesCol,headers,rows,
-            totalGastosCell,subtotalRow,indirectosRow,impuestosRow,resAntesRow,resDespuesRow,
+            totalGastosCell,subtotalRow,indirectosRow,impuestosRow,resAntesRow,resDespuesRow,gastosTotalesRow,
           };
           if(!ST.meses.includes(SHEETS[i].mes)) ST.meses.push(SHEETS[i].mes);
           loaded++;
