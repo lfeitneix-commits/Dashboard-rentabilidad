@@ -498,7 +498,7 @@ const RUBROS_FIJOS={
 const RUBROS_VARIABLES={
   'Comercial':['Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable'],
   'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
-  'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV'],
+  'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV','Seguros'],
   'Intereses e Impuestos':['Intereses y multas impositivos'],
 };
 // Índice invertido nombre→rubro
@@ -507,7 +507,7 @@ Object.entries(RUBROS_FIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBR
 const NOMBRE_A_RUBRO_VAR={};
 Object.entries(RUBROS_VARIABLES).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_VAR[n]=r));
 
-const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Seguros','Pagina Web/Publicidad']);
+const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Pagina Web/Publicidad']);
 const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores']);
 // Agrupa las 3 variantes de "Gastos Bancarios" en una sola cuenta para mostrar en gráficos/tablas
 const SEMIFIJO_GRUPO={'Gastos Bancarios':'Gastos Bancarios','Gastos Bancarios 10,5%':'Gastos Bancarios','Gastos Bancarios Exentos':'Gastos Bancarios'};
