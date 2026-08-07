@@ -499,7 +499,7 @@ const RUBROS_VARIABLES={
   'Comercial':['Gastos de Representación','Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable','Comisiones Productores'],
   'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
   'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV','Seguros'],
-  'Intereses e Impuestos':['Intereses y multas impositivos','Intereses pagados','Impuestos','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Gastos Corresp. Ext. u$s'],
+  'Intereses e Impuestos':['Intereses y multas impositivos','Intereses pagados','Impuestos','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Gastos Corresp. Ext. u$s','Int. Desc Bcario'],
 };
 // Índice invertido nombre→rubro
 const NOMBRE_A_RUBRO_FIJO={};
@@ -1551,9 +1551,8 @@ function renderCostos(){
   </div>`;
 
   return`<div class="sec-hd"><div class="sec-title">Análisis de Costos</div><div class="sec-sub">${label} · USD</div></div>
-  <div class="chart-grid" style="grid-template-columns:repeat(3,1fr)">
+  <div class="chart-grid" style="grid-template-columns:repeat(2,1fr)">
     <div class="cc"><div class="cc-t">Fijos por rubro</div><div class="cc-s">${label}</div><div style="height:250px"><canvas id="ch-cf1"></canvas></div></div>
-    <div class="cc"><div class="cc-t">Semi-fijos por cuenta</div><div class="cc-s">${label}</div><div style="height:250px"><canvas id="ch-cf2"></canvas></div></div>
     <div class="cc"><div class="cc-t">Variables por rubro</div><div class="cc-s">${label}</div><div style="height:250px"><canvas id="ch-cf3"></canvas></div></div>
   </div>
   ${tablaRanking}
@@ -1782,23 +1781,6 @@ function calcFijosVariables(mes){
     });
   });
   return{fijos,semifijos,variables};
-}
-
-function calcSemifijosPorCuenta(mes){
-  const isCons=mes==='__consolidado__';
-  const meses=isCons?ST.meses:[mes];
-  const out={};
-  meses.forEach(m=>{
-    const md=ST.mesData[m];if(!md)return;
-    md.rows.forEach(row=>{
-      const nom=String(row['']||row[md.nameCol]||'').trim();
-      if(!nom||getCategoriaFor(nom)!=='Semi-fijo')return;
-      const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
-      const g=semifijoGrupoNombre(nom);
-      out[g]=(out[g]||0)+total;
-    });
-  });
-  return out;
 }
 
 // Ranking de rubros textuales tal como están en la hoja "Clasificación de gastos"
@@ -2044,7 +2026,6 @@ function drawCharts(tab){
   if(tab==='costos'){
     const mesCons3=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
     const {rf,rv}=calcRubros(mesCons3);
-    const semiCuentas=calcSemifijosPorCuenta(mesCons3);
     const pieOpts=total=>({responsive:true,maintainAspectRatio:false,cutout:'55%',
       plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:10},padding:8,usePointStyle:true,boxWidth:10}},
         tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw,true)} (${total?(c.raw/total*100).toFixed(1):0}%)`}}}});
@@ -2056,14 +2037,6 @@ function drawCharts(tab){
       rc('ch-cf1',new Chart(cf1,{type:'doughnut',
         data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),backgroundColor:['rgba(0,63,97,.9)','rgba(0,63,97,.7)','rgba(0,63,97,.5)','rgba(0,63,97,.3)'],borderWidth:0,hoverOffset:4}]},
         options:pieOpts(totalF)}));
-    }
-    dc('ch-cf2');const cf2=document.getElementById('ch-cf2');
-    if(cf2){
-      const entries=Object.entries(semiCuentas).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-      const totalS=entries.reduce((s,e)=>s+e[1],0);
-      rc('ch-cf2',new Chart(cf2,{type:'doughnut',
-        data:{labels:entries.map(e=>e[0]),datasets:[{data:entries.map(e=>e[1]),backgroundColor:['rgba(71,103,133,.95)','rgba(71,103,133,.8)','rgba(71,103,133,.65)','rgba(71,103,133,.5)','rgba(71,103,133,.35)','rgba(71,103,133,.2)'],borderWidth:0,hoverOffset:4}]},
-        options:pieOpts(totalS)}));
     }
     dc('ch-cf3');const cf3=document.getElementById('ch-cf3');
     if(cf3){
