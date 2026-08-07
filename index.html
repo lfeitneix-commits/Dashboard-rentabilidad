@@ -496,10 +496,10 @@ const RUBROS_FIJOS={
   'Servicios Financieros':['Gastos bancarios','Int. Desc Bcario','Seguros','Pagina Web/Publicidad'],
 };
 const RUBROS_VARIABLES={
-  'Comercial':['Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable'],
+  'Comercial':['Gastos de Representación','Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable','Comisiones Productores'],
   'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
   'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV','Seguros'],
-  'Intereses e Impuestos':['Intereses y multas impositivos'],
+  'Intereses e Impuestos':['Intereses y multas impositivos','Intereses pagados','Impuestos','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Gastos Corresp. Ext. u$s'],
 };
 // Índice invertido nombre→rubro
 const NOMBRE_A_RUBRO_FIJO={};
@@ -1365,7 +1365,7 @@ function calcRubros(mes){
       const cat=getCategoriaFor(nom);
       if(cat==='Semi-fijo'){const g=semifijoGrupoNombre(nom);rs[g]=(rs[g]||0)+total;totalSemifijos+=total;}
       else if(cat==='Fijo'){const g=NOMBRE_A_RUBRO_FIJO[nom]||nom;rf[g]=(rf[g]||0)+total;totalFijos+=total;}
-      else if(cat==='Variable'){const g=NOMBRE_A_RUBRO_VAR[nom]||nom;rv[g]=(rv[g]||0)+total;totalVars+=total;}
+      else if(cat==='Variable'){const g=NOMBRE_A_RUBRO_VAR[nom]||'Generales';rv[g]=(rv[g]||0)+total;totalVars+=total;}
     });
   });
   return{rf,rs,rv,totalFijos,totalSemifijos,totalVars};
