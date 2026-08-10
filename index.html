@@ -1386,7 +1386,6 @@ function renderAnalisis(){
   const tR=AREAS.reduce((s,a)=>s+(agg[a]?.resultado||0),0);
   const margen=tI?tR/tI*100:0;
   const ratioFijos=tI?(fv.fijos/tI*100):0;
-  const ratioSemifijos=tI?(fv.semifijos/tI*100):0;
   const suelTot=(()=>{
     const isCons2=mes==='__consolidado__';
     const meses2=isCons2?ST.meses:[mes];
@@ -1509,10 +1508,9 @@ function renderAnalisis(){
   const coberturaFijos=fv.fijos>0?+(tI/fv.fijos).toFixed(2):0;
   const eficiencia=tI-tR>0?+(tR/(tI-tR)*100).toFixed(1):0;
   return`<div class="sec-hd"><div class="sec-title">Análisis Neix</div><div class="sec-sub">${label} · USD</div></div>
-  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
     <div class="kc"><div class="kl">MARGEN NETO</div><div class="kv ${sgn(margen)}">${margen.toFixed(1)}%</div><div class="kh">Resultado / Facturación</div></div>
     <div class="kc"><div class="kl">COSTOS FIJOS / FACT.</div><div class="kv">${ratioFijos.toFixed(1)}%</div><div class="kh">Fijos sobre ingresos</div></div>
-    <div class="kc"><div class="kl">COSTOS SEMI-FIJOS / FACT.</div><div class="kv">${ratioSemifijos.toFixed(1)}%</div><div class="kh">Semi-fijos sobre ingresos</div></div>
     <div class="kc"><div class="kl">SUELDOS / FACT.</div><div class="kv">${ratioSueldos.toFixed(1)}%</div><div class="kh">Sueldos y CS sobre ingresos</div></div>
   </div>
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:28px">
