@@ -280,7 +280,7 @@ const GASTOS_FIJOS_DETALLE_GID='548055577';
 const MATRIZ_GID='44234235';
 const MATRIZ_COLS=['Mesa','Middle Office + Mza','Banca Corporativa','Banca Privada'];
 const MATRIZ_ROWS1=['Neix','Back Office','RRHH','IT','Administración','MKTG','Performance'];
-const MATRIZ_ROWS2=['Gastos Caja de Valores','Gastos Corresp. Ext. u$s','Servicios Contratados Back','Impuestos','IVA no computable','Página Web/Publicidad/Merchandising','Serv Contratados BC (Marina Muller)'];
+const MATRIZ_ROWS2=['Gastos Caja de Valores','Gastos Corresp. Ext. u$s','Servicios Contratados Back','Impuestos','IVA no computable','Página Web/Publicidad/Merchandising','Serv Contratados BC (Marina Muller)','Gtos trad','Ingresos/egresos varios'];
 const AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
 const AREA_COLOR={'Mesa':'#003F61','FAs':'#9A8E7D','Banca Corporativa':'#AB1930','Banca Privada':'#004836'};
 
@@ -1109,6 +1109,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
   let sectionVisible=!tipoFilter;
   let currentSecId=null;
+  let currentSecTipo=null;
   let currentSubId=null;
 
   finalRows.forEach(row=>{
@@ -1119,6 +1120,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       sectionVisible=!tipoFilter||row._tipo===tipoFilter;
       if(!sectionVisible)return;
       currentSecId='sec-'+row._seclabel.replace(/[^a-zA-Z0-9]/g,'');
+      currentSecTipo=row._tipo;
       currentSubId=null;
       if(searchMode)return;
       const sVals=showAreas.map(a=>getAreaVal(row,a));
@@ -1193,8 +1195,10 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const tot=vals.reduce((s,v)=>s+v,0);
     const secClass=currentSecId?`sec-child-${currentSecId}`:'';
     const subClass=currentSubId?`sub-child-${currentSubId}`:'';
-    // Visibilidad: oculto por defecto, visible si la sección está expandida
-    const secExpanded=!currentSecId||ST.expandedSecs.has(currentSecId);
+    // Visibilidad: oculto por defecto, visible si la sección está expandida.
+    // La sección de Facturación (ing) no tiene toggle propio — sus cuentas
+    // (ej. Ingresos Varios) se muestran siempre, sin necesidad de expandir.
+    const secExpanded=!currentSecId||currentSecTipo==='ing'||ST.expandedSecs.has(currentSecId);
     const subExpanded=!currentSubId||ST.expandedSubs.has(currentSubId);
     const parentVisible=searchMode||(secExpanded&&subExpanded);
     const hiddenStyle=parentVisible?'':' style="display:none"';
