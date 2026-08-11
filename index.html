@@ -1707,7 +1707,8 @@ function renderMatriz(){
 
 function buildMatrizTable(title,rowNames,tableKey){
   const data=ST.matrizData;
-  const colsHdr=[...MATRIZ_COLS,'TOTAL'];
+  const cols=ST.matrizCols||MATRIZ_COLS;
+  const colsHdr=[...cols,'TOTAL'];
   function findRow(name){
     if(!data)return null;
     return data.find(r=>{
@@ -1717,11 +1718,9 @@ function buildMatrizTable(title,rowNames,tableKey){
   }
   function renderRow(name,indent=false){
     const row=findRow(name);
-    const vals=MATRIZ_COLS.map(col=>{
+    const vals=cols.map(col=>{
       if(!row)return 0;
-      const key=Object.keys(row).find(k=>k.trim().toLowerCase()===col.toLowerCase())||
-                Object.keys(row).find(k=>k.toLowerCase().includes(col.split(' ')[0].toLowerCase()));
-      return key?parsePct(row[key]):0;
+      return parsePct(row[col]);
     });
     const tot=vals.reduce((s,v)=>s+v,0);
     const labelStyle=indent?'padding-left:20px;font-size:11px;color:var(--muted)':'font-weight:500';
@@ -2049,7 +2048,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{}};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{}};
 
 // Se carga recién al entrar a Análisis de Costos (no en el load inicial)
 // para no sumar un fetch más al arranque del dashboard.
@@ -3017,8 +3016,9 @@ async function loadData(){
     // Process matriz
     const matrizResult=results[SHEETS.length];
     if(matrizResult.status==='fulfilled'&&matrizResult.value){
-      const{rows}=parseCSV(matrizResult.value);
+      const{rows,headers}=parseCSV(matrizResult.value);
       ST.matrizData=rows;
+      ST.matrizCols=headers.filter(h=>h!==''&&!/^total$/i.test(h));
     }else{
       ST.matrizError='No se pudo cargar la hoja Matriz de gastos';
     }
