@@ -2209,6 +2209,7 @@ function rebuildAnalisisCapN(){
       </tr></thead><tbody>
       ${[
         {label:'Ingresos',vals:ingMes,tot:capnIng,fmt:v=>fmtD(v),color:()=>''},
+        {label:'Egresos',vals:gasMes,tot:capnGastos,fmt:v=>fmtD(v),color:()=>''},
         {label:'Resultado',vals:resMes,tot:capnRes,fmt:v=>fmtD(v),color:v=>v>=0?'color:var(--verde)':'color:var(--bordeaux)'},
         {label:'Margen',vals:margMes,tot:margen.toFixed(1)+'%',fmt:v=>v+'%',color:v=>v>=0?'color:var(--verde)':'color:var(--bordeaux)'},
       ].map(row=>`<tr style="border-bottom:1px solid var(--border)">
