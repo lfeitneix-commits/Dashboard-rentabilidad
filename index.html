@@ -1119,7 +1119,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td>${r._nom}</td>
         ${vals.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
         <td class="r" style="border-left:1px solid var(--border)">${fmtD(tot)}</td>
-        ${notesCol?'<td></td>':''}
+        ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
       </tr>`;
     }
     let trStyle,labelStyle,valStyle;
@@ -1141,7 +1141,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       <td style="${labelStyle}">${label}</td>
       ${vals.map(v=>`<td class="r" style="${valStyle(v)}">${fmtD(v)}</td>`).join('')}
       <td class="r" style="${valStyle(tot)};border-left:1px solid var(--border)">${fmtD(tot)}</td>
-      ${notesCol?'<td></td>':''}
+      ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
     </tr>`;
   }
 
