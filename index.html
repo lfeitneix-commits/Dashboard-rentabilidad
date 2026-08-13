@@ -1107,16 +1107,62 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       ${notesCol?`<th style="min-width:80px;max-width:120px">Notas</th>`:''}
     </tr></thead><tbody>`;
 
+  // Fila de pie (resultado / impuestos / gastos totales) — nombre y
+  // valores vienen tal cual del sheet.
+  function renderFooterRow(r,style){
+    const vals=showAreas.map(a=>getAreaVal(r,a));
+    const tot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(r,a):s,0);
+    const label=r._nom||'';
+    if(style==='section'){
+      return`<tr class="row-section">
+        ${showNumCol?'<td></td>':''}
+        <td>${r._nom}</td>
+        ${vals.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
+        <td class="r" style="border-left:1px solid var(--border)">${fmtD(tot)}</td>
+        ${notesCol?'<td></td>':''}
+      </tr>`;
+    }
+    let trStyle,labelStyle,valStyle;
+    if(style==='verde'){
+      trStyle='background:rgba(0,72,54,.05);border-top:2px solid rgba(0,72,54,.15)';
+      labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde)';
+      valStyle=(v)=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:${v>=0?'var(--verde)':'var(--bordeaux)'}`;
+    } else if(style==='verde-dark'){
+      trStyle='background:rgba(0,72,54,.09);border-top:2px solid rgba(0,72,54,.25)';
+      labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde)';
+      valStyle=(v)=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:${v>=0?'var(--verde)':'var(--bordeaux)'}`;
+    } else {
+      trStyle='background:rgba(171,25,48,.06);border-top:1px solid rgba(171,25,48,.2)';
+      labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--bordeaux)';
+      valStyle=()=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:var(--bordeaux)`;
+    }
+    return`<tr style="${trStyle}">
+      ${showNumCol?'<td></td>':''}
+      <td style="${labelStyle}">${label}</td>
+      ${vals.map(v=>`<td class="r" style="${valStyle(v)}">${fmtD(v)}</td>`).join('')}
+      <td class="r" style="${valStyle(tot)};border-left:1px solid var(--border)">${fmtD(tot)}</td>
+      ${notesCol?'<td></td>':''}
+    </tr>`;
+  }
+
   let sectionVisible=!tipoFilter;
   let currentSecId=null;
   let currentSecTipo=null;
   let currentSubId=null;
+  let insertedGastosTotales=false;
 
   finalRows.forEach(row=>{
     if(!row||row._kind==='skip')return;
 
     // ── MAIN SECTION ──
     if(row._kind==='section'){
+      // GASTOS TOTALES se muestra apenas termina Facturación (debajo de
+      // Ingresos Varios), no al pie del todo — así queda a la vista sin
+      // tener que scrollear hasta el final del EERR.
+      if(!tipoFilter&&!q&&currentSecTipo==='ing'&&row._tipo!=='ing'&&d.gastosTotalesRow&&!insertedGastosTotales){
+        html+=renderFooterRow(d.gastosTotalesRow,'bordeaux');
+        insertedGastosTotales=true;
+      }
       sectionVisible=!tipoFilter||row._tipo===tipoFilter;
       if(!sectionVisible)return;
       currentSecId='sec-'+row._seclabel.replace(/[^a-zA-Z0-9]/g,'');
@@ -1236,49 +1282,17 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   });
 
   // ── FILAS DEL PIE: nombres y valores vienen del sheet ──
+  // (GASTOS TOTALES no va acá — se inserta debajo de Facturación, ver arriba)
   if(!tipoFilter&&!q){
-    // Orden: subtotal directos → resultado antes → impuestos → resultado después
+    // Orden: resultado antes → impuestos → resultado después
     const footerRows=[
       {row:d.resAntesRow,   style:'verde'},
       {row:d.impuestosRow,  style:'section'},
       {row:d.resDespuesRow, style:'verde-dark'},
-      {row:d.gastosTotalesRow, style:'bordeaux'},
     ];
     footerRows.forEach(({row:r,style})=>{
       if(!r) return;
-      const vals=showAreas.map(a=>getAreaVal(r,a));
-      const tot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(r,a):s,0);
-      const label=r._nom||'';
-      let trStyle,labelStyle,valStyle;
-      if(style==='section'){
-        html+=`<tr class="row-section">
-          ${showNumCol?'<td></td>':''}
-          <td>${r._nom}</td>
-          ${vals.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
-          <td class="r" style="border-left:1px solid var(--border)">${fmtD(tot)}</td>
-          ${notesCol?'<td></td>':''}
-        </tr>`;
-        return;
-      } else if(style==='verde'){
-        trStyle='background:rgba(0,72,54,.05);border-top:2px solid rgba(0,72,54,.15)';
-        labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde)';
-        valStyle=(v)=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:${v>=0?'var(--verde)':'var(--bordeaux)'}`;
-      } else if(style==='verde-dark'){
-        trStyle='background:rgba(0,72,54,.09);border-top:2px solid rgba(0,72,54,.25)';
-        labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde)';
-        valStyle=(v)=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:${v>=0?'var(--verde)':'var(--bordeaux)'}`;
-      } else {
-        trStyle='background:rgba(171,25,48,.06);border-top:1px solid rgba(171,25,48,.2)';
-        labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--bordeaux)';
-        valStyle=()=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:var(--bordeaux)`;
-      }
-      html+=`<tr style="${trStyle}">
-        ${showNumCol?'<td></td>':''}
-        <td style="${labelStyle}">${label}</td>
-        ${vals.map(v=>`<td class="r" style="${valStyle(v)}">${fmtD(v)}</td>`).join('')}
-        <td class="r" style="${valStyle(tot)};border-left:1px solid var(--border)">${fmtD(tot)}</td>
-        ${notesCol?'<td></td>':''}
-      </tr>`;
+      html+=renderFooterRow(r,style);
     });
   }
 
