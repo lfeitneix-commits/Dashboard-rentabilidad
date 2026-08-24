@@ -894,7 +894,7 @@ function renderResumenContent(agg,label,isConsolidado,mes){
     ${kpiGrid(agg,getCapNAgg(capnMes))}
     <div class="g2">
       <div class="cc"><div class="cc-t">Ingresos · Egresos · Resultado</div><div class="cc-s">por área</div><div style="height:250px"><canvas id="ch-g"></canvas></div></div>
-      <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos · Semi-fijos · Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
+      <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos · Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
     </div>
     ${isConsolidado?`<div class="cc" style="margin-bottom:18px"><div class="cc-t">Evolución mensual de ingresos</div><div class="cc-s">stacked por área</div><div style="height:240px"><canvas id="ch-st"></canvas></div></div>`:''}
     ${areaTable(agg,getCapNAgg(capnMes))}`;
@@ -1859,13 +1859,13 @@ function drawCharts(tab){
     } else {
       const d=ST.mesData[mesCons];if(d){mkGrouped('ch-g',AREAS,d.agg);}
     }
-    // Torta fijos vs semifijos vs variables
+    // Torta fijos vs variables
     const fv=calcFijosVariables(mesCons);
     dc('ch-cost');const ctxFV=document.getElementById('ch-cost');
-    if(ctxFV&&(fv.fijos||fv.semifijos||fv.variables)){
-      const total=fv.fijos+fv.semifijos+fv.variables;
+    if(ctxFV&&(fv.fijos||fv.variables)){
+      const total=fv.fijos+fv.variables;
       rc('ch-cost',new Chart(ctxFV,{type:'doughnut',
-        data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[{data:[fv.fijos,fv.semifijos,fv.variables],backgroundColor:['#003F61','#476785','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
+        data:{labels:['Fijos','Variables'],datasets:[{data:[fv.fijos,fv.variables],backgroundColor:['#003F61','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
         options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:16,usePointStyle:true}},
             tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw)} (${(c.raw/total*100).toFixed(1)}%)`}}}}}));
