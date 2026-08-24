@@ -1774,6 +1774,10 @@ function buildMatrizTable(title,rowNames,tableKey){
       return parsePct(row[col]);
     });
     const tot=vals.reduce((s,v)=>s+v,0);
+    // Si la fila reparte el 100% entre varias áreas, redondear cada celda por
+    // separado puede dejar el total en 99% (ej. 33+33+33). Si está cerca de
+    // 100, mostrar 100% en vez de un "99%" que parece un error de reparto.
+    const totDisplay=tot>0&&Math.abs(tot-100)<=2?100:tot;
     const labelStyle=indent?'padding-left:20px;font-size:11px;color:var(--muted)':'font-weight:500';
     return`<tr>
       <td style="${labelStyle}">${indent?'↳ ':''} ${name}</td>
@@ -1781,7 +1785,7 @@ function buildMatrizTable(title,rowNames,tableKey){
         const cls=v===0?'ze':v>=25?'hi':'lo';
         return`<td class="pct-cell ${cls}">${v?v.toFixed(0)+'%':'—'}</td>`;
       }).join('')}
-      <td class="pct-cell total-col">${tot?tot.toFixed(0)+'%':'—'}</td>
+      <td class="pct-cell total-col">${totDisplay?totDisplay.toFixed(0)+'%':'—'}</td>
     </tr>`;
   }
 
