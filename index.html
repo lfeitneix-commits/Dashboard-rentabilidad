@@ -897,7 +897,28 @@ function renderResumenContent(agg,label,isConsolidado,mes){
       <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos · Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
     </div>
     ${isConsolidado?`<div class="cc" style="margin-bottom:18px"><div class="cc-t">Evolución mensual de ingresos</div><div class="cc-s">stacked por área</div><div style="height:240px"><canvas id="ch-st"></canvas></div></div>`:''}
-    ${areaTable(agg,getCapNAgg(capnMes))}`;
+    ${areaTable(agg,getCapNAgg(capnMes))}
+    ${aclaracionesResumen()}`;
+}
+
+function aclaracionesResumen(){
+  const items=[
+    'Resultado incluye, dentro del resultado de la mesa, el de las cuentas comitentes relacionadas.',
+    'Resultado incluye el resultado de las Traders.',
+    'Resultado de Neix no incluye el resultado de Cap N — está segregado.',
+    'Los ingresos se obtienen del Dashboard Gerencial, con ingresos reales en USD MEP.',
+    'Los costos se obtienen de la contabilidad, conciliándolos con la caja real que utiliza Administración.',
+    'El resultado, dentro de los costos, ya tiene consideradas las provisiones de gastos de gratificaciones de diciembre 2025, que se pagaron en enero 2026.',
+    'El resultado no es la caja en Neix, ya que además de las gratificaciones de diciembre 2025 pagadas en 2026, el saldo de las cuentas comitentes y las Traders están en cada cuenta respectiva, aunque el informe refleja el resultado.',
+  ];
+  return`<div class="tc" style="margin-top:4px">
+    <div class="tc-hd">Aclaraciones</div>
+    <div style="padding:14px 20px">
+      <ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted);line-height:1.5">
+        ${items.map(t=>`<li>${t}</li>`).join('')}
+      </ol>
+    </div>
+  </div>`;
 }
 
 function toggleConsolidado(btn){
