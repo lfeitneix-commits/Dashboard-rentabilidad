@@ -1420,7 +1420,7 @@ function renderAnalisis(){
   const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
   const label=ST.consolidado?'Consolidado':mes;
   const fv=calcFijosVariables(mes);
-  const {rf,rs,rv}=calcRubros(mes);
+  const {rf,rv}=calcRubros(mes);
   const isCons=mes==='__consolidado__';
 
   // KPIs
@@ -1536,10 +1536,10 @@ function renderAnalisis(){
   // Gráficos
   const chartsHtml=`
   <div class="chart-grid">
-    <div class="cc"><div class="cc-t">Fijos · Semi-fijos · Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
+    <div class="cc"><div class="cc-t">Fijos · Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
     <div class="cc"><div class="cc-t">Directos vs. Indirectos</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an8"></canvas></div></div>
     <div class="cc wide"><div class="cc-t">Ingresos vs. Costos</div><div class="cc-s">${isCons?'Evolución mensual':'Por área · '+label}</div><div style="height:280px"><canvas id="ch-an2"></canvas></div></div>
-    <div class="cc wide"><div class="cc-t">Desglose por rubros</div><div class="cc-s">Fijos, semi-fijos y variables · ${label}</div><div style="height:280px"><canvas id="ch-an3"></canvas></div></div>
+    <div class="cc wide"><div class="cc-t">Desglose por rubros</div><div class="cc-s">Fijos y variables · ${label}</div><div style="height:280px"><canvas id="ch-an3"></canvas></div></div>
     <div class="cc"><div class="cc-t">Facturación bruta</div><div class="cc-s">Por área · ${label}</div><div style="height:280px"><canvas id="ch-an4"></canvas></div></div>
     <div class="cc"><div class="cc-t">Facturación neta</div><div class="cc-s">Bruta − Comisiones FAs · ${label}</div><div style="height:280px"><canvas id="ch-an5"></canvas></div></div>
     ${isCons?`<div class="cc wide"><div class="cc-t">Evolución de margen neto y costos fijos / facturación</div><div class="cc-s"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px"><span style="display:inline-block;width:16px;height:2px;background:#003F61;vertical-align:middle"></span>Margen neto %</span><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:rgba(171,25,48,.7);border-top:2px dashed rgba(171,25,48,.7);vertical-align:middle"></span>CF / Facturación %</span></div><div style="height:280px"><canvas id="ch-an6"></canvas></div></div>`:''}
@@ -1876,7 +1876,7 @@ function drawCharts(tab){
     // ── ANALISIS CHARTS ──
     const mesCons2=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
     const fv2=calcFijosVariables(mesCons2);
-    const {rf,rs,rv}=calcRubros(mesCons2);
+    const {rf,rv}=calcRubros(mesCons2);
     const isCons2=mesCons2==='__consolidado__';
     const agg2b=isCons2?getAgg():(ST.mesData[mesCons2]?.agg||{});
     const tI2=AREAS.reduce((s,a)=>s+(agg2b[a]?.ingresos||0),0);
@@ -1941,16 +1941,13 @@ function drawCharts(tab){
     dc('ch-an3');const an3=document.getElementById('ch-an3');
     if(an3){
       const COLS_F=['rgba(0,63,97,.85)','rgba(0,63,97,.62)','rgba(0,63,97,.40)','rgba(0,63,97,.20)'];
-      const COLS_S=['rgba(71,103,133,.9)','rgba(71,103,133,.68)','rgba(71,103,133,.46)','rgba(71,103,133,.24)'];
       const COLS_V=['rgba(171,25,48,.85)','rgba(171,25,48,.62)','rgba(171,25,48,.40)','rgba(171,25,48,.20)'];
       const rbF=Object.keys(RUBROS_FIJOS);
-      const rbS=Object.keys(rs);
       const rbV=Object.keys(RUBROS_VARIABLES);
       rc('ch-an3',new Chart(an3,{type:'bar',
-        data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[
-          ...rbF.map((r,i)=>({label:r,data:[rf[r]||0,0,0],backgroundColor:COLS_F[i],borderRadius:2,stack:'s'})),
-          ...rbS.map((r,i)=>({label:r,data:[0,rs[r]||0,0],backgroundColor:COLS_S[i],borderRadius:2,stack:'s'})),
-          ...rbV.map((r,i)=>({label:r,data:[0,0,rv[r]||0],backgroundColor:COLS_V[i],borderRadius:2,stack:'s'})),
+        data:{labels:['Fijos','Variables'],datasets:[
+          ...rbF.map((r,i)=>({label:r,data:[rf[r]||0,0],backgroundColor:COLS_F[i],borderRadius:2,stack:'s'})),
+          ...rbV.map((r,i)=>({label:r,data:[0,rv[r]||0],backgroundColor:COLS_V[i],borderRadius:2,stack:'s'})),
         ]},
         options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:10},padding:8,usePointStyle:true,boxWidth:10}},
@@ -2025,12 +2022,12 @@ function drawCharts(tab){
           scales:{x:{grid:{display:false}},y:{grid:{color:'#E8E6E3'},ticks:{callback:v=>$c(v,true),font:{family:'DM Mono',size:10}}}}}}));
     }
 
-    // ch-an7: Torta fijos vs semifijos vs variables
+    // ch-an7: Torta fijos vs variables
     dc('ch-an7');const an7=document.getElementById('ch-an7');
     if(an7){
-      const total7=fv2.fijos+fv2.semifijos+fv2.variables;
+      const total7=fv2.fijos+fv2.variables;
       rc('ch-an7',new Chart(an7,{type:'doughnut',
-        data:{labels:['Fijos','Semi-fijos','Variables'],datasets:[{data:[fv2.fijos,fv2.semifijos,fv2.variables],backgroundColor:['#003F61','#476785','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
+        data:{labels:['Fijos','Variables'],datasets:[{data:[fv2.fijos,fv2.variables],backgroundColor:['#003F61','#9A8E7D'],borderWidth:0,hoverOffset:4}]},
         options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:14,usePointStyle:true}},
             tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw)} (${total7?(c.raw/total7*100).toFixed(1):0}%)`}}}}}));
