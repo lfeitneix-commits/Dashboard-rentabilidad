@@ -2274,14 +2274,14 @@ function rebuildAnalisisCapN(){
         <th style="text-align:right;padding:8px 12px;font-size:11px;color:var(--muted)"><strong>Total</strong></th>
       </tr></thead><tbody>
       ${[
-        {label:'Ingresos',vals:ingMes,tot:capnIng,fmt:v=>fmtD(v),color:()=>''},
-        {label:'Egresos',vals:gasMes,tot:capnGastos,fmt:v=>fmtD(v),color:()=>''},
-        {label:'Resultado',vals:resMes,tot:capnRes,fmt:v=>fmtD(v),color:v=>v>=0?'color:var(--verde)':'color:var(--bordeaux)'},
-        {label:'Margen',vals:margMes,tot:margen.toFixed(1)+'%',fmt:v=>v+'%',color:v=>v>=0?'color:var(--verde)':'color:var(--bordeaux)'},
+        {label:'Ingresos',vals:ingMes,tot:capnIng,fmt:v=>fmtD(v),totFmt:fmtD,color:()=>''},
+        {label:'Egresos',vals:gasMes,tot:capnGastos,fmt:v=>fmtD(v),totFmt:fmtD,color:()=>''},
+        {label:'Resultado',vals:resMes,tot:capnRes,fmt:v=>fmtD(v),totFmt:fmtD,color:v=>v>=0?'color:var(--verde)':'color:var(--bordeaux)'},
+        {label:'Margen',vals:margMes,tot:margen.toFixed(1)+'%',fmt:v=>v+'%',totFmt:v=>v,color:v=>v>=0?'color:var(--verde)':'color:var(--bordeaux)'},
       ].map(row=>`<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:8px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${row.label}</td>
         ${row.vals.map((v,i)=>`<td style="text-align:right;padding:8px 12px;font-family:'DM Mono',monospace;${row.color(v)}">${row.fmt(v)}</td>`).join('')}
-        <td style="text-align:right;padding:8px 12px;font-family:'DM Mono',monospace;font-weight:700;${row.color(typeof row.tot==='number'?row.tot:parseFloat(row.tot))}">${row.tot}</td>
+        <td style="text-align:right;padding:8px 12px;font-family:'DM Mono',monospace;font-weight:700;${row.color(typeof row.tot==='number'?row.tot:parseFloat(row.tot))}">${row.totFmt(row.tot)}</td>
       </tr>`).join('')}
       </tbody>
     </table>
