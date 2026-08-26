@@ -210,6 +210,15 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 </style>
 </head>
 <body>
+<div id="auth-gate" style="position:fixed;inset:0;z-index:1000;background:var(--grafito);display:flex;align-items:center;justify-content:center;padding:20px">
+  <form id="auth-form" style="background:var(--surface);border-radius:12px;padding:32px 30px;width:100%;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <div style="font-size:16px;font-weight:600;color:var(--grafito);margin-bottom:4px">Dashboard de Rentabilidad</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:20px">Ingresá la contraseña para continuar</div>
+    <input id="auth-pass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;margin-bottom:10px"/>
+    <div id="auth-err" style="display:none;color:var(--bordeaux);font-size:12px;margin-bottom:10px">Contraseña incorrecta.</div>
+    <button type="submit" style="width:100%;padding:10px;background:var(--bordeaux);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif">Ingresar</button>
+  </form>
+</div>
 <div class="app" id="app">
 
 <nav class="sidebar" id="sidebar">
@@ -3161,7 +3170,25 @@ async function loadData(){
 
 document.querySelectorAll('.nav-item').forEach(el=>el.addEventListener('click',()=>switchTab(el.dataset.tab)));
 document.getElementById('refresh-btn').addEventListener('click',loadData);
-document.addEventListener('DOMContentLoaded',loadData);
+
+// ── Contraseña de acceso ──────────────────────────────────────────
+// Solo tapa la pantalla del dashboard: la hoja de Google sigue publicada
+// como CSV público, así que esto no es una protección real de los datos.
+const DASH_PASSWORD='costos.nx2026';
+document.getElementById('auth-form').addEventListener('submit',e=>{
+  e.preventDefault();
+  const input=document.getElementById('auth-pass');
+  const err=document.getElementById('auth-err');
+  if(input.value===DASH_PASSWORD){
+    document.getElementById('auth-gate').remove();
+    loadData();
+  } else {
+    err.style.display='block';
+    input.value='';
+    input.focus();
+  }
+});
+document.getElementById('auth-pass').focus();
 </script>
 </body>
 </html>
