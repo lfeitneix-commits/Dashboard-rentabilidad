@@ -633,14 +633,20 @@ function annotateRows(rows,nameCol,numCol,notesCol){
   const usedAsChild=new Set();
 
   Object.entries(PARENT_CHILDREN).forEach(([parentName,childNames])=>{
+    const parentSlug='p-'+parentName.replace(/[^a-zA-Z0-9]/g,'');
     const parentIdxs=[];
     tagged.forEach((r,i)=>{if(r._nom&&r._nom.trim()===parentName.trim()) parentIdxs.push(i);});
 
-    parentIdxs.forEach(pi=>{
+    parentIdxs.forEach((pi,occ)=>{
       const parent=tagged[pi];
       if(!parent||parent._child) return;
       parent._parent=true;
-      parent._parentId='p-'+pi;
+      // ID estable por nombre (no por posición): si la hoja de algún mes
+      // tiene una fila de más o de menos, el índice se corre y un ID
+      // basado en posición terminaría abriendo/cerrando la cuenta
+      // equivocada al cambiar de mes. Si hay más de una fila con el
+      // mismo nombre (caso raro), se numera para no colisionar.
+      parent._parentId=occ?`${parentSlug}-${occ}`:parentSlug;
 
       let sectionLimit=tagged.length;
       for(let k=pi+1;k<tagged.length;k++){
@@ -653,7 +659,7 @@ function annotateRows(rows,nameCol,numCol,notesCol){
           if(!ch._nom) continue;
           if(ch._nom.trim()===chName.trim()&&!usedAsChild.has(ci)){
             ch._child=true;
-            ch._parentId='p-'+pi;
+            ch._parentId=parent._parentId;
             ch._kind='subaccount';
             usedAsChild.add(ci);
             break;
