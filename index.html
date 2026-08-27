@@ -1192,20 +1192,12 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   let currentSecId=null;
   let currentSecTipo=null;
   let currentSubId=null;
-  let insertedGastosTotales=false;
 
   finalRows.forEach(row=>{
     if(!row||row._kind==='skip')return;
 
     // ── MAIN SECTION ──
     if(row._kind==='section'){
-      // GASTOS TOTALES se muestra apenas termina Facturación (debajo de
-      // Ingresos Varios), no al pie del todo — así queda a la vista sin
-      // tener que scrollear hasta el final del EERR.
-      if(!tipoFilter&&!q&&currentSecTipo==='ing'&&row._tipo!=='ing'&&d.gastosTotalesRow&&!insertedGastosTotales){
-        html+=renderFooterRow(d.gastosTotalesRow,'bordeaux');
-        insertedGastosTotales=true;
-      }
       sectionVisible=!tipoFilter||row._tipo===tipoFilter;
       if(!sectionVisible)return;
       currentSecId='sec-'+row._seclabel.replace(/[^a-zA-Z0-9]/g,'');
@@ -1318,10 +1310,10 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   });
 
   // ── FILAS DEL PIE: nombres y valores vienen del sheet ──
-  // (GASTOS TOTALES no va acá — se inserta debajo de Facturación, ver arriba)
   if(!tipoFilter&&!q){
-    // Orden: resultado antes → impuestos → resultado después
+    // Orden: gastos totales (cierra Directos+Indirectos) → resultado antes → impuestos → resultado después
     const footerRows=[
+      {row:d.gastosTotalesRow,style:'bordeaux'},
       {row:d.resAntesRow,   style:'verde'},
       {row:d.impuestosRow,  style:'section'},
       {row:d.resDespuesRow, style:'verde-dark'},
