@@ -1415,6 +1415,7 @@ function calcRubros(mes){
   new Set(Array.from(GASTOS_SEMIFIJOS).map(semifijoGrupoNombre)).forEach(n=>rs[n]=0);
   const rv={Comercial:0,Honorarios:0,Generales:0,'Intereses e Impuestos':0};
   let totalFijos=0,totalSemifijos=0,totalVars=0;
+  const sinClasificarSet=new Set();
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
     md.rows.forEach(row=>{
@@ -1429,9 +1430,10 @@ function calcRubros(mes){
       if(cat==='Semi-fijo'){const g=semifijoGrupoNombre(nom);rs[g]=(rs[g]||0)+total;totalSemifijos+=total;}
       else if(cat==='Fijo'){const g=NOMBRE_A_RUBRO_FIJO[nom]||nom;rf[g]=(rf[g]||0)+total;totalFijos+=total;}
       else if(cat==='Variable'){const g=NOMBRE_A_RUBRO_VAR[nom]||'Generales';rv[g]=(rv[g]||0)+total;totalVars+=total;}
+      else sinClasificarSet.add(nom);
     });
   });
-  return{rf,rs,rv,totalFijos,totalSemifijos,totalVars};
+  return{rf,rs,rv,totalFijos,totalSemifijos,totalVars,sinClasificar:[...sinClasificarSet]};
 }
 
 // Desglose para "Estructura de gastos por mes": Comisiones Productores e
@@ -1614,6 +1616,21 @@ function renderIndicadores(){return renderAnalisis();}
 
 const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7D'};
 
+// Aviso: cuentas con plata que no tienen categoría (ni en la hoja
+// "Clasificación de gastos" ni en las listas de respaldo del código) y
+// por eso quedan afuera de Fijos/Variables sin ningún aviso. Se chequea
+// contra todos los meses cargados, sin importar cuál se esté viendo.
+function avisoCuentasSinClasificar(){
+  const {sinClasificar}=calcRubros('__consolidado__');
+  if(!sinClasificar.length) return '';
+  return `<div class="tc" style="margin-bottom:20px;border-color:rgba(171,25,48,.4)">
+    <div style="padding:12px 16px;font-size:12px;color:var(--bordeaux);display:flex;gap:8px;align-items:flex-start">
+      <span style="flex-shrink:0">⚠</span>
+      <span><strong>${sinClasificar.length} cuenta${sinClasificar.length>1?'s':''} sin clasificar</strong> — no ${sinClasificar.length>1?'están':'está'} en "Clasificación de gastos" ni en el respaldo del código, así que no se suman a Fijos ni a Variables en ningún gráfico o KPI: <strong>${sinClasificar.join(', ')}</strong>. Agregalas a esa hoja con su categoría (Fijo/Semi-fijo/Variable) para que se sumen bien.</span>
+    </div>
+  </div>`;
+}
+
 function renderCostos(){
   document.getElementById('topbar-title').textContent='Centro de costos';
   loadGastosFijosDetalleLazy();
@@ -1635,6 +1652,7 @@ function renderCostos(){
   </div>`;
 
   return`<div class="sec-hd"><div class="sec-title">Análisis de Costos</div><div class="sec-sub">${label} · USD</div></div>
+  ${avisoCuentasSinClasificar()}
   <div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:20px">
     <div class="cc"><div class="cc-t">Estructura de gastos por mes</div><div class="cc-s">Fijos · Comisiones Productores · Variables · Impuestos</div><div style="height:280px"><canvas id="ch-cf4"></canvas></div></div>
   </div>
