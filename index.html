@@ -1236,19 +1236,11 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       return;
     }
 
-    // ── SUBTOTAL DIRECTOS — inline entre secciones ──
+    // ── SUBTOTAL DIRECTOS — inline entre secciones, mismo estilo que las
+    // filas de Resultado (línea superior + verde/bordeaux según signo) ──
     if(row._kind==='subtotal_dir'){
       if(!tipoFilter&&!q){
-        const sVals=showAreas.map(a=>getAreaVal(row,a));
-        const sTot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(row,a):s,0);
-        const negStyle=v=>v<0?'color:var(--bordeaux)!important':'';
-        html+=`<tr class="row-section row-section-fact">
-          ${showNumCol?'<td></td>':''}
-          <td style="font-weight:700">RESULTADO SUBTOTAL DIRECTOS</td>
-          ${sVals.map(v=>`<td class="r" style="${negStyle(v)}">${v?fmtD(v):'—'}</td>`).join('')}
-          <td class="r" style="${negStyle(sTot)}">${sTot?fmtD(sTot):'—'}</td>
-          ${notesCol?'<td></td>':''}
-        </tr>`;
+        html+=renderFooterRow({...row,_nom:'RESULTADO SUBTOTAL DIRECTOS'},'verde');
       }
       return;
     }
