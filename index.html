@@ -916,14 +916,17 @@ function renderPorMes(){
 
 function renderResumenContent(agg,label,isConsolidado,mes){
   const capnMes=isConsolidado?'__consolidado__':(mes||ST.currentMes||ST.meses[0]);
+  // Un líder de área no debería ver la comparación contra Cap N salvo
+  // que su área sea Banca Privada (que es contra la que se compara).
+  const capnParaEsteRol=(ST.role==='lideres'&&ST.area!=='Banca Privada')?null:getCapNAgg(capnMes);
   return`<div class="sec-hd"><div class="sec-title">${label}</div><div class="sec-sub">Facturación y gastos por área · USD</div></div>
-    ${kpiGrid(agg,getCapNAgg(capnMes))}
+    ${kpiGrid(agg,capnParaEsteRol)}
     <div class="g2">
       <div class="cc"><div class="cc-t">Ingresos · Egresos · Resultado</div><div class="cc-s">por área</div><div style="height:250px"><canvas id="ch-g"></canvas></div></div>
       <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos · Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
     </div>
     ${isConsolidado?`<div class="cc" style="margin-bottom:18px"><div class="cc-t">Evolución mensual de ingresos</div><div class="cc-s">stacked por área</div><div style="height:240px"><canvas id="ch-st"></canvas></div></div>`:''}
-    ${areaTable(agg,getCapNAgg(capnMes))}
+    ${areaTable(agg,capnParaEsteRol)}
     ${aclaracionesResumen()}`;
 }
 
@@ -2143,14 +2146,11 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full'};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
-// Pestañas visibles por rol. 'full' ve todo (no se filtra). 'lideres'
-// solo ve Resumen, EERR Neix y EERR Capital N.
-const TABS_POR_ROL={lideres:['por-mes','detalle','capn']};
-function aplicarRestriccionesDeRol(){
-  const permitidas=TABS_POR_ROL[ST.role];
-  if(!permitidas) return; // rol 'full': no se oculta nada
+// Oculta del menú lateral las pestañas que no estén en `permitidas`.
+// El rol 'full' nunca llama a esto (ve todo, sin filtrar).
+function aplicarRestriccionesDeRol(permitidas){
   document.querySelectorAll('.nav-item[data-tab]').forEach(el=>{
     if(!permitidas.includes(el.dataset.tab)) el.style.display='none';
   });
@@ -3200,17 +3200,31 @@ document.getElementById('logout-btn').addEventListener('click',()=>location.relo
 // ── Contraseña de acceso ──────────────────────────────────────────
 // Solo tapa la pantalla del dashboard: la hoja de Google sigue publicada
 // como CSV público, así que esto no es una protección real de los datos.
-// Tampoco restringe qué datos se cargan — solo qué pestañas se muestran.
-const DASH_PASSWORDS={'costos.nx2026':'full','costoslideres.nx':'lideres'};
+// Tampoco restringe qué datos se cargan — loadData() siempre trae las
+// 4 áreas; para un líder de área, se filtra AREAS después de loguearse
+// (afecta todos los totales y gráficos que iteran sobre AREAS) y se
+// ocultan las pestañas que no le corresponden.
+const DASH_PASSWORDS={
+  'costos.nx2026':{area:null},        // acceso completo, ve todo
+  'costosmesa!':{area:'Mesa'},
+  'costosmiddle.nx':{area:'FAs'},
+  'costosbcacorpo':{area:'Banca Corporativa'},
+  'costosbprivada':{area:'Banca Privada'},
+};
 document.getElementById('auth-form').addEventListener('submit',e=>{
   e.preventDefault();
   const input=document.getElementById('auth-pass');
   const err=document.getElementById('auth-err');
-  const rol=DASH_PASSWORDS[input.value];
-  if(rol){
-    ST.role=rol;
+  const cfg=DASH_PASSWORDS[input.value];
+  if(cfg){
+    if(cfg.area){
+      ST.role='lideres';
+      ST.area=cfg.area;
+      AREAS.length=0;AREAS.push(cfg.area);
+      const permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','capn']:['por-mes','detalle'];
+      aplicarRestriccionesDeRol(permitidas);
+    }
     document.getElementById('auth-gate').remove();
-    aplicarRestriccionesDeRol();
     loadData();
   } else {
     err.style.display='block';
