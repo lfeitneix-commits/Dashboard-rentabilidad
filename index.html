@@ -2121,7 +2121,18 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{}};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full'};
+
+// Pestañas visibles por rol. 'full' ve todo (no se filtra). 'lideres'
+// solo ve Resumen, EERR Neix y EERR Capital N.
+const TABS_POR_ROL={lideres:['por-mes','detalle','capn']};
+function aplicarRestriccionesDeRol(){
+  const permitidas=TABS_POR_ROL[ST.role];
+  if(!permitidas) return; // rol 'full': no se oculta nada
+  document.querySelectorAll('.nav-item[data-tab]').forEach(el=>{
+    if(!permitidas.includes(el.dataset.tab)) el.style.display='none';
+  });
+}
 
 // Se carga recién al entrar a Análisis de Costos (no en el load inicial)
 // para no sumar un fetch más al arranque del dashboard.
@@ -3166,13 +3177,17 @@ document.getElementById('refresh-btn').addEventListener('click',loadData);
 // ── Contraseña de acceso ──────────────────────────────────────────
 // Solo tapa la pantalla del dashboard: la hoja de Google sigue publicada
 // como CSV público, así que esto no es una protección real de los datos.
-const DASH_PASSWORD='costos.nx2026';
+// Tampoco restringe qué datos se cargan — solo qué pestañas se muestran.
+const DASH_PASSWORDS={'costos.nx2026':'full','costoslideres.nx':'lideres'};
 document.getElementById('auth-form').addEventListener('submit',e=>{
   e.preventDefault();
   const input=document.getElementById('auth-pass');
   const err=document.getElementById('auth-err');
-  if(input.value===DASH_PASSWORD){
+  const rol=DASH_PASSWORDS[input.value];
+  if(rol){
+    ST.role=rol;
     document.getElementById('auth-gate').remove();
+    aplicarRestriccionesDeRol();
     loadData();
   } else {
     err.style.display='block';
