@@ -827,6 +827,20 @@ function kpiGrid(data,capn){
   const mg=tI?(tR/tI*100):0;
   const ac=(a,cls)=>{const d=data[a];const m=d.ingresos?(d.resultado/d.ingresos*100):0;
     return`<div class="kc ${cls}"><div class="kl">${a}</div><div class="kv ${sgn(d.resultado)}">${$c(d.resultado,true)}</div><div class="kh">Resultado neto · Margen ${m.toFixed(1)}%</div></div>`;};
+  const capnCard=`<div class="kc" style="border-left:3px solid #476785"><div class="kl" style="color:#476785">CAPN</div><div class="kv ${sgn(capn?.resultado||0)}">${$c(capn?.resultado||0,true)}</div><div class="kh">Resultado neto · Margen ${capn?.ingresos?(capn.resultado/capn.ingresos*100).toFixed(1):0}%</div></div>`;
+  // Con una sola área (login de líder), la tarjeta de esa área en la
+  // segunda fila repetiría exactamente el "Resultado neto" de arriba —
+  // se saca esa fila, y si hay Cap N (Banca Privada) se sube la
+  // tarjeta a la fila principal en vez de dejarla huérfana abajo.
+  const soloUnArea=AREAS.length===1;
+  if(soloUnArea){
+    return`<div class="kpi-grid" style="${capn?'grid-template-columns:repeat(4,1fr)':''}">
+      <div class="kc ca"><div class="kl">Ingresos totales</div><div class="kv neu">${$c(tI,true)}</div><div class="kh">Facturación</div></div>
+      <div class="kc"><div class="kl">Egresos totales</div><div class="kv neu">${$c(tE,true)}</div><div class="kh">${pct(tE,tI)} de ingresos</div></div>
+      <div class="kc ${tR>=0?'cv':''}"><div class="kl">Resultado neto</div><div class="kv ${sgn(tR)}">${$c(tR,true)}</div><div class="kh">Margen ${mg.toFixed(1)}%</div></div>
+      ${capn?capnCard:''}
+    </div>`;
+  }
   return`<div class="kpi-grid">
     <div class="kc ca"><div class="kl">Ingresos totales</div><div class="kv neu">${$c(tI,true)}</div><div class="kh">Facturación</div></div>
     <div class="kc"><div class="kl">Egresos totales</div><div class="kv neu">${$c(tE,true)}</div><div class="kh">${pct(tE,tI)} de ingresos</div></div>
@@ -834,7 +848,7 @@ function kpiGrid(data,capn){
   </div>
   <div class="kpi-grid-areas">
     ${AREAS.map(a=>ac(a,'')).join('')}
-    ${capn?`<div class="kc" style="border-left:3px solid #476785"><div class="kl" style="color:#476785">CAPN</div><div class="kv ${sgn(capn.resultado)}">${$c(capn.resultado,true)}</div><div class="kh">Resultado neto · Margen ${capn.ingresos?(capn.resultado/capn.ingresos*100).toFixed(1):0}%</div></div>`:''}
+    ${capn?capnCard:''}
   </div>`;
 }
 function areaTable(data,capn){
