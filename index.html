@@ -307,6 +307,11 @@ const AREA_COLOR={'Mesa':'#003F61','FAs':'#9A8E7D','Banca Corporativa':'#AB1930'
 // monto real vive solo en la nota) — no aportan nada fuera de Mesa, así
 // que se ocultan en EERR Neix para los líderes de área que no son Mesa.
 const CUENTAS_OCULTAS_NO_MESA=['Aranceles Mercados','Intereses pagados','Alquileres comitentes','Serv. Corretaje Mesa','Gtos Conv Cedear','Gastos Caja de Valores'];
+// Cuentas "padre" que para un líder de área (una sola área visible) no
+// necesitan desplegable: el total del padre ya es el monto de esa única
+// área, así que los hijos (Mesa/BP/BC/FAs) solo repetirían el mismo
+// número. Se muestran como una fila plana con el monto directo.
+const PARENTS_SIN_DESPLEGABLE_LIDERES=new Set(['Sueldos y CS Directos']);
 
 // ── SECTION CLASSIFICATION ────────────────────────────────────────
 // MAIN sections (3): change the active tipo
@@ -1286,6 +1291,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     // ── ACCOUNT ROWS ──
     if(ST.role==='lideres'&&ST.area!=='Mesa'&&CUENTAS_OCULTAS_NO_MESA.includes(row._nom.trim()))return;
+    if(ST.role==='lideres'&&row._child&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(CHILD_TO_PARENT[row._nom]))return;
     if(q){
       const haystack=(row._nom+' '+(row._num||'')).toLowerCase();
       if(!haystack.includes(q))return;
@@ -1304,8 +1310,9 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const hiddenStyle=parentVisible?'':' style="display:none"';
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
+    const flattenParent=ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom);
 
-    if((row._kind==='account'||row._kind==='subaccount')&&row._parent){
+    if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
       html+=`<tr class="row-parent ${secClass} ${subClass}${parentOpen?' open':''}"${hiddenStyle} data-pid="${row._parentId}" onclick="toggleParent('${row._parentId}',this)" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num}</td>`:''}
