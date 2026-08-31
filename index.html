@@ -221,7 +221,12 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
   <form id="auth-form" style="background:var(--surface);border-radius:12px;padding:32px 30px;width:100%;max-width:340px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
     <div style="font-size:16px;font-weight:600;color:var(--grafito);margin-bottom:4px">Dashboard de Rentabilidad</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:20px">Ingresá la contraseña para continuar</div>
-    <input id="auth-pass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none;margin-bottom:10px"/>
+    <div style="position:relative;margin-bottom:10px">
+      <input id="auth-pass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;padding:10px 36px 10px 12px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);outline:none"/>
+      <button type="button" id="auth-pass-toggle" aria-label="Mostrar contraseña" style="position:absolute;right:6px;top:0;bottom:0;background:none;border:none;cursor:pointer;color:var(--muted);display:flex;align-items:center;padding:0 6px">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+      </button>
+    </div>
     <div id="auth-err" style="display:none;color:var(--bordeaux);font-size:12px;margin-bottom:10px">Contraseña incorrecta.</div>
     <button type="submit" style="width:100%;padding:10px;background:var(--bordeaux);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif">Ingresar</button>
   </form>
@@ -3257,6 +3262,16 @@ document.getElementById('auth-form').addEventListener('submit',e=>{
     input.value='';
     input.focus();
   }
+});
+document.getElementById('auth-pass-toggle').addEventListener('click',()=>{
+  const inp=document.getElementById('auth-pass');
+  const btn=document.getElementById('auth-pass-toggle');
+  const showing=inp.type==='text';
+  inp.type=showing?'password':'text';
+  btn.innerHTML=showing
+    ?`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>`
+    :`<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5Z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M2 2l12 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+  btn.setAttribute('aria-label',showing?'Mostrar contraseña':'Ocultar contraseña');
 });
 document.getElementById('auth-pass').focus();
 </script>
