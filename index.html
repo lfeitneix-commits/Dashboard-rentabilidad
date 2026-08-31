@@ -878,6 +878,7 @@ function areaTable(data,capn){
   const tD=AREAS.reduce((s,a)=>s+data[a].gastos_dir,0);
   const tN=AREAS.reduce((s,a)=>s+data[a].gastos_ind,0);
   const tMg=tI?(tR/tI*100):0;
+  const tMgOp=tI?((tI-tD)/tI*100):0;
   const rows=[
     {label:'Ingresos',      key:'ingresos',   fmt:a=>fmt(data[a].ingresos),   capnFmt:capn?()=>fmt(capn.ingresos):null,   total:fmt(tI),  cls:''},
     {label:'G. Directos',   key:'gastos_dir', fmt:a=>fmt(data[a].gastos_dir), capnFmt:capn?()=>fmt(capn.gastos_dir):null, total:fmt(tD),  cls:''},
@@ -885,6 +886,7 @@ function areaTable(data,capn){
     {label:'Egresos',       key:'egresos',    fmt:a=>fmt(data[a].egresos),    capnFmt:capn?()=>fmt(capn.egresos):null,    total:fmt(tE),  cls:''},
     {label:'Resultado',     key:'resultado',  fmt:a=>`<span class="${sgn(data[a].resultado)}">${fmt(data[a].resultado)}</span>`, capnFmt:capn?()=>`<span class="${sgn(capn.resultado)}">${fmt(capn.resultado)}</span>`:null, total:`<span class="${sgn(tR)}">${fmt(tR)}</span>`, cls:''},
     {label:'Margen',        key:'margen',     fmt:a=>{const m=data[a].ingresos?(data[a].resultado/data[a].ingresos*100):0;return`<span class="chip ${sgn(m)}">${m.toFixed(1)}%</span>`;}, capnFmt:capn?()=>{const m=capn.ingresos?(capn.resultado/capn.ingresos*100):0;return`<span class="chip ${sgn(m)}">${m.toFixed(1)}%</span>`;}:null, total:`<span class="chip ${sgn(tMg)}">${tMg.toFixed(1)}%</span>`, cls:''},
+    {label:'Margen operativo', key:'margen_op', fmt:a=>{const mo=data[a].ingresos?((data[a].ingresos-data[a].gastos_dir)/data[a].ingresos*100):0;return`<span class="chip ${sgn(mo)}">${mo.toFixed(1)}%</span>`;}, capnFmt:null, total:`<span class="chip ${sgn(tMgOp)}">${tMgOp.toFixed(1)}%</span>`, cls:''},
   ];
   const mainTable=`<div class="tc"><div class="tc-hd">Detalle por área <span>USD</span></div>
     <table><thead><tr>
