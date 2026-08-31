@@ -303,6 +303,10 @@ const MATRIZ_ROWS1=['Neix','Back Office','RRHH','IT','Administración','MKTG','P
 const MATRIZ_ROWS2=['Gastos Caja de Valores','Gastos Corresp. Ext. u$s','Servicios Contratados Back','Impuestos','IVA no computable','Página Web/Publicidad/Merchandising','Serv Contratados BC (Marina Muller)','Gtos trad','Ingresos/egresos varios'];
 const AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
 const AREA_COLOR={'Mesa':'#003F61','FAs':'#9A8E7D','Banca Corporativa':'#AB1930','Banca Privada':'#004836'};
+// Cuentas informativas de Mesa (siempre en $0 en todas las áreas, el
+// monto real vive solo en la nota) — no aportan nada fuera de Mesa, así
+// que se ocultan en EERR Neix para los líderes de área que no son Mesa.
+const CUENTAS_OCULTAS_NO_MESA=['Aranceles Mercados','Intereses pagados','Alquileres comitentes','Serv. Corretaje Mesa','Gtos Conv Cedear','Gastos Caja de Valores'];
 
 // ── SECTION CLASSIFICATION ────────────────────────────────────────
 // MAIN sections (3): change the active tipo
@@ -1281,6 +1285,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     }
 
     // ── ACCOUNT ROWS ──
+    if(ST.role==='lideres'&&ST.area!=='Mesa'&&CUENTAS_OCULTAS_NO_MESA.includes(row._nom.trim()))return;
     if(q){
       const haystack=(row._nom+' '+(row._num||'')).toLowerCase();
       if(!haystack.includes(q))return;
