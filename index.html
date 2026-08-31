@@ -706,11 +706,11 @@ function annotateRows(rows,nameCol,numCol,notesCol){
 const CH={};
 function dc(id){
   if(CH[id]){CH[id].destroy();delete CH[id];}
+  if(typeof Chart==='undefined')return;
   const el=document.getElementById(id);
   if(el){const ex=Chart.getChart(el);if(ex)ex.destroy();}
 }
 function rc(id,ch){CH[id]=ch;}
-Chart.defaults.font.family="'DM Sans',sans-serif";
 // Plugin para mostrar % en doughnuts
 const doughnutLabelPlugin={id:'doughnutLabel',afterDatasetsDraw(chart){
   if(chart.config.type!=='doughnut') return;
@@ -736,11 +736,17 @@ const doughnutLabelPlugin={id:'doughnutLabel',afterDatasetsDraw(chart){
     ctx.restore();
   });
 }};
-Chart.register(doughnutLabelPlugin);
-
-Chart.defaults.color='#9A8E7D';
-Chart.defaults.plugins.legend.labels.boxWidth=11;
-Chart.defaults.plugins.legend.labels.padding=14;
+// Si el CDN de Chart.js no llegó a cargar (red lenta, bloqueada, caída),
+// esto no debe tirar abajo el resto del script — sin esta guarda, un
+// error acá corta la ejecución antes de llegar al login/eventos de abajo
+// y toda la página queda muerta sin ningún mensaje de error.
+if(typeof Chart!=='undefined'){
+  Chart.defaults.font.family="'DM Sans',sans-serif";
+  Chart.register(doughnutLabelPlugin);
+  Chart.defaults.color='#9A8E7D';
+  Chart.defaults.plugins.legend.labels.boxWidth=11;
+  Chart.defaults.plugins.legend.labels.padding=14;
+}
 
 function mkGrouped(id,areas,data){
   dc(id);const ctx=document.getElementById(id);if(!ctx)return;
