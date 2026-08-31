@@ -316,7 +316,7 @@ const CUENTAS_OCULTAS_NO_MESA=['Aranceles Mercados','Intereses pagados','Alquile
 // necesitan desplegable: el total del padre ya es el monto de esa única
 // área, así que los hijos (Mesa/BP/BC/FAs) solo repetirían el mismo
 // número. Se muestran como una fila plana con el monto directo.
-const PARENTS_SIN_DESPLEGABLE_LIDERES=new Set(['Sueldos y CS Directos','Suscripciones Directas','Gastos de Hardware Directos','Servicios Contratados Directos','Gastos de Representación Directos']);
+const PARENTS_SIN_DESPLEGABLE_LIDERES=new Set(['Sueldos y CS Directos','Suscripciones Directas','Gastos de Hardware Directos','Servicios Contratados Directos','Gastos de Representación Directos','Gastos de Hardware Indirectos']);
 
 // ── SECTION CLASSIFICATION ────────────────────────────────────────
 // MAIN sections (3): change the active tipo
@@ -1250,7 +1250,6 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       const sVals=showAreas.map(a=>getAreaVal(row,a));
       const sTot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(row,a):s,0);
       const isFact=row._tipo==='ing';
-      const noDropdownInd=ST.role==='lideres'&&row._tipo==='ind';
       if(isFact){
         html+=`<tr class="row-section row-section-fact" style="cursor:default">
           ${showNumCol?'<td></td>':''}
@@ -1258,14 +1257,6 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
           ${sVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
           <td class="r">${sTot?fmtD(sTot):'—'}</td>
           ${notesCol&&!(ST.role==='lideres'&&ST.area!=='Mesa')?`<td class="note-cell">${getConsNote(row)}</td>`:notesCol?'<td class="note-cell"></td>':''}
-        </tr>`;
-      } else if(noDropdownInd){
-        html+=`<tr class="row-section" style="cursor:default">
-          ${showNumCol?'<td></td>':''}
-          <td style="font-weight:700">${row._seclabel}</td>
-          ${sVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
-          <td class="r">${sTot?fmtD(sTot):'—'}</td>
-          ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
         </tr>`;
       } else {
         const secIsOpen=ST.expandedSecs.has(currentSecId);
