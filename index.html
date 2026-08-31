@@ -3254,7 +3254,7 @@ document.getElementById('auth-form').addEventListener('submit',e=>{
       ST.role='lideres';
       ST.area=cfg.area;
       AREAS.length=0;AREAS.push(cfg.area);
-      const permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','capn']:['por-mes','detalle'];
+      const permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','capn','analisis_capn']:['por-mes','detalle'];
       aplicarRestriccionesDeRol(permitidas);
     }
     document.getElementById('auth-gate').remove();
