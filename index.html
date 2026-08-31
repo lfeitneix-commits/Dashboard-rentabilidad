@@ -3072,14 +3072,26 @@ function repairMojibake(s){
     .replace(/Â¿/g,'¿').replace(/Â¡/g,'¡');
 }
 
+// Sin timeout, un fetch que se cuelga (típico de redes corporativas que
+// dropean paquetes en vez de rechazar la conexión) deja loadData()
+// esperando para siempre — pantalla en blanco sin ningún error visible.
 async function fetchCSV(url){
-  const r = await fetch(url);
-  if(!r.ok) throw new Error('HTTP '+r.status+' — '+url);
-  const buf = await r.arrayBuffer();
-  let text = new TextDecoder('utf-8').decode(buf);
-  // If mojibake detected, repair
-  if(text.includes('Ã')||text.includes('NÂ')) text = repairMojibake(text);
-  return text;
+  const controller=new AbortController();
+  const timeoutId=setTimeout(()=>controller.abort(),20000);
+  try{
+    const r = await fetch(url,{signal:controller.signal});
+    if(!r.ok) throw new Error('HTTP '+r.status+' — '+url);
+    const buf = await r.arrayBuffer();
+    let text = new TextDecoder('utf-8').decode(buf);
+    // If mojibake detected, repair
+    if(text.includes('Ã')||text.includes('NÂ')) text = repairMojibake(text);
+    return text;
+  }catch(e){
+    if(e.name==='AbortError') throw new Error('Tiempo de espera agotado (20s) al pedir '+url);
+    throw e;
+  }finally{
+    clearTimeout(timeoutId);
+  }
 }
 
 // ── LOAD DATA ────────────────────────────────────────────────────
