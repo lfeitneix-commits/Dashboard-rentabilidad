@@ -1883,7 +1883,12 @@ function buildMatrizTable(title,rowNames,tableKey){
 
 
 function calcFijosVariables(mes){
-  if(ST.clasifData&&ST.clasifData[mes]) return ST.clasifData[mes];
+  // La hoja de Clasificación trae fijos/variables consolidados de toda la
+  // empresa — solo sirve de atajo cuando se ve el total (acceso completo).
+  // Para un líder de área (AREAS acotado a una sola) hay que recalcular
+  // fila por fila con getAreaVal, si no el ratio queda con el fijo de
+  // TODA la empresa dividido por la facturación de una sola área.
+  if(ST.role!=='lideres'&&ST.clasifData&&ST.clasifData[mes]) return ST.clasifData[mes];
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   let fijos=0,semifijos=0,variables=0;
@@ -3271,7 +3276,7 @@ document.getElementById('auth-form').addEventListener('submit',e=>{
       ST.role='lideres';
       ST.area=cfg.area;
       AREAS.length=0;AREAS.push(cfg.area);
-      const permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','capn','analisis_capn']:['por-mes','detalle'];
+      const permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','analisis','capn','analisis_capn']:['por-mes','detalle','analisis'];
       aplicarRestriccionesDeRol(permitidas);
     }
     document.getElementById('auth-gate').remove();
