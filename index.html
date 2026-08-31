@@ -1254,7 +1254,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
           <td style="font-weight:700">${row._seclabel}</td>
           ${sVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
           <td class="r">${sTot?fmtD(sTot):'—'}</td>
-          ${notesCol?`<td class="note-cell">${getConsNote(row)}</td>`:''}
+          ${notesCol&&!(ST.role==='lideres'&&ST.area!=='Mesa')?`<td class="note-cell">${getConsNote(row)}</td>`:notesCol?'<td class="note-cell"></td>':''}
         </tr>`;
       } else {
         const secIsOpen=ST.expandedSecs.has(currentSecId);
