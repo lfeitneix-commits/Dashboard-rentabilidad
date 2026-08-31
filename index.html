@@ -3082,7 +3082,7 @@ function repairMojibake(s){
 // Sin timeout, un fetch que se cuelga (típico de redes corporativas que
 // dropean paquetes en vez de rechazar la conexión) deja loadData()
 // esperando para siempre — pantalla en blanco sin ningún error visible.
-async function fetchCSV(url){
+async function fetchCSV(url,retries=2){
   const controller=new AbortController();
   const timeoutId=setTimeout(()=>controller.abort(),20000);
   try{
@@ -3094,6 +3094,13 @@ async function fetchCSV(url){
     if(text.includes('Ã')||text.includes('NÂ')) text = repairMojibake(text);
     return text;
   }catch(e){
+    // Google Sheets a veces corta/rate-limitea alguna de las hojas cuando se
+    // piden varias en simultáneo — un reintento corto suele resolverlo solo,
+    // en vez de que esa hoja desaparezca en silencio.
+    if(retries>0){
+      await new Promise(res=>setTimeout(res,1200));
+      return fetchCSV(url,retries-1);
+    }
     if(e.name==='AbortError') throw new Error('Tiempo de espera agotado (20s) al pedir '+url);
     throw e;
   }finally{
@@ -3211,8 +3218,18 @@ async function loadData(){
       tabsEl.appendChild(el);
     });
 
-    document.getElementById('sdot').style.background='#004836';
-    document.getElementById('stxt').textContent=`${loaded}/${SHEETS.length} · ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+    const faltantes=SHEETS.filter(s=>!ST.meses.includes(s.mes)).map(s=>s.mes);
+    if(faltantes.length||!ST.matrizData||!ST.capnData){
+      document.getElementById('sdot').style.background='#AB1930';
+      const partes=[];
+      if(faltantes.length) partes.push('falta '+faltantes.join(', '));
+      if(!ST.matrizData) partes.push('sin Matriz de gastos');
+      if(!ST.capnData) partes.push('sin Capital N');
+      document.getElementById('stxt').textContent=`${loaded}/${SHEETS.length} · ${partes.join(' · ')}`;
+    } else {
+      document.getElementById('sdot').style.background='#004836';
+      document.getElementById('stxt').textContent=`${loaded}/${SHEETS.length} · ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
     renderCurrentTab();
   }catch(err){
     document.getElementById('sdot').style.background='#AB1930';
