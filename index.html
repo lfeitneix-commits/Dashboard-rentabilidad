@@ -1848,11 +1848,11 @@ function renderMatriz(){
       <div class="state"><div style="font-size:22px">⚠</div><div class="state-msg">${ST.matrizError}</div></div>`;
   }
   return`<div class="sec-hd"><div class="sec-title">Matriz de gastos</div><div class="sec-sub">Porcentajes de distribución de costos indirectos por área</div></div>
-    ${buildMatrizTable('Distribución por sector — Gastos Indirectos',MATRIZ_ROWS1,'t1')}
+    ${buildMatrizTable('Distribución por sector — Gastos Indirectos',MATRIZ_ROWS1,'t1',true)}
     ${buildMatrizTable('Gastos compartidos — Distribución especial',MATRIZ_ROWS2,'t2')}`;
 }
 
-function buildMatrizTable(title,rowNames,tableKey){
+function buildMatrizTable(title,rowNames,tableKey,showDetalle=false){
   const data=ST.matrizData;
   const cols=ST.matrizCols||MATRIZ_COLS;
   const colsHdr=[...cols,'TOTAL'];
@@ -1882,13 +1882,14 @@ function buildMatrizTable(title,rowNames,tableKey){
         return`<td class="pct-cell ${cls}">${v?v.toFixed(0)+'%':'—'}</td>`;
       }).join('')}
       <td class="pct-cell total-col">${totDisplay?totDisplay.toFixed(0)+'%':'—'}</td>
+      ${showDetalle?`<td style="font-size:11px;color:var(--muted)">${row&&row['Detalle']?row['Detalle']:''}</td>`:''}
     </tr>`;
   }
 
   let html=`<div class="matriz-block">
     <div class="matriz-title">${title}</div>
     <div class="tc"><table>
-    <thead><tr><th>Concepto</th>${colsHdr.map(c=>`<th class="c">${c}</th>`).join('')}</tr></thead>
+    <thead><tr><th>Concepto</th>${colsHdr.map(c=>`<th class="c">${c}</th>`).join('')}${showDetalle?'<th>Detalle</th>':''}</tr></thead>
     <tbody>`;
 
   rowNames.forEach(name=>{
@@ -3197,7 +3198,7 @@ async function loadData(){
     if(matrizResult.status==='fulfilled'&&matrizResult.value){
       const{rows,headers}=parseCSV(matrizResult.value);
       ST.matrizData=rows;
-      ST.matrizCols=headers.filter(h=>h!==''&&!/^total$/i.test(h));
+      ST.matrizCols=headers.filter(h=>h!==''&&!/^total$/i.test(h)&&!/^detalle$/i.test(h));
     }else{
       ST.matrizError='No se pudo cargar la hoja Matriz de gastos';
     }
