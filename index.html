@@ -1335,18 +1335,14 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
-    // Facturación (ej. "Ingresos Varios") pasa por este mismo bloque de
-    // filas — a diferencia de los gastos, sus montos no llevan signo
-    // negativo adelante.
-    const cellFmt=row._tipo==='ing'?(v=>v?fmtD(v):'—'):fmtGasto;
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
       html+=`<tr class="row-parent ${secClass} ${subClass}${parentOpen?' open':''}"${hiddenStyle} data-pid="${row._parentId}" onclick="toggleParent('${row._parentId}',this)" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num}</td>`:''}
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</div></td>
-        ${vals.map(v=>`<td class="r">${cellFmt(v)}</td>`).join('')}
-        <td class="r" style="font-weight:600">${cellFmt(tot)}</td>
+        ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     } else if(row._child){
@@ -1355,16 +1351,16 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       html+=`<tr class="row-child row-subchild ${childVisible?'':' hidden'}" data-parentid="${row._parentId}" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td class="indent">${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}</td>
-        ${vals.map(v=>`<td class="r">${cellFmt(v)}</td>`).join('')}
-        <td class="r">${cellFmt(tot)}</td>
+        ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        <td class="r">${tot?fmtD(tot):'—'}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     } else {
       html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
-        ${vals.map(v=>`<td class="r">${cellFmt(v)}</td>`).join('')}
-        <td class="r">${cellFmt(tot)}</td>
+        ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+        <td class="r">${tot?fmtD(tot):'—'}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     }
