@@ -1425,6 +1425,17 @@ function toggleSection(secId,rowEl){
       const subId=r.dataset.subid;
       if(subId) ST.expandedSubs.delete(subId);
     });
+    // Reset cuentas con desplegable propio (ej. "Sueldos y CS Indirectos")
+    // que hayan quedado abiertas — si no, al volver a abrir la sección
+    // reaparecen expandidas en vez de arrancar colapsadas.
+    document.querySelectorAll(`.sec-child-${secId}[data-pid]`).forEach(r=>{
+      r.classList.remove('open');
+      const pid=r.dataset.pid;
+      if(pid){
+        ST.expandedRows.delete(pid);
+        document.querySelectorAll(`tr[data-parentid="${pid}"]`).forEach(c=>c.classList.add('hidden'));
+      }
+    });
   }
 }
 function toggleSubsection(subId,rowEl){
