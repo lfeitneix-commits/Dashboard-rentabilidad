@@ -387,6 +387,11 @@ function fmtD(n){
   return new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
 }
 const $c=(n,c)=>'USD '+(c?fmt(n,true):fmt(n));
+// Los gastos vienen del sheet como montos positivos (magnitud) — para la
+// tabla de detalle EERR Neix se muestran con el signo negativo adelante,
+// ya que representan dinero que sale (distinto de Facturación/Resultado,
+// que ya traen su signo real).
+const fmtGasto=n=>n?('-'+fmtD(n)):'—';
 const pct=(v,t)=>t?(v/t*100).toFixed(1)+'%':'—';
 const sgn=n=>n>=0?'pos':'neg';
 
@@ -1207,8 +1212,8 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       return`<tr class="row-section">
         ${showNumCol?'<td></td>':''}
         <td>${r._nom}</td>
-        ${vals.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}
-        <td class="r" style="border-left:1px solid var(--border)">${fmtD(tot)}</td>
+        ${vals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
+        <td class="r" style="border-left:1px solid var(--border)">${fmtGasto(tot)}</td>
         ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
       </tr>`;
     }
@@ -1226,11 +1231,12 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       labelStyle='font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--bordeaux)';
       valStyle=()=>`font-weight:700;font-family:'DM Mono',monospace;font-size:11px;color:var(--bordeaux)`;
     }
+    const fmtVal=style==='bordeaux'||!['verde','verde-dark'].includes(style)?fmtGasto:(v=>fmtD(v));
     return`<tr style="${trStyle}">
       ${showNumCol?'<td></td>':''}
       <td style="${labelStyle}">${label}</td>
-      ${vals.map(v=>`<td class="r" style="${valStyle(v)}">${fmtD(v)}</td>`).join('')}
-      <td class="r" style="${valStyle(tot)};border-left:1px solid var(--border)">${fmtD(tot)}</td>
+      ${vals.map(v=>`<td class="r" style="${valStyle(v)}">${fmtVal(v)}</td>`).join('')}
+      <td class="r" style="${valStyle(tot)};border-left:1px solid var(--border)">${fmtVal(tot)}</td>
       ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
     </tr>`;
   }
@@ -1267,8 +1273,8 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         html+=`<tr class="row-section${secIsOpen?' sec-open':''}" data-secid="${currentSecId}" onclick="toggleSection('${currentSecId}',this)">
           ${showNumCol?'<td></td>':''}
           <td><span class="sec-toggle">▶</span>${row._seclabel}</td>
-          ${sVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
-          <td class="r">${sTot?fmtD(sTot):'—'}</td>
+          ${sVals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
+          <td class="r">${fmtGasto(sTot)}</td>
           ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
         </tr>`;
       }
@@ -1299,8 +1305,8 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       html+=`<tr class="row-subtotal${currentSecId?' sec-child-'+currentSecId:''}${subIsOpen?' sec-open':''}"${row._noToggle?'':` data-subid="${currentSubId}" onclick="toggleSubsection('${currentSubId}',this)"`}${subHidden}>
         ${showNumCol?'<td></td>':''}
         <td>${row._noToggle?'':'<span class="subsec-toggle">▶</span>'}${row._seclabel}${isImpuestos?`<span class="dist-badge" data-tip="Ver distribución en Matriz de gastos">✦</span>`:''}</td>
-        ${sVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
-        <td class="r">${sTot?fmtD(sTot):'—'}</td>
+        ${sVals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
+        <td class="r">${fmtGasto(sTot)}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
       return;
@@ -1329,14 +1335,18 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
+    // Facturación (ej. "Ingresos Varios") pasa por este mismo bloque de
+    // filas — a diferencia de los gastos, sus montos no llevan signo
+    // negativo adelante.
+    const cellFmt=row._tipo==='ing'?(v=>v?fmtD(v):'—'):fmtGasto;
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
       html+=`<tr class="row-parent ${secClass} ${subClass}${parentOpen?' open':''}"${hiddenStyle} data-pid="${row._parentId}" onclick="toggleParent('${row._parentId}',this)" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num}</td>`:''}
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</div></td>
-        ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
-        <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
+        ${vals.map(v=>`<td class="r">${cellFmt(v)}</td>`).join('')}
+        <td class="r" style="font-weight:600">${cellFmt(tot)}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     } else if(row._child){
@@ -1345,16 +1355,16 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       html+=`<tr class="row-child row-subchild ${childVisible?'':' hidden'}" data-parentid="${row._parentId}" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td class="indent">${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}</td>
-        ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
-        <td class="r">${tot?fmtD(tot):'—'}</td>
+        ${vals.map(v=>`<td class="r">${cellFmt(v)}</td>`).join('')}
+        <td class="r">${cellFmt(tot)}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     } else {
       html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
-        ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
-        <td class="r">${tot?fmtD(tot):'—'}</td>
+        ${vals.map(v=>`<td class="r">${cellFmt(v)}</td>`).join('')}
+        <td class="r">${cellFmt(tot)}</td>
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     }
