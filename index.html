@@ -437,9 +437,14 @@ function parseNum(v){
 function parsePct(v){
   // Handles "30%", "0.3", "30", "30,0%"
   if(!v) return 0;
+  const hadPercentSign=String(v).includes('%');
   let s=String(v).replace(/\s/g,'').replace('%','').trim();
   const n=parseNum(s);
-  // If value looks like a fraction (<=1), treat as fraction; else as percentage
+  // Si la celda ya traía el símbolo %, el número es el porcentaje tal cual
+  // (ej. "1%" -> 1) — sin esto, "1%" se leía como fracción y se multiplicaba
+  // por 100, mostrando 100% en vez de 1%.
+  if(hadPercentSign) return n;
+  // Sin símbolo %: si parece fracción (<=1), tratar como fracción; si no, ya es porcentaje
   return Math.abs(n)<=1?n*100:n;
 }
 
