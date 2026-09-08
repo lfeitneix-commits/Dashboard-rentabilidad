@@ -317,45 +317,52 @@ const MATRIZ_GRUPOS={
 // ── INVERSIÓN QUANT — Informe de Gastos IT, dato estático (no viene de Sheets) ──
 const QUANT_META={emision:'26/06/2026',destinatario:'Lucas Mieres',periodo:'Enero–Junio 2026',
   nota:'Este informe solo incluye los gastos gestionados directamente por IT y no contempla herramientas de inteligencia artificial (Codex), ni otros gastos administrados por Quant. Tampoco se incluyen las horas de trabajo del equipo de IT ni los recursos en infraestructura local de Neix consumidos por Quant, los cuales resultaron considerables durante el primer semestre de 2026, dado que más del 70% del esfuerzo en infraestructura fue destinado a Quant.'};
+// Tipo de cambio "DÓLAR AL [fin de mes]" tal como figura en cada hoja
+// mensual del EERR Neix — se usa para convertir cada compra a USD con el
+// tipo de cambio vigente en el mes en que efectivamente se hizo, en vez de
+// aplicar un único TC a todo el período (que distorsionaría por la
+// devaluación entre enero y junio).
+const QUANT_TC_MENSUAL={'Enero':1419.54,'Febrero':1460.32,'Marzo':1422.84,'Abril':1435.60,'Mayo':1433.51,'Junio':1466.48};
 const QUANT_HARDWARE={
   cats:[
-    {nombre:'PCs Completas',total:16035017.13,rows:[
+    {nombre:'PCs Completas',rows:[
       {kind:'group',label:'Server LLM'},
-      {kind:'item',desc:'Disco rígido',fecha:'18/03/26',monto:1032885.07,obs:'',indent:true},
-      {kind:'item',desc:'SSD WD — BKP',fecha:'18/03/26',monto:92140.29,obs:'',indent:true},
-      {kind:'item',desc:'Server LLM Quant',fecha:'20/03/26',monto:10662669.68,obs:'',indent:true},
-      {kind:'item',desc:'Server LLM Quant',fecha:'20/03/26',monto:391571.70,obs:'Factura complementaria',indent:true},
-      {kind:'item',desc:'Water Cooler',fecha:'16/06/26',monto:265222.28,obs:'',indent:true},
-      {kind:'subtotal',label:'Subtotal Server LLM',monto:12444489.02},
-      {kind:'item',desc:'PC Trading Algorítmico',fecha:'08/01/26',monto:967954.75,obs:'Camila García'},
-      {kind:'item',desc:'Mini PC Router Colocation',fecha:'May/26',monto:1038872.00,obs:'2 unidades'},
-      {kind:'item',desc:'PC Armada Intel',fecha:'29/05/26',monto:1583701.36,obs:'Santiago Pivato'},
+      {kind:'item',desc:'Disco rígido',fecha:'18/03/26',mes:'Marzo',monto:1032885.07,obs:''},
+      {kind:'item',desc:'SSD WD — BKP',fecha:'18/03/26',mes:'Marzo',monto:92140.29,obs:''},
+      {kind:'item',desc:'Server LLM Quant',fecha:'20/03/26',mes:'Marzo',monto:10662669.68,obs:''},
+      {kind:'item',desc:'Server LLM Quant',fecha:'20/03/26',mes:'Marzo',monto:391571.70,obs:'Factura complementaria'},
+      {kind:'item',desc:'Water Cooler',fecha:'16/06/26',mes:'Junio',monto:265222.28,obs:''},
+      {kind:'subtotal',label:'Subtotal Server LLM'},
+      {kind:'item',desc:'PC Trading Algorítmico',fecha:'08/01/26',mes:'Enero',monto:967954.75,obs:'Camila García'},
+      {kind:'item',desc:'Mini PC Router Colocation',fecha:'May/26',mes:'Mayo',monto:1038872.00,obs:'2 unidades'},
+      {kind:'item',desc:'PC Armada Intel',fecha:'29/05/26',mes:'Mayo',monto:1583701.36,obs:'Santiago Pivato'},
     ]},
-    {nombre:'Componentes para mejoras de equipos',total:953021.71,rows:[
-      {kind:'item',desc:'Microprocesador',fecha:'08/01/26',monto:212669.68,obs:'PC Pruebas Quant'},
-      {kind:'item',desc:'Memoria — Trading A',fecha:'16/01/26',monto:174395.48,obs:'PC Guadalupe Sierra'},
-      {kind:'item',desc:'Disco y placa — Trad.',fecha:'23/01/26',monto:196241.63,obs:'PC Guadalupe Sierra'},
-      {kind:'item',desc:'Memoria DDR4',fecha:'30/01/26',monto:95587.33,obs:'Notebook Paola Herrero'},
-      {kind:'item',desc:'Disco Sólido',fecha:'03/02/26',monto:136189.13,obs:'PC Uriel Paluch'},
-      {kind:'item',desc:'Fuente de PC',fecha:'06/03/26',monto:68436.20,obs:'PC Mesa Quant'},
-      {kind:'item',desc:'Fuente de PC',fecha:'15/05/26',monto:69502.26,obs:'PC Pruebas Quant'},
+    {nombre:'Componentes para mejoras de equipos',rows:[
+      {kind:'item',desc:'Microprocesador',fecha:'08/01/26',mes:'Enero',monto:212669.68,obs:'PC Pruebas Quant'},
+      {kind:'item',desc:'Memoria — Trading A',fecha:'16/01/26',mes:'Enero',monto:174395.48,obs:'PC Guadalupe Sierra'},
+      {kind:'item',desc:'Disco y placa — Trad.',fecha:'23/01/26',mes:'Enero',monto:196241.63,obs:'PC Guadalupe Sierra'},
+      {kind:'item',desc:'Memoria DDR4',fecha:'30/01/26',mes:'Enero',monto:95587.33,obs:'Notebook Paola Herrero'},
+      {kind:'item',desc:'Disco Sólido',fecha:'03/02/26',mes:'Febrero',monto:136189.13,obs:'PC Uriel Paluch'},
+      {kind:'item',desc:'Fuente de PC',fecha:'06/03/26',mes:'Marzo',monto:68436.20,obs:'PC Mesa Quant'},
+      {kind:'item',desc:'Fuente de PC',fecha:'15/05/26',mes:'Mayo',monto:69502.26,obs:'PC Pruebas Quant'},
     ]},
-    {nombre:'Notebooks',total:16460700.52,rows:[
-      {kind:'item',desc:'Notebook Paola Núñez Herrero',fecha:'27/01/26',monto:1126600.07,obs:'Cerramiento'},
-      {kind:'item',desc:'7x Notebooks Trading Algorítmico',fecha:'21/04/26',monto:13750394.57,obs:'Cerramiento'},
-      {kind:'item',desc:'Notebook Santiago Pivato',fecha:'09/06/26',monto:1583705.88,obs:'Cerramiento'},
+    {nombre:'Notebooks',rows:[
+      {kind:'item',desc:'Notebook Paola Núñez Herrero',fecha:'27/01/26',mes:'Enero',monto:1126600.07,obs:'Cerramiento'},
+      {kind:'item',desc:'7x Notebooks Trading Algorítmico',fecha:'21/04/26',mes:'Abril',monto:13750394.57,obs:'Cerramiento'},
+      {kind:'item',desc:'Notebook Santiago Pivato',fecha:'09/06/26',mes:'Junio',monto:1583705.88,obs:'Cerramiento'},
     ]},
-    {nombre:'Monitores',total:1096247.94,rows:[
-      {kind:'item',desc:'TV 50" — Trading',fecha:'07/01/26',monto:548123.97,obs:'Agustín Latrechiana'},
-      {kind:'item',desc:'TV 50" — Trading',fecha:'07/01/26',monto:548123.97,obs:'Matías Febles'},
+    {nombre:'Monitores',rows:[
+      {kind:'item',desc:'TV 50" — Trading',fecha:'07/01/26',mes:'Enero',monto:548123.97,obs:'Agustín Latrechiana'},
+      {kind:'item',desc:'TV 50" — Trading',fecha:'07/01/26',mes:'Enero',monto:548123.97,obs:'Matías Febles'},
     ]},
-    {nombre:'Instalación Cámaras',total:86751.27,rows:[
-      {kind:'item',desc:'Memorias Micro SD',fecha:'05/05/26',monto:48866.97,obs:'Memorias Cámaras Trading'},
-      {kind:'item',desc:'Zapatillas eléctricas',fecha:'27/05/26',monto:37884.30,obs:'Zapatillas Instalación Cámaras'},
+    {nombre:'Instalación Cámaras',rows:[
+      {kind:'item',desc:'Memorias Micro SD',fecha:'05/05/26',mes:'Mayo',monto:48866.97,obs:'Memorias Cámaras Trading'},
+      {kind:'item',desc:'Zapatillas eléctricas',fecha:'27/05/26',mes:'Mayo',monto:37884.30,obs:'Zapatillas Instalación Cámaras'},
     ]},
   ],
-  total:34631738.57,
 };
+// Obra sin fecha por ítem — se convierte con el promedio de los 6 meses del período.
+const QUANT_OBRA_ARS=65877000.00;
 const QUANT_SERVICIOS={
   nota:'Los siguientes servicios se encuentran activos con facturación mensual recurrente, con excepción de Cirion que está en etapa de contratación.',
   rows:[
@@ -369,11 +376,6 @@ const QUANT_SERVICIOS={
   ],
   total:4253.00,
 };
-const QUANT_RESUMEN=[
-  {concepto:'Total Hardware adquirido',importe:34631738.57,moneda:'ARS',periodo:'Ene–Jun 2026'},
-  {concepto:'Servicios de infraestructura (mensual)',importe:4253.00,moneda:'USD',periodo:'Recurrente mensual (incluido Cirion)'},
-  {concepto:'Obra - Oficina Quant',importe:65877000.00,moneda:'ARS',periodo:'Por única vez'},
-];
 const AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
 const AREA_COLOR={'Mesa':'#003F61','FAs':'#9A8E7D','Banca Corporativa':'#AB1930','Banca Privada':'#004836'};
 // Cuentas informativas de Mesa (siempre en $0 en todas las áreas, el
@@ -2009,24 +2011,34 @@ function toggleMatrizGrupo(slug,rowEl){
 
 function renderInversionQuant(){
   document.getElementById('topbar-title').textContent='Centro de costos';
-  const fmtARS=n=>'$ '+fmtD(n);
+  // Convierte cada compra al TC de su propio mes — no un TC único para todo
+  // el período, que subestimaría lo pagado en meses con el peso más débil.
+  const usd=r=>r.monto/QUANT_TC_MENSUAL[r.mes];
 
+  let totalHardwareUsd=0;
   const hwTables=QUANT_HARDWARE.cats.map(cat=>{
     let rows='';
+    let grupoAcc=0;
+    let catTotalUsd=0;
     cat.rows.forEach(r=>{
       if(r.kind==='group'){
+        grupoAcc=0;
         rows+=`<tr><td colspan="4" style="font-weight:600;font-size:11px;color:var(--azul-osc);text-transform:uppercase;letter-spacing:.05em;background:rgba(0,63,97,.04)">${r.label}</td></tr>`;
       } else if(r.kind==='subtotal'){
         rows+=`<tr style="background:rgba(0,72,54,.05)">
           <td colspan="2" style="padding-left:20px;font-size:11px;font-weight:700;color:var(--verde)">${r.label}</td>
-          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--verde)">${fmtARS(r.monto)}</td>
+          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--verde)">${$c(grupoAcc)}</td>
           <td></td>
         </tr>`;
       } else {
+        const v=usd(r);
+        grupoAcc+=v;
+        catTotalUsd+=v;
+        totalHardwareUsd+=v;
         rows+=`<tr>
-          <td style="padding-left:${r.indent?'32px':'14px'};font-size:12px">${r.desc}</td>
+          <td style="padding-left:14px;font-size:12px">${r.desc}</td>
           <td class="r" style="font-size:11px;color:var(--muted)">${r.fecha}</td>
-          <td class="r" style="font-family:'DM Mono',monospace;font-size:12px">${fmtARS(r.monto)}</td>
+          <td class="r" style="font-family:'DM Mono',monospace;font-size:12px">${$c(v)}</td>
           <td style="font-size:11px;color:var(--muted)">${r.obs||'—'}</td>
         </tr>`;
       }
@@ -2034,11 +2046,11 @@ function renderInversionQuant(){
     return`<div class="matriz-block">
       <div class="matriz-title">${cat.nombre}</div>
       <div class="tc"><table>
-      <thead><tr><th>Descripción</th><th class="c">Fecha</th><th class="c">Monto (ARS)</th><th>Observación</th></tr></thead>
+      <thead><tr><th>Descripción</th><th class="c">Fecha</th><th class="c">Monto (USD)</th><th>Observación</th></tr></thead>
       <tbody>${rows}
         <tr style="background:rgba(171,25,48,.06)">
           <td colspan="2" style="font-weight:700;font-size:11px;color:var(--bordeaux);text-transform:uppercase;letter-spacing:.05em">Subtotal ${cat.nombre}</td>
-          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--bordeaux)">${fmtARS(cat.total)}</td>
+          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--bordeaux)">${$c(catTotalUsd)}</td>
           <td></td>
         </tr>
       </tbody></table></div></div>`;
@@ -2051,22 +2063,29 @@ function renderInversionQuant(){
       <td style="font-size:11px;color:var(--muted)">${s.obs}</td>
     </tr>`).join('');
 
-  const resumenRows=QUANT_RESUMEN.map(r=>`<tr>
+  const tcProm=Object.values(QUANT_TC_MENSUAL).reduce((s,v)=>s+v,0)/Object.values(QUANT_TC_MENSUAL).length;
+  const obraUsd=QUANT_OBRA_ARS/tcProm;
+
+  const resumenRows=[
+    {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Jun 2026, TC de cada mes de compra'},
+    {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion)'},
+    {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'Por única vez · TC promedio Ene–Jun'},
+  ].map(r=>`<tr>
       <td style="font-size:12px;font-weight:500">${r.concepto}</td>
-      <td class="r" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${r.moneda==='USD'?$c(r.importe):fmtARS(r.importe)}</td>
-      <td class="c" style="font-size:11px;color:var(--muted)">${r.moneda}</td>
+      <td class="r" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${$c(r.importe)}</td>
+      <td class="c" style="font-size:11px;color:var(--muted)">USD</td>
       <td style="font-size:11px;color:var(--muted)">${r.periodo}</td>
     </tr>`).join('');
 
   return`<div class="sec-hd"><div class="sec-title">Inversión Quant</div><div class="sec-sub">Informe de Gastos IT — ${QUANT_META.periodo} · Emitido ${QUANT_META.emision}</div></div>
-    <div style="background:var(--crema);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5">${QUANT_META.nota}</div>
+    <div style="background:var(--crema);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5">${QUANT_META.nota} Todos los montos se muestran en USD, convertidos al tipo de cambio "Dólar al cierre" del mes en que se realizó cada compra.</div>
 
-    <div class="matriz-title" style="margin-bottom:8px">1. Hardware — Adquisiciones ${QUANT_META.periodo} (ARS)</div>
+    <div class="matriz-title" style="margin-bottom:8px">1. Hardware — Adquisiciones ${QUANT_META.periodo} (USD)</div>
     ${hwTables}
     <div class="tc" style="margin-bottom:24px"><table><tbody>
       <tr style="background:var(--azul-osc)">
         <td colspan="3" style="font-weight:700;font-size:12px;color:#fff;text-transform:uppercase;letter-spacing:.05em;padding:10px 14px">Total Hardware</td>
-        <td class="r" style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#fff;padding:10px 14px">${fmtARS(QUANT_HARDWARE.total)}</td>
+        <td class="r" style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#fff;padding:10px 14px">${$c(totalHardwareUsd)}</td>
       </tr>
     </tbody></table></div>
 
