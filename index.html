@@ -2045,7 +2045,8 @@ function renderInversionQuant(){
     });
     return`<div class="matriz-block">
       <div class="matriz-title">${cat.nombre}</div>
-      <div class="tc"><table>
+      <div class="tc"><table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:34%"><col style="width:13%"><col style="width:18%"><col style="width:35%"></colgroup>
       <thead><tr><th>Descripción</th><th class="c">Fecha</th><th class="c">Monto (USD)</th><th>Observación</th></tr></thead>
       <tbody>${rows}
         <tr style="background:rgba(171,25,48,.06)">
@@ -2092,7 +2093,8 @@ function renderInversionQuant(){
     <div class="matriz-block">
       <div class="matriz-title">2. Servicios de Infraestructura — Costo mensual (USD)</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${QUANT_SERVICIOS.nota}</div>
-      <div class="tc"><table>
+      <div class="tc"><table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:30%"><col style="width:15%"><col style="width:15%"><col style="width:40%"></colgroup>
       <thead><tr><th>Servicio</th><th class="c">Costo mensual</th><th class="c">Desde</th><th>Observaciones</th></tr></thead>
       <tbody>${serviciosRows}
         <tr style="background:rgba(171,25,48,.06)">
@@ -2106,7 +2108,8 @@ function renderInversionQuant(){
 
     <div class="matriz-block">
       <div class="matriz-title">3. Resumen Ejecutivo</div>
-      <div class="tc"><table>
+      <div class="tc"><table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:38%"><col style="width:17%"><col style="width:13%"><col style="width:32%"></colgroup>
       <thead><tr><th>Concepto</th><th class="c">Importe</th><th class="c">Moneda</th><th>Período</th></tr></thead>
       <tbody>${resumenRows}</tbody></table></div>
     </div>`;
