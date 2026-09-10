@@ -1152,20 +1152,21 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   const q=searchQ?searchQ.toLowerCase().trim():'';
   const searchMode=!!q;
   const DIST_ACCOUNTS=['gastos caja de valores','gastos caja de valores exento','gastos corresp. ext','página web','publicidad','merchandising','merchandasing'];
-  // En consolidado, mostrar la nota de CADA mes que tenga una (con el mes
-  // aclarado) — antes solo mostraba la del primer mes encontrado, lo cual
-  // era engañoso para cuentas donde la nota cambia mes a mes (ej. "Viajes").
+  // En consolidado: si la nota es la misma en todos los meses que la
+  // tienen, mostrarla una sola vez. Si cambia mes a mes (ej. "Viajes",
+  // donde cada mes es un viaje distinto), no mostrar nada — listar todas
+  // amontona demasiado texto en la celda.
   const getConsNote=row=>{
     if(!isConsolidado) return row._allNotes||row._note||'';
-    const notas=[];
+    const notas=new Set();
     for(const m of ST.meses){
       const md=ST.mesData[m];
       if(!md) continue;
       const r=md.annotated.find(r=>r._nom===row._nom);
       const n=r&&(r._allNotes||r._note);
-      if(n) notas.push(`${m}: ${n}`);
+      if(n) notas.add(n);
     }
-    return notas.join(' · ');
+    return notas.size===1?[...notas][0]:'';
   };
   const getNote=row=>{
     if(row._note&&row._note.trim()) return row._note.trim();
