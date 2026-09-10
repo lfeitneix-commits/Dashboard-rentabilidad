@@ -1152,17 +1152,20 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   const q=searchQ?searchQ.toLowerCase().trim():'';
   const searchMode=!!q;
   const DIST_ACCOUNTS=['gastos caja de valores','gastos caja de valores exento','gastos corresp. ext','página web','publicidad','merchandising','merchandasing'];
-  // En consolidado, usar la nota del primer mes que tenga esa fila
+  // En consolidado, mostrar la nota de CADA mes que tenga una (con el mes
+  // aclarado) — antes solo mostraba la del primer mes encontrado, lo cual
+  // era engañoso para cuentas donde la nota cambia mes a mes (ej. "Viajes").
   const getConsNote=row=>{
     if(!isConsolidado) return row._allNotes||row._note||'';
-    // Buscar la nota en el primer mes disponible
+    const notas=[];
     for(const m of ST.meses){
       const md=ST.mesData[m];
       if(!md) continue;
       const r=md.annotated.find(r=>r._nom===row._nom);
-      if(r&&(r._allNotes||r._note)) return r._allNotes||r._note||'';
+      const n=r&&(r._allNotes||r._note);
+      if(n) notas.push(`${m}: ${n}`);
     }
-    return '';
+    return notas.join(' · ');
   };
   const getNote=row=>{
     if(row._note&&row._note.trim()) return row._note.trim();
