@@ -1151,7 +1151,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   const tipoFilter=tipoF&&tipoF!=='Todos los tipos'?tipoMap[tipoF]:null;
   const q=searchQ?searchQ.toLowerCase().trim():'';
   const searchMode=!!q;
-  const DIST_ACCOUNTS=['gastos caja de valores','gastos caja de valores exento','gastos corresp. ext','página web','publicidad','merchandising','merchandasing'];
+  const DIST_ACCOUNTS=['gastos corresp. ext','página web','publicidad','merchandising','merchandasing'];
   // En consolidado: si la nota es la misma en todos los meses que la
   // tienen, mostrarla una sola vez. Si cambia mes a mes (ej. "Viajes",
   // donde cada mes es un viaje distinto), no mostrar nada — listar todas
