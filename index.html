@@ -315,14 +315,16 @@ const MATRIZ_GRUPOS={
 };
 
 // ── INVERSIÓN QUANT — Informe de Gastos IT, dato estático (no viene de Sheets) ──
-const QUANT_META={emision:'26/06/2026',destinatario:'Lucas Mieres',periodo:'Enero–Junio 2026',
+const QUANT_META={emision:'26/06/2026',destinatario:'Lucas Mieres',periodo:'Enero–Agosto 2026',
   nota:'Este informe solo incluye los gastos gestionados directamente por IT y no contempla herramientas de inteligencia artificial (Codex), ni otros gastos administrados por Quant. Tampoco se incluyen las horas de trabajo del equipo de IT ni los recursos en infraestructura local de Neix consumidos por Quant, los cuales resultaron considerables durante el primer semestre de 2026, dado que más del 70% del esfuerzo en infraestructura fue destinado a Quant.'};
 // Tipo de cambio "DÓLAR AL [fin de mes]" tal como figura en cada hoja
 // mensual del EERR Neix — se usa para convertir cada compra a USD con el
 // tipo de cambio vigente en el mes en que efectivamente se hizo, en vez de
 // aplicar un único TC a todo el período (que distorsionaría por la
-// devaluación entre enero y junio).
-const QUANT_TC_MENSUAL={'Enero':1419.54,'Febrero':1460.32,'Marzo':1422.84,'Abril':1435.60,'Mayo':1433.51,'Junio':1466.48};
+// devaluación entre enero y junio). Julio/Agosto/Septiembre: promedio de los
+// dos valores que pasó el usuario para ese mes (no hay una única cifra "al
+// cierre" documentada como en los meses anteriores).
+const QUANT_TC_MENSUAL={'Enero':1419.54,'Febrero':1460.32,'Marzo':1422.84,'Abril':1435.60,'Mayo':1433.51,'Junio':1466.48,'Julio':1514.45,'Agosto':1524.43,'Septiembre':1531.52};
 const QUANT_HARDWARE={
   cats:[
     {nombre:'PCs Completas',rows:[
@@ -336,6 +338,8 @@ const QUANT_HARDWARE={
       {kind:'item',desc:'PC Trading Algorítmico',fecha:'08/01/26',mes:'Enero',monto:967954.75,obs:'Camila García'},
       {kind:'item',desc:'Mini PC Router Colocation',fecha:'May/26',mes:'Mayo',monto:1038872.00,obs:'2 unidades'},
       {kind:'item',desc:'PC Armada Intel',fecha:'29/05/26',mes:'Mayo',monto:1583701.36,obs:'Santiago Pivato'},
+      {kind:'item',desc:'Mini PC Quant',fecha:'27/07/26',mes:'Julio',monto:719456.11,obs:''},
+      {kind:'item',desc:'Puesto adicional',fecha:'14/08/26',mes:'Agosto',monto:1330307.69,obs:'Guido'},
     ]},
     {nombre:'Componentes para mejoras de equipos',rows:[
       {kind:'item',desc:'Microprocesador',fecha:'08/01/26',mes:'Enero',monto:212669.68,obs:'PC Pruebas Quant'},
@@ -345,6 +349,7 @@ const QUANT_HARDWARE={
       {kind:'item',desc:'Disco Sólido',fecha:'03/02/26',mes:'Febrero',monto:136189.13,obs:'PC Uriel Paluch'},
       {kind:'item',desc:'Fuente de PC',fecha:'06/03/26',mes:'Marzo',monto:68436.20,obs:'PC Mesa Quant'},
       {kind:'item',desc:'Fuente de PC',fecha:'15/05/26',mes:'Mayo',monto:69502.26,obs:'PC Pruebas Quant'},
+      {kind:'item',desc:'Resto Factura Varios Quant',fecha:'03/09/26',mes:'Septiembre',monto:2822979.75,obs:'Tvs, Soportes, Placas'},
     ]},
     {nombre:'Notebooks',rows:[
       {kind:'item',desc:'Notebook Paola Núñez Herrero',fecha:'27/01/26',mes:'Enero',monto:1126600.07,obs:'Cerramiento'},
@@ -2072,13 +2077,23 @@ function renderInversionQuant(){
       <td style="font-size:11px;color:var(--muted)">${s.obs}</td>
     </tr>`).join('');
 
-  const tcProm=Object.values(QUANT_TC_MENSUAL).reduce((s,v)=>s+v,0)/Object.values(QUANT_TC_MENSUAL).length;
+  // La Obra ya estaba pagada/cargada como de Ene–Jun en el informe original
+  // -- se sigue convirtiendo con el promedio de esos 6 meses, no con el
+  // promedio ampliado (que ahora incluye Jul/Ago/Sep y distorsionaría un
+  // gasto que no es de esos meses).
+  const mesesObra=['Enero','Febrero','Marzo','Abril','Mayo','Junio'];
+  const tcProm=mesesObra.reduce((s,m)=>s+QUANT_TC_MENSUAL[m],0)/mesesObra.length;
   const obraUsd=QUANT_OBRA_ARS/tcProm;
 
   const resumenRows=[
-    {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Jun 2026, TC de cada mes de compra'},
+    {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Ago 2026, TC de cada mes de compra'},
     {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion)'},
     {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'Por única vez · TC promedio Ene–Jun'},
+    {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'Por única vez'},
+    {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'Acumulado (Marzo–Julio 2026)'},
+    {concepto:'OpenAI – Codex (Suscripciones x 6)',importe:1200.00,periodo:'Recurrente mensual a partir de Agosto'},
+    {concepto:'Placa FPGA',importe:3464.00,periodo:'En Aduana'},
+    {concepto:'Placa FPGA',importe:2345.00,periodo:'En Camino'},
   ].map(r=>`<tr>
       <td style="font-size:12px;font-weight:500">${r.concepto}</td>
       <td class="r" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${$c(r.importe)}</td>
