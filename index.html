@@ -167,6 +167,11 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .chip.pos{background:rgba(0,72,54,.1);color:var(--verde)}.chip.neg{background:rgba(171,25,48,.1);color:var(--bordeaux)}
 .export-btn{display:flex;align-items:center;gap:6px;background:var(--crema);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
 .export-btn:hover{color:var(--grafito);border-color:var(--arena)}
+.seg-group{display:inline-flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.seg-btn{background:var(--crema);border:none;border-right:1px solid var(--border);padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
+.seg-btn:last-child{border-right:none}
+.seg-btn:hover{color:var(--grafito)}
+.seg-btn.active{background:var(--azul-osc);color:#fff}
 .filter-sel{appearance:none;background:var(--crema);border:1px solid var(--border);border-radius:5px;padding:4px 24px 4px 9px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text);cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%239A8E7D'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
 .filter-sel-th{appearance:none;background:transparent;border:none;padding:0 16px 0 0;margin:0 auto;display:block;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%239A8E7D'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right center}
 .filter-sel-th:hover,.filter-sel-th:focus{color:var(--grafito)}
@@ -777,7 +782,7 @@ function getGastosFijos2025(){
   return ST.gastosFijosDetalle2025;
 }
 function currentGfdData(){
-  return ST.gfdYear==='2025'?getGastosFijos2025():ST.gastosFijosDetalle;
+  return ST.gfdView==='2025'?getGastosFijos2025():ST.gastosFijosDetalle;
 }
 
 // ── CLASIFICACIÓN DE GASTOS (hoja: GASTO | Categoría | meses) ──
@@ -2002,12 +2007,11 @@ const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7
 // (el último mes cerrado antes de 2026) — no un año completo contra otro,
 // porque 2026 todavía está en curso y comparar totales anuales distorsiona
 // el resultado (2026 se vería "más bajo" solo por tener menos meses).
-function buildComparativaInteranualHTML(){
+function buildComparativaInteranualTableHTML(){
   const d2025=getGastosFijos2025();
   const d2026=ST.gastosFijosDetalle;
   if(!d2026){
-    return `<div class="tc" id="gfd-comparativa-card" style="margin-top:20px"><div class="tc-hd">Análisis interanual · Gastos Fijos</div>
-      <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div></div>`;
+    return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
   }
   const dicIdx=d2025.valCols.indexOf('Diciembre');
   const meses2026=ST.meses; // Enero..Julio (los que estén cargados)
@@ -2048,11 +2052,8 @@ function buildComparativaInteranualHTML(){
   }).join('');
   rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td><td class="r" style="font-weight:700">${fmtD(totalesFila.base)}</td>${totalCells}</tr>`;
 
-  return `<div class="tc" id="gfd-comparativa-card" style="margin-top:20px">
-    <div class="tc-hd">Análisis interanual · Gastos Fijos <span style="font-weight:400;color:var(--muted);font-size:11px">Base: Diciembre 2025 · USD</span></div>
-    <div style="overflow-x:auto"><table><thead><tr><th>Rubro</th><th class="c">Dic 2025 (base)</th>${meses2026.map(m=>`<th class="c">${m} 2026</th>`).join('')}</tr></thead>
-    <tbody>${rowsHtml}</tbody></table></div>
-  </div>`;
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro</th><th class="c">Dic 2025 (base)</th>${meses2026.map(m=>`<th class="c">${m} 2026</th>`).join('')}</tr></thead>
+    <tbody>${rowsHtml}</tbody></table></div>`;
 }
 
 function renderCostos(){
@@ -2080,8 +2081,7 @@ function renderCostos(){
     <div class="cc"><div class="cc-t">Estructura de gastos por mes</div><div class="cc-s">Fijos · Comisiones Productores · Variables · Impuestos</div><div style="height:280px"><canvas id="ch-cf4"></canvas></div></div>
   </div>
   ${tablaRanking}
-  ${renderGastosFijosDetalleTable()}
-  ${buildComparativaInteranualHTML()}`;
+  ${renderGastosFijosDetalleTable()}`;
 }
 
 // "Principales rubros" usa los nombres/categorías tal como están en la
@@ -2120,29 +2120,37 @@ function filterRubrosRanking(){
   if(wrap) wrap.innerHTML=buildRubrosTableHTML(sel?sel.value:'',ordSel?ordSel.value:'monto');
 }
 
+const GFD_VIEW_TITLE={'2025':'Gastos Fijos por proveedor/cuenta · 2025','2026':'Gastos Fijos por proveedor/cuenta · 2026','interanual':'Análisis interanual · Gastos Fijos'};
 function renderGastosFijosDetalleTable(){
-  const yearSel=`<select class="filter-sel" id="gfd-year" onchange="changeGfdYear(this.value)">
-        <option value="2026" ${ST.gfdYear==='2025'?'':'selected'}>2026</option>
-        <option value="2025" ${ST.gfdYear==='2025'?'selected':''}>2025</option>
-      </select>`;
-  if(ST.gfdYear!=='2025'&&!ST.gastosFijosDetalle){
+  const view=ST.gfdView||'2026';
+  const segBtn=(v,label)=>`<button class="seg-btn${view===v?' active':''}" onclick="changeGfdView('${v}')">${label}</button>`;
+  const segGroup=`<div class="seg-group">${segBtn('2025','2025')}${segBtn('2026','2026')}${segBtn('interanual','Análisis interanual')}</div>`;
+  const isInteranual=view==='interanual';
+
+  if(!isInteranual&&view==='2026'&&!ST.gastosFijosDetalle){
     const msg=ST.gastosFijosDetalleLoading?'Cargando datos de proveedores…':'No se pudo cargar esta hoja.';
-    return `<div class="tc" id="gfd-card"><div class="tc-hd">Gastos Fijos por proveedor/cuenta<div class="tc-hd-r">${yearSel}</div></div>
+    return `<div class="tc" id="gfd-card"><div class="tc-hd">${GFD_VIEW_TITLE[view]}<div class="tc-hd-r">${segGroup}</div></div>
       <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">${msg}</div></div>`;
   }
-  return `<div class="tc" id="gfd-card" style="margin-top:4px">
-    <div class="tc-hd">Gastos Fijos por proveedor/cuenta
-      <div class="tc-hd-r">
-        ${yearSel}
+  // El buscador y el export de Excel solo aplican a las vistas de detalle
+  // (2025/2026) -- el análisis interanual ya es una tabla chica y fija, no
+  // hace falta buscar adentro.
+  const tools=isInteranual?'':`
         <button class="export-btn" onclick="exportGastosFijosDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
-        <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
+        <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>`;
+  const body=isInteranual?buildComparativaInteranualTableHTML():buildGfdTableHTML('');
+  return `<div class="tc" id="gfd-card" style="margin-top:4px">
+    <div class="tc-hd">${GFD_VIEW_TITLE[view]}
+      <div class="tc-hd-r">
+        ${segGroup}
+        ${tools}
       </div>
     </div>
-    <div id="gfd-table-wrap">${buildGfdTableHTML('')}</div>
+    <div id="gfd-table-wrap">${body}</div>
   </div>`;
 }
-function changeGfdYear(v){
-  ST.gfdYear=v;
+function changeGfdView(v){
+  ST.gfdView=v;
   const card=document.getElementById('gfd-card');
   if(card) card.outerHTML=renderGastosFijosDetalleTable();
 }
@@ -2740,7 +2748,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdYear:'2026',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
 // Oculta del menú lateral las pestañas que no estén en `permitidas`.
 // El rol 'full' nunca llama a esto (ve todo, sin filtrar).
@@ -2765,8 +2773,6 @@ async function loadGastosFijosDetalleLazy(){
     if(ST.currentTab==='costos'){
       const card=document.getElementById('gfd-card');
       if(card) card.outerHTML=renderGastosFijosDetalleTable();
-      const cmpCard=document.getElementById('gfd-comparativa-card');
-      if(cmpCard) cmpCard.outerHTML=buildComparativaInteranualHTML();
     }
   }
 }
