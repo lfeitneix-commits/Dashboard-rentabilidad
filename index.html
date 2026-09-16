@@ -303,6 +303,219 @@ const SHEETS=[{mes:'Enero',gid:'226754153'},{mes:'Febrero',gid:'1511706532'},{me
 const CAPN_GID='314640513';
 const CLASIF_GID='263291172';
 const GASTOS_FIJOS_DETALLE_GID='548055577';
+// Gastos Fijos 2025, por proveedor y mes (USD) — año cerrado, no viene de
+// Sheets (no hay gid publicado para esto), se pega el CSV entero tal cual
+// lo pasó el usuario y se parsea con el mismo parser que la hoja 2026
+// (parseGastosFijosDetalle) para que ambos años usen exactamente la misma
+// lógica. Se recorta antes de la fila "Tipo de cambio usado..." porque esa
+// fila no es una cuenta y rompería el parseo (ver parseGastosFijosDetalle).
+const GASTOS_FIJOS_2025_CSV=`Cuenta / Proveedor,Enero,Febrero,Marzo,Abril,Mayo,Junio,Julio,Agosto,Septiembre,Octubre,Noviembre,Diciembre,Tipo
+Sueldos y CS,-,-,-,-,-,-,-,-,-,-,-,-,
+   [objetivo] Total real (ref. mes),"$188,069","$109,129","$190,251","$215,719","$218,911","$368,090","$771,573","$230,028","$198,387","$216,050","$229,769","$1,085,831",
+TOTAL Sueldos y CS,"$188,069","$109,129","$190,251","$215,719","$218,911","$368,090","$771,573","$230,028","$198,387","$216,050","$229,769","$1,085,831",
+
+Servicios Contratados,-,-,-,-,-,-,-,-,-,-,-,-,
+   Mercadolibre (acuerdo comercial mensual),"$10,364","$9,457","$9,476",-,"$23,304","$19,750","$12,912","$12,935","$11,752","$12,851","$12,860",-,Fijo
+   Estudio Gallo,"$3,614","$5,236","$4,941","$5,542","$5,991","$5,871","$5,317",$233,"$5,381","$10,038","$5,933","$8,609",Fijo
+   Bloomberg L.P.,"$12,646",-,-,"$12,729",-,"$13,928",-,-,-,"$13,656",-,-,Fijo
+   Celeri Tecnolog (Complif),"$4,036","$3,448","$3,274","$3,991","$4,024","$4,031","$4,111","$4,081","$3,862","$4,116","$4,182","$4,205",Fijo
+   Marina Muller,"$4,066",-,-,"$2,777","$2,996","$3,413","$3,434","$3,762","$2,766","$3,193","$2,997","$4,488",Fijo
+   Otros / Sin discriminar (consultores puntuales),"$2,607","$1,535",($65),$74,"$3,324",$344,"$2,472","$1,836","$7,980","$1,106",$643,"$4,638",Variable
+   Refinitiv,"$1,174","$6,684",-,"$1,205",-,"$11,828","$1,175",-,-,"$1,247",-,"$1,091",Fijo
+   Costa Victoria,-,"$8,053",$379,"$1,006",$500,$793,-,"$7,839",$429,$469,$469,$701,Fijo
+   Nubi S.A.,-,-,-,-,-,-,-,-,-,-,-,"$19,449",Variable
+   Halo Executive (reclutamiento),-,-,-,-,"$5,040","$4,959",-,-,"$8,249","($1,267)",-,-,Variable
+   Group Intecom (instalación sistemas),-,-,-,-,-,"$7,980",-,"$8,036",-,-,-,-,Variable
+   Interbanking (plus bancos),"$1,098","$1,155","$1,080","$1,283","$1,358","$1,337","$1,324","$1,326","$1,205","$1,251","$1,252","$1,248",Fijo
+   BCS Sociedad Anónima (PLD/FATCA),$529,$518,"$2,783",$566,$580,"$2,772","$1,264","$2,493",$504,$517,$529,$539,Fijo
+   Star Servicios / Interlim (limpieza),$786,$529,$745,$853,$847,$885,"$1,264","$1,243","$1,110","$1,176","$1,219","$1,291",Fijo
+   Macarena García,$882,$836,"$1,852",-,$924,$909,"$1,741",$616,$792,$801,"$1,734",$531,Fijo
+   1816 Data,$813,$792,$757,$861,$886,$896,$810,$825,$763,$787,$803,$819,Fijo
+   Mazzuchini Sergio,"$1,073","$1,018",$952,$803,$797,$784,$699,$742,$674,$682,$723,$721,Fijo
+   La Mirona SRL (producción),-,-,-,-,-,-,"$3,310","$3,315","$3,012",-,-,-,Variable
+   Lab. de Inv. y D.,$762,$738,$707,$814,$830,$829,$751,$766,$709,$732,$750,$766,Fijo
+   Victorica Jose,$5,-,$20,-,$8,"$3,765",$166,-,$661,$19,"$4,018",-,Fijo
+   1816 SAS,$707,$689,$658,$748,$771,$779,$705,$717,$664,$684,$699,$713,Fijo
+   Soundtec SRL,-,-,-,-,-,-,-,-,-,-,"$6,829",$208,Variable
+   Oracle Argentina,-,"$1,266",$32,$578,$650,$697,$511,$510,$494,$522,$655,$773,Fijo
+   Connect Consulting,"$6,310",-,-,-,-,-,-,-,-,-,-,-,Variable
+   Brunelli Maria (reclutamiento),-,"$1,337",-,"$3,429","$1,133",-,-,-,-,-,-,-,Variable
+   Abbriata Cecilia,-,-,"$1,662","$1,970",-,-,-,-,-,-,-,-,Fijo
+   Halegua Perez (legal),-,$692,-,$380,$420,-,-,$774,$368,-,$373,$371,Fijo
+   Matchfin SAU,-,-,-,-,$491,$490,$443,$506,$449,$467,$489,-,Fijo
+   Somos Duplo SRL (producción),-,-,-,-,-,-,"$1,938",$635,-,-,-,$357,Variable
+   Marval O'Farrell (legal),-,-,-,-,-,-,-,-,-,-,"$2,875",($107),Fijo
+   20Dedos SAS (RRSS),-,"$2,004",-,-,-,-,-,-,-,-,-,-,Variable
+   NYSE Market Inc.,-,-,$665,-,-,$404,-,-,-,$504,-,-,Fijo
+   Visma Argentina (abono licencias),$115,$109,$102,$113,$113,$111,$115,$115,$105,$106,$106,$105,Fijo
+   Bank S.A. (proc. datos/custodia),$97,$100,$93,$103,$111,$110,$98,$104,$94,$95,$95,$95,Fijo
+   Liquidesk (Quantex),$100,$95,$93,$111,$99,$98,-,$100,$172,$101,$100,$100,Fijo
+   Llobera Mariana (eval. psicotécnica),-,-,-,-,$63,$265,$181,$191,$220,$61,$61,$128,Variable
+   Alfa Medica (exámenes preocupacionales),$254,-,$46,$75,$148,$50,$119,$114,$46,$92,$87,$32,Variable
+   Menin Leandro (imprenta),-,-,-,-,$142,$37,$2,$99,-,-,$649,$28,Variable
+   Prosegur (alarma),$159,$33,$32,$54,$55,$57,$52,$54,$49,$51,$53,$54,Fijo
+   Hilaire Chaneto (consultoría),-,-,-,-,$545,-,-,-,-,-,-,-,Variable
+   Aguirre Alejandro,-,-,-,-,$88,$45,$81,-,$37,$37,$81,-,Fijo
+   Xplot S.A. (cartelería),-,-,-,-,-,$157,$140,-,-,-,-,-,Variable
+   Imágenes del Sur (audiovisual),-,-,-,-,-,-,-,$258,-,-,-,-,Variable
+   Gráfica B612 (banners),-,$243,-,-,-,-,-,-,-,-,-,-,Variable
+   Tecnet Argentina,-,-,-,$40,$23,$23,$20,$20,$18,-,$18,$18,Fijo
+   Attori Lucas (cobertura audiovisual),-,-,$133,-,-,-,-,-,-,-,-,-,Variable
+   Rapimetal (cartelería),-,-,$53,$44,-,-,-,-,-,-,-,-,Variable
+   Ruella Esteban,$67,-,-,-,-,-,-,-,-,-,-,-,Fijo
+   Otros / Ajustes contables (reversiones, dif. cambio),($13,751),($70),($90),($76),($69),-,($37),($20),$117,($46),($68),$139,Variable
+   [objetivo] Total real (ref. mes),"$38,516","$46,497","$30,379","$40,074","$56,192","$88,399","$45,116","$54,225","$52,682","$54,047","$51,215","$52,114",
+   Sin discriminar / Ajuste,-,$745,-,-,$529,-,-,-,-,-,-,-,
+TOTAL Servicios Contratados,"$38,516","$47,242","$30,379","$40,074","$56,721","$88,399","$45,116","$54,225","$52,682","$54,047","$51,215","$52,114",
+
+Suscripciones,-,-,-,-,-,-,-,-,-,-,-,-,
+   Suscripciones BC,-,-,-,-,-,-,-,-,$73,-,-,-,Fijo
+   Suscripciones Prods,-,-,$81,-,-,-,-,-,-,$5,-,-,Fijo
+   Suscripciones IT,$57,$822,$70,$6,"$1,004",-,$14,$41,$30,$18,$112,$29,Fijo
+   Suscripciones Adm,$10,-,-,-,-,$59,-,-,-,-,-,-,Fijo
+   Suscripciones RRHH,-,-,-,$450,$384,-,-,-,-,"$2,377",-,-,Fijo
+   Neix: Microsoft (NSS S.A.),"$1,217",$163,"$1,985","$1,466","$1,471",-,"$1,328","$3,916",$878,"$1,624",-,"$1,582",Fijo
+   Neix: Tarjeta corp. (Visa/Amex dólar),-,$36,-,-,$311,"$1,061",$272,"$1,631",$335,$770,$39,$431,Variable
+   Neix: Cámara de Agentes (cuota social),$132,$125,$117,$130,$138,$136,$121,$122,$118,$120,$120,$120,Fijo
+   Neix: Encode S.A. (firma digital),-,-,-,-,-,-,$117,$97,-,-,-,-,Variable
+   Neix: Adobe,-,-,-,$10,$10,$10,$34,$34,$8,$31,$31,$31,Fijo
+   Neix: All Pago,-,-,-,-,$20,$10,-,$17,$8,$8,-,-,Variable
+   Neix: Otros / Sin discriminar,-,-,-,-,-,-,-,-,$23,-,-,$23,Fijo
+   Neix: LinkedIn (campañas),$3,-,-,-,$3,$3,-,$3,$2,$2,-,-,Variable
+   [objetivo] Total real (ref. mes),"$1,420","$1,147","$2,253","$2,062","$3,342","$1,278","$1,886","$5,860","$1,475","$4,955",$302,"$2,216",
+   Sin discriminar / Ajuste,-,$13,-,$438,-,-,-,-,-,-,-,-,
+TOTAL Suscripciones,"$1,420","$1,159","$2,253","$2,501","$3,342","$1,278","$1,886","$5,860","$1,475","$4,955",$302,"$2,216",
+
+Honorarios Profesionales,-,-,-,-,-,-,-,-,-,-,-,-,
+   Santangelo Sofia,"$2,920","$5,538","$2,589","$3,081","$3,059","$3,010","$2,882","$6,255","$2,841","$2,519","$2,917","$2,909",Fijo
+   Martini Ana Inés,"$2,576","$2,442","$4,566",-,"$2,517","$2,477","$2,206","$2,210","$2,008","$2,031","$4,064",-,Fijo
+   Sumarsi SRL,"$3,050","$2,404","$3,729","$1,814","$2,070","$2,190","$1,979","$1,997","$1,827","$1,991","$2,006","$2,000",Fijo
+   Orlievsky Santiago,"$1,717","$1,628","$1,522","$2,113","$2,098","$2,064","$1,839","$2,210","$2,008","$2,031","$2,709","$2,701",Fijo
+   Magnin Gomez,"$6,811","$6,458",-,"$6,704",-,-,-,-,-,-,-,-,Fijo
+   Gimenez Ezequiel,"$1,717","$1,628",-,"$3,380",-,"$1,651","$1,471","$1,473","$1,339","$1,354","$1,355","$1,351",Fijo
+   Tanoira Cassagne (TCA),"$1,850","$1,083","$1,064","$1,933","$1,200","$1,181","$1,440","$1,140","$1,036","$1,217","$1,355","$1,397",Fijo
+   ARV Group (Fernando Álvarez),"$1,048","$1,016",$972,"$1,119","$1,143","$1,141","$1,033","$1,257","$1,170","$1,955","$1,032","$1,054",Fijo
+   Rivas Marcelo,"$1,889",$488,$457,"$1,183","$1,175","$1,156","$1,030","$1,031",$937,"$1,036","$1,036","$2,067",Fijo
+   Frylinsztein Yamila,$841,$798,$746,$828,$822,$809,$721,$722,$656,$663,$664,$662,Fijo
+   Alvarez Manuel,$675,$654,$626,$721,$736,$735,$665,$679,$629,$649,$665,$679,Fijo
+   Reig Marcelo,-,"$1,994",-,-,-,-,-,-,-,-,-,-,Fijo
+   Oses Juan Manuel,$687,$651,-,-,-,-,-,-,-,-,-,-,Fijo
+   Alejandra Bazzo (Psicotécnica),$106,$103,$365,$558,$126,-,-,-,-,-,-,-,Fijo
+   Napp y Pouysségur,-,-,$251,$558,-,-,-,-,-,-,-,$270,Fijo
+   Halegua Perez (legal),-,-,$342,-,-,$413,-,-,-,-,-,-,Fijo
+   Garzo Lucrecia,$258,-,-,-,-,-,-,-,-,$396,-,-,Fijo
+   Garzo Isabel,$515,-,-,-,-,-,-,-,-,-,-,-,Fijo
+   Alfonso Gutierrez,-,$249,-,-,-,-,-,-,-,-,-,-,Fijo
+   Canatelli Sandra,-,-,-,-,-,-,$162,-,-,-,-,-,Fijo
+   Sena y Berton,-,-,-,-,-,-,-,$111,-,-,-,-,Fijo
+   Cabaleiro Carlos,-,-,-,-,$101,-,-,-,-,-,-,-,Fijo
+   [objetivo] Total real (ref. mes),"$26,661","$27,135","$17,230","$23,992","$15,047","$16,828","$15,426","$19,085","$14,450","$15,840","$17,802","$15,090",
+   Sin discriminar / Ajuste,($13,679),-,-,-,-,-,-,-,-,-,-,-,
+TOTAL Honorarios Profesionales,"$12,982","$27,135","$17,230","$23,992","$15,047","$16,828","$15,426","$19,085","$14,450","$15,840","$17,802","$15,090",
+
+Alquileres y Expensas,-,-,-,-,-,-,-,-,-,-,-,-,
+   P8 Buenavista (Alquiler+Expensas),"$13,692","$13,417","$13,809","$15,733","$15,296","$16,714","$17,375","$21,009","$17,265","$22,095","$25,621","$22,162",Fijo
+   DEI S.A.,"$1,961",$536,"$1,602","$1,596","$1,651","$1,670","$1,704","$1,770",$615,"$1,608","$1,657","$1,640",Fijo
+   Investimenti S.A.,$421,"$1,575",-,-,-,-,-,-,-,-,-,-,Fijo
+   Haberl Jorge,$421,-,-,-,-,-,-,-,-,-,-,-,Fijo
+   [objetivo] Total real (ref. mes),"$16,494","$15,528","$15,411","$17,329","$16,947","$18,384","$19,079","$22,780","$17,880","$23,703","$27,279","$23,802",
+   Sin discriminar / Ajuste,($988),$936,($16),($18),($9),($13),($16),$219,"$1,113",($18),-,($19),
+TOTAL Alquileres y Expensas,"$15,506","$16,463","$15,395","$17,310","$16,938","$18,371","$19,063","$22,998","$18,994","$23,684","$27,279","$23,783",
+
+Adicional Obra Social,-,-,-,-,-,-,-,-,-,-,-,-,
+   OSDE,"$2,690","$1,466","$1,397","$1,927","$2,193","$3,226","$1,936","$2,039","$1,473","$1,517","$1,550","$1,582",Fijo
+   Swiss Medical,-,($12),-,-,-,-,-,-,-,-,-,-,Fijo
+   [objetivo] Total real (ref. mes),"$2,690","$1,454","$1,397","$1,927","$2,193","$3,226","$1,936","$2,039","$1,473","$1,517","$1,550","$1,582",
+   Sin discriminar / Ajuste,-,-,-,-,-,"$1,090",-,-,-,-,-,-,
+TOTAL Adicional Obra Social,"$2,690","$1,454","$1,397","$1,927","$2,193","$4,316","$1,936","$2,039","$1,473","$1,517","$1,550","$1,582",
+
+Electricidad,-,-,-,-,-,-,-,-,-,-,-,-,
+   Edenor,"$1,749","$4,253","$2,636","$2,428","$1,895","$1,744","$1,488","$1,643","$1,350","$1,492","$1,697","$1,695",Fijo
+   Edemsa (Mendoza),-,-,-,-,-,-,-,-,-,$105,-,$94,Fijo
+   [objetivo] Total real (ref. mes),"$1,749","$4,253","$2,636","$2,428","$1,895","$1,744","$1,488","$1,643","$1,350","$1,597","$1,697","$1,789",
+   Sin discriminar / Ajuste,($1,749),($2,058),-,-,-,-,-,-,-,$108,-,-,
+TOTAL Electricidad,-,"$2,195","$2,636","$2,428","$1,895","$1,744","$1,488","$1,643","$1,350","$1,705","$1,697","$1,789",
+
+Telefonia e Internet,-,-,-,-,-,-,-,-,-,-,-,-,
+   Telmex Argentina,$849,$820,$774,$868,$685,"$1,458","$1,023","$1,114","$1,030","$1,089","$1,113","$1,109",Fijo
+   CPS Comunicación,$848,$821,$774,$862,"$1,058",$921,$830,"$1,012",$882,$931,$972,$944,Fijo
+   Telecom Argentina,$872,"$4,214",$616,$237,$201,$32,$90,$93,$86,$287,$231,$235,Fijo
+   [objetivo] Total real (ref. mes),"$2,569","$5,855","$2,164","$1,967","$1,944","$2,411","$1,943","$2,219","$1,998","$2,307","$2,316","$2,288",
+   Sin discriminar / Ajuste,($224),-,-,($186),-,-,$10,-,$79,$17,$18,-,
+TOTAL Telefonia e Internet,"$2,345","$5,855","$2,164","$1,781","$1,944","$2,411","$1,954","$2,219","$2,076","$2,325","$2,334","$2,288",
+
+Gastos de Hardware,-,-,-,-,-,-,-,-,-,-,-,-,
+   Kuriabe SA,-,-,-,-,"$1,936",-,-,-,-,$88,-,-,Fijo
+   Rednet SRL,$21,-,$6,$620,$105,$58,$20,-,$385,-,-,$21,Fijo
+   Oportutek S.A.,-,-,-,-,-,$880,-,-,-,-,-,-,Fijo
+   Dinatech SA,-,-,-,$517,-,-,-,$21,-,$324,-,-,Fijo
+   Ceven SA,-,-,-,-,-,-,-,-,-,$401,-,$421,Fijo
+   CPT Integral S.A.,-,-,-,-,-,-,$550,$128,-,$126,-,-,Fijo
+   Ghertner Sebastián,-,-,-,-,-,-,-,$84,$78,$454,-,-,Fijo
+   Racks Iofi SRL,-,-,$464,-,-,-,-,-,-,-,-,-,Fijo
+   Sercap Insumos,$24,-,$139,$71,-,-,-,$23,$63,-,-,-,Fijo
+   Bidcom SRL,-,$217,-,-,-,-,-,-,-,-,-,-,Fijo
+   Caldentey Diego,$114,-,-,-,-,-,$58,$29,-,-,-,-,Fijo
+   Polytech SA,-,-,-,-,-,-,-,$68,-,-,-,-,Fijo
+   D Led SH,-,-,-,$25,$19,$18,-,-,-,-,-,-,Fijo
+   Teknium SRL,-,-,-,$56,-,-,-,-,-,-,-,-,Fijo
+   Noxiestore SA,-,-,-,-,-,-,-,-,-,$36,-,-,Fijo
+   Ebox S.A.,-,-,-,-,-,-,-,-,-,-,$19,-,Fijo
+   [objetivo] Total real (ref. mes),$158,$217,$609,"$1,289","$2,059",$957,$628,$352,$527,"$1,428",$19,$442,
+   Sin discriminar / Ajuste,$131,$208,$29,"$1,492",$373,"$1,013",$737,$170,$35,$357,$26,$538,
+TOTAL Gastos de Hardware,$290,$425,$638,"$2,782","$2,432","$1,969","$1,365",$522,$562,"$1,785",$45,$981,
+
+Donaciones,-,-,-,-,-,-,-,-,-,-,-,-,
+   Fundación Padi,-,-,$913,$338,$364,"$2,010",$319,$320,$314,$317,$318,$317,Fijo
+   Fundación Mir,-,-,"$2,171",$338,-,-,-,-,-,"$2,496",-,-,Fijo
+   Hospice Buen Samaritano,-,-,-,-,"$3,524",-,-,-,-,-,-,-,Fijo
+   Fundación Germinar,-,"$1,302",-,-,-,-,-,$534,-,-,-,-,Fijo
+   Fundación Universitaria,-,$5,-,$6,-,-,-,-,-,-,-,-,Fijo
+   [objetivo] Total real (ref. mes),-,"$1,308","$3,084",$682,"$3,889","$2,010",$319,$854,$314,"$2,813",$318,$317,
+   Sin discriminar / Ajuste,-,-,-,-,($12),-,"$2,206",-,-,-,-,-,
+TOTAL Donaciones,-,"$1,308","$3,084",$682,"$3,877","$2,010","$2,526",$854,$314,"$2,813",$318,$317,
+
+Pagina Web/Publicidad,-,-,-,-,-,-,-,-,-,-,-,-,
+   20Dedos SAS,-,-,"$4,836","$4,939","$3,838","$2,197","$1,598","$2,245","$2,040","$1,573","$1,575","$1,639",Variable
+   Inargind (SGC/Sponsor),"$1,494","$1,440","$1,404","$1,672","$1,520","$1,470","$1,337","$1,504","$1,365",$474,"$3,536","$1,787",Variable
+   El Cronista (publicidad),-,"$5,969","$5,581","$6,197",-,-,-,-,-,-,-,-,Variable
+   Lange Santiago (campaña),-,-,-,-,-,"$5,873",-,-,-,-,-,-,Variable
+   FBR S.A.,"$3,000",-,-,-,-,-,-,-,-,-,-,-,Variable
+   Coding & Company (mantenimiento),-,-,-,-,-,$578,-,-,"$1,975",-,$52,-,Fijo
+   La Nacion (publicidad),-,-,"$1,900",-,-,-,-,-,-,-,-,-,Variable
+   Territorio Digital,-,-,-,"$1,563",-,-,-,-,-,-,-,-,Variable
+   Otros / Ajustes contables (reversiones, dif. cambio),-,-,-,-,-,-,$765,-,-,-,-,-,Variable
+   LinkedIn (campañas),-,-,-,-,-,-,-,$308,-,-,-,-,Variable
+   Mitho SRL,-,-,-,$284,-,-,-,-,-,-,-,-,Variable
+   Gutierrez Emilia,$117,-,-,-,-,-,-,-,-,-,-,-,Variable
+   IT International,($76),-,-,-,-,-,-,-,-,-,-,-,Variable
+   Perez Damil Mariana,-,-,($167),-,-,-,-,-,-,-,-,-,Variable
+   [objetivo] Total real (ref. mes),"$4,535","$7,409","$13,553","$14,656","$5,358","$10,118","$3,699","$4,057","$5,380","$2,047","$5,162","$3,426",
+   Sin discriminar / Ajuste,$278,-,-,-,-,-,-,-,-,-,-,-,
+TOTAL Pagina Web/Publicidad,"$4,813","$7,409","$13,553","$14,656","$5,358","$10,118","$3,699","$4,057","$5,380","$2,047","$5,162","$3,426",
+
+Gastos Generales,-,-,-,-,-,-,-,-,-,-,-,-,
+   Gastos generales (varios),$60,$11,($2,078),$113,"$2,813",$396,$649,$234,$53,$3,$30,$196,Fijo
+   Librería y Papelería,-,-,-,-,$23,$28,$30,$26,$68,-,$73,$35,Fijo
+   Refrigerios: Consumo diario oficina (café, frutas, desayunos),"$2,721","$2,443",$770,"$1,691","$2,057","$2,352","$1,944","$1,768","$2,554","$2,110","$1,843","$1,942",Fijo
+   Certificaciones y Legalización,$23,-,"$1,689",-,$63,-,$144,"$2,642",$20,$49,"$1,220",$41,Fijo
+   Gtos Mant de Oficina,$491,$76,$114,$72,$60,$67,$450,$306,$52,$57,$195,$568,Fijo
+   Correspondencia y Mensajería,$412,$106,$34,$155,$239,$197,$73,$152,$178,$252,$121,$602,Fijo
+   Gtos Grales TC Corporativa,-,-,-,$326,-,-,-,-,-,-,$211,$210,Fijo
+   Utiles y Elementos de Oficina,"$9,192",$963,"$1,864",$946,"$1,372","$1,426",$631,$922,"$1,066",$343,$150,$227,Fijo
+   [objetivo] Total real (ref. mes),"$12,898","$3,600","$2,394","$3,303","$6,626","$4,467","$3,922","$6,050","$3,992","$2,815","$3,844","$3,820",
+   Sin discriminar / Ajuste,-,-,-,-,-,-,-,-,-,-,-,-,
+TOTAL Gastos Generales,"$12,898","$3,600","$2,394","$3,303","$6,626","$4,467","$3,922","$6,050","$3,992","$2,815","$3,844","$3,820",
+
+Honorarios por Servicios,-,-,-,-,-,-,-,-,-,-,-,-,
+   Kennedy Juan Al,-,-,-,-,-,-,-,-,-,-,-,"$8,935",Variable
+   Corrales Sergio,-,-,-,-,-,-,-,-,-,-,-,"$1,299",Variable
+   Studio Freak S.,-,-,-,-,-,-,-,-,-,-,-,-,Variable
+   Otros / Ajustes contables (reversiones, dif. cambio),-,-,-,-,-,-,-,-,-,-,-,($158),Variable
+   [objetivo] Total real (ref. mes),-,-,-,-,-,-,-,-,-,-,-,"$10,076",
+   Sin discriminar / Ajuste,-,-,-,-,-,-,-,-,-,-,-,-,
+TOTAL Honorarios por Servicios,-,-,-,-,-,-,-,-,-,-,-,"$10,076",
+`;
 const MATRIZ_GID='44234235';
 const MATRIZ_COLS=['Mesa','FAs + Mza','Banca Corporativa','Banca Privada'];
 const MATRIZ_ROWS1=['Back Office','RRHH','IT','Administración','MKTG','Performance'];
@@ -518,7 +731,20 @@ function getCol(headers,patterns){return headers.find(h=>patterns.some(p=>new Re
 function parseGastosFijosDetalle(csvText){
   const{headers,rows}=parseCSV(csvText);
   const labelCol=headers[0];
-  const valCols=headers.slice(1);
+  let valCols=headers.slice(1);
+  // Algunas hojas (ej. el detalle 2025) agregan al final una columna "Tipo"
+  // (Fijo/Variable) que no es un mes -- se descarta, no se usa acá.
+  valCols=valCols.filter(h=>!/^tipo$/i.test(h.trim()));
+  // Un encabezado de cuenta real siempre tiene, más abajo, su propia fila
+  // "TOTAL <nombre>" -- un proveedor nunca. Esto distingue el encabezado de
+  // un proveedor que da $0 en todos los meses cargados (misma pinta: fila
+  // vacía/con guiones) sin depender de que la fila esté realmente en blanco.
+  const totalNames=new Set();
+  rows.forEach(row=>{
+    const label=String(row[labelCol]||'').trim();
+    const m=/^TOTAL\s+(?!GASTOS\s+FIJOS\b)(.+)$/i.exec(label);
+    if(m) totalNames.add(m[1].trim().toLowerCase());
+  });
   const cuentas=[];
   let current=null,grandTotal=null;
   rows.forEach(row=>{
@@ -528,14 +754,30 @@ function parseGastosFijosDetalle(csvText){
     const vals=valCols.map(c=>parseNum(row[c]||''));
     if(/^TOTAL\s+GASTOS\s+FIJOS/i.test(label)){ grandTotal={label,vals}; return; }
     if(/^TOTAL\s+/i.test(label)){ if(current) current.total={label,vals}; return; }
-    const isHeaderRow=rawVals.every(v=>v==='');
+    // Estos dos chequeos van ANTES del heurístico de encabezado -- si no, un
+    // ajuste que da $0 en todos los meses (fila toda "-"/vacía) se confunde
+    // con el inicio de una cuenta nueva.
+    if(/^\[objetivo\]/i.test(label)) return; // redundante con el total de la cuenta
+    if(/^Sin discriminar/i.test(label)){ if(current) current.ajuste={label,vals}; return; }
+    // Encabezado de cuenta: todas las columnas vacías (algunas hojas, ej. el
+    // detalle 2025, usan "-" en vez de dejar la celda vacía) Y existe más
+    // abajo una fila "TOTAL <este nombre>".
+    const isHeaderRow=rawVals.every(v=>v===''||v==='-')&&totalNames.has(label.toLowerCase());
     if(isHeaderRow){ current={nombre:label,providers:[],ajuste:null,total:null}; cuentas.push(current); return; }
     if(!current) return;
-    if(/^\[objetivo\]/i.test(label)) return; // redundante con el total de la cuenta
-    if(/^Sin discriminar/i.test(label)){ current.ajuste={label,vals}; return; }
     current.providers.push({nombre:label,vals});
   });
   return{valCols,cuentas,grandTotal};
+}
+
+// 2025 es un año cerrado, estático (no viene de Sheets) -- se parsea una
+// sola vez con el mismo parser que 2026 y se cachea en ST.
+function getGastosFijos2025(){
+  if(!ST.gastosFijosDetalle2025) ST.gastosFijosDetalle2025=parseGastosFijosDetalle(GASTOS_FIJOS_2025_CSV);
+  return ST.gastosFijosDetalle2025;
+}
+function currentGfdData(){
+  return ST.gfdYear==='2025'?getGastosFijos2025():ST.gastosFijosDetalle;
 }
 
 // ── CLASIFICACIÓN DE GASTOS (hoja: GASTO | Categoría | meses) ──
@@ -1755,6 +1997,64 @@ function renderIndicadores(){return renderAnalisis();}
 
 const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7D'};
 
+// ── ANÁLISIS INTERANUAL — Gastos Fijos, Diciembre 2025 como base ──
+// Compara, rubro por rubro, cada mes cargado de 2026 contra Diciembre 2025
+// (el último mes cerrado antes de 2026) — no un año completo contra otro,
+// porque 2026 todavía está en curso y comparar totales anuales distorsiona
+// el resultado (2026 se vería "más bajo" solo por tener menos meses).
+function buildComparativaInteranualHTML(){
+  const d2025=getGastosFijos2025();
+  const d2026=ST.gastosFijosDetalle;
+  if(!d2026){
+    return `<div class="tc" id="gfd-comparativa-card" style="margin-top:20px"><div class="tc-hd">Análisis interanual · Gastos Fijos</div>
+      <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div></div>`;
+  }
+  const dicIdx=d2025.valCols.indexOf('Diciembre');
+  const meses2026=ST.meses; // Enero..Julio (los que estén cargados)
+  const idx2026=mes=>d2026.valCols.indexOf(mes);
+  // Nombre normalizado (sin acentos/mayúsculas) -- 2025 y 2026 no siempre
+  // escriben el rubro exactamente igual (ver el resto de la app: es un bug
+  // recurrente entre hojas distintas).
+  const by2026=new Map(d2026.cuentas.map(c=>[normSearch(c.nombre),c]));
+
+  let rowsHtml='';
+  const totalesFila={base:0}; meses2026.forEach(m=>totalesFila[m]=0);
+  d2025.cuentas.forEach(c2025=>{
+    const base=c2025.total?c2025.total.vals[dicIdx]:0;
+    const c2026=by2026.get(normSearch(c2025.nombre));
+    // El total solo suma rubros que existen en los dos años -- si no, un
+    // rubro sin match todavía en 2026 infla el 2025 del total sin ninguna
+    // contraparte, y el Δ% general queda engañoso.
+    if(c2026) totalesFila.base+=base;
+    const cells=meses2026.map(mes=>{
+      const i=idx2026(mes);
+      const v=(c2026&&c2026.total&&i>=0)?c2026.total.vals[i]:null;
+      if(v!=null) totalesFila[mes]+=v;
+      if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
+      const delta=base?((v-base)/base*100):(v?100:0);
+      const cls=delta>0.5?'neg':delta<-0.5?'pos':'';
+      const sign=delta>=0?'+':'';
+      return `<td class="r">${fmtD(v)}<div style="font-size:10px" class="${cls}">${sign}${delta.toFixed(0)}%</div></td>`;
+    }).join('');
+    rowsHtml+=`<tr><td>${c2025.nombre}${!c2026?' <span style="color:var(--muted);font-size:10px">(sin match 2026)</span>':''}</td><td class="r">${fmtD(base)}</td>${cells}</tr>`;
+  });
+  const totalCells=meses2026.map(mes=>{
+    const v=totalesFila[mes];
+    const base=totalesFila.base;
+    const delta=base?((v-base)/base*100):0;
+    const cls=delta>0.5?'neg':delta<-0.5?'pos':'';
+    const sign=delta>=0?'+':'';
+    return `<td class="r" style="font-weight:700">${fmtD(v)}<div style="font-size:10px" class="${cls}">${sign}${delta.toFixed(0)}%</div></td>`;
+  }).join('');
+  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td><td class="r" style="font-weight:700">${fmtD(totalesFila.base)}</td>${totalCells}</tr>`;
+
+  return `<div class="tc" id="gfd-comparativa-card" style="margin-top:20px">
+    <div class="tc-hd">Análisis interanual · Gastos Fijos <span style="font-weight:400;color:var(--muted);font-size:11px">Base: Diciembre 2025 · USD</span></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Rubro</th><th class="c">Dic 2025 (base)</th>${meses2026.map(m=>`<th class="c">${m} 2026</th>`).join('')}</tr></thead>
+    <tbody>${rowsHtml}</tbody></table></div>
+  </div>`;
+}
+
 function renderCostos(){
   document.getElementById('topbar-title').textContent='Centro de costos';
   loadGastosFijosDetalleLazy();
@@ -1780,7 +2080,8 @@ function renderCostos(){
     <div class="cc"><div class="cc-t">Estructura de gastos por mes</div><div class="cc-s">Fijos · Comisiones Productores · Variables · Impuestos</div><div style="height:280px"><canvas id="ch-cf4"></canvas></div></div>
   </div>
   ${tablaRanking}
-  ${renderGastosFijosDetalleTable()}`;
+  ${renderGastosFijosDetalleTable()}
+  ${buildComparativaInteranualHTML()}`;
 }
 
 // "Principales rubros" usa los nombres/categorías tal como están en la
@@ -1820,20 +2121,30 @@ function filterRubrosRanking(){
 }
 
 function renderGastosFijosDetalleTable(){
-  if(!ST.gastosFijosDetalle){
+  const yearSel=`<select class="filter-sel" id="gfd-year" onchange="changeGfdYear(this.value)">
+        <option value="2026" ${ST.gfdYear==='2025'?'':'selected'}>2026</option>
+        <option value="2025" ${ST.gfdYear==='2025'?'selected':''}>2025</option>
+      </select>`;
+  if(ST.gfdYear!=='2025'&&!ST.gastosFijosDetalle){
     const msg=ST.gastosFijosDetalleLoading?'Cargando datos de proveedores…':'No se pudo cargar esta hoja.';
-    return `<div class="tc" id="gfd-card"><div class="tc-hd">Gastos Fijos por proveedor/cuenta</div>
+    return `<div class="tc" id="gfd-card"><div class="tc-hd">Gastos Fijos por proveedor/cuenta<div class="tc-hd-r">${yearSel}</div></div>
       <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">${msg}</div></div>`;
   }
   return `<div class="tc" id="gfd-card" style="margin-top:4px">
     <div class="tc-hd">Gastos Fijos por proveedor/cuenta
       <div class="tc-hd-r">
+        ${yearSel}
         <button class="export-btn" onclick="exportGastosFijosDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
         <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
       </div>
     </div>
     <div id="gfd-table-wrap">${buildGfdTableHTML('')}</div>
   </div>`;
+}
+function changeGfdYear(v){
+  ST.gfdYear=v;
+  const card=document.getElementById('gfd-card');
+  if(card) card.outerHTML=renderGastosFijosDetalleTable();
 }
 
 const DIACRITICS_RE=new RegExp('[̀-ͯ]','g');
@@ -1848,7 +2159,7 @@ function gfdVisibleColIdxs(valCols){
 }
 
 function buildGfdTableHTML(q){
-  const d=ST.gastosFijosDetalle;
+  const d=currentGfdData();
   if(!d) return '';
   const {valCols,cuentas,grandTotal}=d;
   const colIdxs=gfdVisibleColIdxs(valCols);
@@ -2429,7 +2740,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdYear:'2026',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
 // Oculta del menú lateral las pestañas que no estén en `permitidas`.
 // El rol 'full' nunca llama a esto (ve todo, sin filtrar).
@@ -2454,6 +2765,8 @@ async function loadGastosFijosDetalleLazy(){
     if(ST.currentTab==='costos'){
       const card=document.getElementById('gfd-card');
       if(card) card.outerHTML=renderGastosFijosDetalleTable();
+      const cmpCard=document.getElementById('gfd-comparativa-card');
+      if(cmpCard) cmpCard.outerHTML=buildComparativaInteranualHTML();
     }
   }
 }
@@ -3243,7 +3556,7 @@ function exportRubrosRanking(){
 
 function exportGastosFijosDetalle(){
   if(typeof XLSX==='undefined'){alert('Exportación no disponible');return;}
-  const d=ST.gastosFijosDetalle;
+  const d=currentGfdData();
   if(!d) return;
   const searchEl=document.getElementById('gfd-search');
   const query=normSearch(searchEl?searchEl.value:'').trim();
