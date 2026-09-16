@@ -2036,9 +2036,13 @@ function buildComparativaInteranualTableHTML(){
       if(v!=null) totalesFila[mes]+=v;
       if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
       const delta=base?((v-base)/base*100):(v?100:0);
-      const cls=delta>0.5?'neg':delta<-0.5?'pos':'';
+      // Gasto que sube = malo = bordeaux; gasto que baja = bueno = verde.
+      // Va como estilo inline (no clase) porque td.pos/td.neg del resto de
+      // la app pinta el <td> entero, y acá el % va en una línea aparte
+      // dentro de la celda.
+      const color=delta>0.5?'var(--bordeaux)':delta<-0.5?'var(--verde)':'var(--muted)';
       const sign=delta>=0?'+':'';
-      return `<td class="r">${fmtD(v)}<div style="font-size:10px" class="${cls}">${sign}${delta.toFixed(0)}%</div></td>`;
+      return `<td class="r">${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
     }).join('');
     rowsHtml+=`<tr><td>${c2025.nombre}${!c2026?' <span style="color:var(--muted);font-size:10px">(sin match 2026)</span>':''}</td><td class="r">${fmtD(base)}</td>${cells}</tr>`;
   });
@@ -2046,9 +2050,9 @@ function buildComparativaInteranualTableHTML(){
     const v=totalesFila[mes];
     const base=totalesFila.base;
     const delta=base?((v-base)/base*100):0;
-    const cls=delta>0.5?'neg':delta<-0.5?'pos':'';
+    const color=delta>0.5?'var(--bordeaux)':delta<-0.5?'var(--verde)':'var(--muted)';
     const sign=delta>=0?'+':'';
-    return `<td class="r" style="font-weight:700">${fmtD(v)}<div style="font-size:10px" class="${cls}">${sign}${delta.toFixed(0)}%</div></td>`;
+    return `<td class="r" style="font-weight:700">${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
   }).join('');
   rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td><td class="r" style="font-weight:700">${fmtD(totalesFila.base)}</td>${totalCells}</tr>`;
 
