@@ -2007,6 +2007,18 @@ const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7
 // (el último mes cerrado antes de 2026) — no un año completo contra otro,
 // porque 2026 todavía está en curso y comparar totales anuales distorsiona
 // el resultado (2026 se vería "más bajo" solo por tener menos meses).
+// Una celda de comparación: monto 2026 + Δ% vs. la base, coloreado (gasto
+// que sube = malo = bordeaux; que baja = bueno = verde). Color inline (no
+// clase) porque td.pos/td.neg del resto de la app pinta el <td> entero, y
+// acá el % va en una línea aparte dentro de la celda.
+function deltaCellHTML(base,v,bold){
+  if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
+  const delta=base?((v-base)/base*100):(v?100:0);
+  const color=delta>0.5?'var(--bordeaux)':delta<-0.5?'var(--verde)':'var(--muted)';
+  const sign=delta>=0?'+':'';
+  return `<td class="r"${bold?' style="font-weight:700"':''}>${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
+}
+
 function buildComparativaInteranualTableHTML(){
   const d2025=getGastosFijos2025();
   const d2026=ST.gastosFijosDetalle;
@@ -2017,13 +2029,14 @@ function buildComparativaInteranualTableHTML(){
   const meses2026=ST.meses; // Enero..Julio (los que estén cargados)
   const idx2026=mes=>d2026.valCols.indexOf(mes);
   // Nombre normalizado (sin acentos/mayúsculas) -- 2025 y 2026 no siempre
-  // escriben el rubro exactamente igual (ver el resto de la app: es un bug
-  // recurrente entre hojas distintas).
+  // escriben el rubro/proveedor exactamente igual (ver el resto de la app:
+  // es un bug recurrente entre hojas distintas).
   const by2026=new Map(d2026.cuentas.map(c=>[normSearch(c.nombre),c]));
+  const sinMatch=`<span style="color:var(--muted);font-size:10px">(sin match 2026)</span>`;
 
   let rowsHtml='';
   const totalesFila={base:0}; meses2026.forEach(m=>totalesFila[m]=0);
-  d2025.cuentas.forEach(c2025=>{
+  d2025.cuentas.forEach((c2025,ci)=>{
     const base=c2025.total?c2025.total.vals[dicIdx]:0;
     const c2026=by2026.get(normSearch(c2025.nombre));
     // El total solo suma rubros que existen en los dos años -- si no, un
@@ -2034,29 +2047,40 @@ function buildComparativaInteranualTableHTML(){
       const i=idx2026(mes);
       const v=(c2026&&c2026.total&&i>=0)?c2026.total.vals[i]:null;
       if(v!=null) totalesFila[mes]+=v;
-      if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
-      const delta=base?((v-base)/base*100):(v?100:0);
-      // Gasto que sube = malo = bordeaux; gasto que baja = bueno = verde.
-      // Va como estilo inline (no clase) porque td.pos/td.neg del resto de
-      // la app pinta el <td> entero, y acá el % va en una línea aparte
-      // dentro de la celda.
-      const color=delta>0.5?'var(--bordeaux)':delta<-0.5?'var(--verde)':'var(--muted)';
-      const sign=delta>=0?'+':'';
-      return `<td class="r">${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
+      return deltaCellHTML(base,v);
     }).join('');
-    rowsHtml+=`<tr><td>${c2025.nombre}${!c2026?' <span style="color:var(--muted);font-size:10px">(sin match 2026)</span>':''}</td><td class="r">${fmtD(base)}</td>${cells}</tr>`;
+    const cid='cmp-'+ci;
+    const hasDropdown=c2025.providers.length>0;
+    if(hasDropdown){
+      rowsHtml+=`<tr class="row-parent" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
+        <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c2025.nombre}${!c2026?' '+sinMatch:''}</div></td>
+        <td class="r">${fmtD(base)}</td>${cells}
+      </tr>`;
+      const by2026Prov=c2026?new Map(c2026.providers.map(p=>[normSearch(p.nombre),p])):new Map();
+      c2025.providers.forEach(p2025=>{
+        const pBase=p2025.vals[dicIdx];
+        const p2026=by2026Prov.get(normSearch(p2025.nombre));
+        const pcells=meses2026.map(mes=>{
+          const i=idx2026(mes);
+          const v=(p2026&&i>=0)?p2026.vals[i]:null;
+          return deltaCellHTML(pBase,v);
+        }).join('');
+        rowsHtml+=`<tr class="row-child hidden" data-parentid="${cid}">
+          <td class="indent">${p2025.nombre}${!p2026?' '+sinMatch:''}</td>
+          <td class="r">${fmtD(pBase)}</td>${pcells}
+        </tr>`;
+      });
+    } else {
+      rowsHtml+=`<tr class="row-parent">
+        <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${c2025.nombre}${!c2026?' '+sinMatch:''}</div></td>
+        <td class="r">${fmtD(base)}</td>${cells}
+      </tr>`;
+    }
   });
-  const totalCells=meses2026.map(mes=>{
-    const v=totalesFila[mes];
-    const base=totalesFila.base;
-    const delta=base?((v-base)/base*100):0;
-    const color=delta>0.5?'var(--bordeaux)':delta<-0.5?'var(--verde)':'var(--muted)';
-    const sign=delta>=0?'+':'';
-    return `<td class="r" style="font-weight:700">${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
-  }).join('');
+  const totalCells=meses2026.map(mes=>deltaCellHTML(totalesFila.base,totalesFila[mes],true)).join('');
   rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td><td class="r" style="font-weight:700">${fmtD(totalesFila.base)}</td>${totalCells}</tr>`;
 
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro</th><th class="c">Dic 2025 (base)</th>${meses2026.map(m=>`<th class="c">${m} 2026</th>`).join('')}</tr></thead>
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th><th class="c">Dic 2025 (base)</th>${meses2026.map(m=>`<th class="c">${m} 2026</th>`).join('')}</tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
 }
 
