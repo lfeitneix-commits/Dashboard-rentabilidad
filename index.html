@@ -1823,16 +1823,50 @@ function toggleSubsection(subId,rowEl){
   });
 }
 
+// Índices de mes (0-based) dentro de ST.clasifRubros.meses -- todo el mes en
+// consolidado, o el único índice que matchee "mes" (case-insensitive, la
+// hoja trae los meses en mayúsculas). [] si "mes" no está cargado ahí.
+function clasifMesesIdx(mes){
+  if(!ST.clasifRubros) return [];
+  if(mes==='__consolidado__') return ST.clasifRubros.meses.map((_,i)=>i);
+  const i=ST.clasifRubros.meses.findIndex(m=>m.toUpperCase()===String(mes).toUpperCase());
+  return i>=0?[i]:[];
+}
+
 function calcRubros(mes){
-  const isCons=mes==='__consolidado__';
-  const meses=isCons?ST.meses:[mes];
-  const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
-  const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|GASTOS?\s+TOTALES?|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
   const rf={Personal:0,Tecnología:0,Infraestructura:0,'Servicios Financieros':0};
   const rs={};
   new Set(Array.from(GASTOS_SEMIFIJOS).map(semifijoGrupoNombre)).forEach(n=>rs[n]=0);
   const rv={Comercial:0,Honorarios:0,Generales:0,'Intereses e Impuestos':0};
   let totalFijos=0,totalSemifijos=0,totalVars=0;
+
+  // Fuente principal: la hoja "Clasificación de gastos" (ST.clasifRubros) ya
+  // trae, por cuenta y mes, el monto real y la categoría tal como la carga
+  // el usuario -- es más confiable que re-derivarla fila por fila desde la
+  // hoja "por mes" (agrupada por área), que puede quedar desalineada (caso
+  // real: Julio daba 793k de Fijos acá vs 818k en "Gastos Fijos Detalle",
+  // que sí coincide con el total que la propia Clasificación de gastos
+  // calcula para ese mes).
+  if(ST.clasifRubros){
+    const mesesIdx=clasifMesesIdx(mes);
+    ST.clasifRubros.rubros.forEach(r=>{
+      const total=mesesIdx.reduce((s,i)=>s+(r.vals[i]||0),0);
+      if(!total) return;
+      const cat=r.categoria;
+      if(cat==='Semi-fijo'){const g=semifijoGrupoNombre(r.nombre);rs[g]=(rs[g]||0)+total;totalSemifijos+=total;}
+      else if(cat==='Fijo'){const g=NOMBRE_A_RUBRO_FIJO[r.nombre]||r.nombre;rf[g]=(rf[g]||0)+total;totalFijos+=total;}
+      else if(cat==='Variable'){const g=NOMBRE_A_RUBRO_VAR[r.nombre]||'Generales';rv[g]=(rv[g]||0)+total;totalVars+=total;}
+    });
+    return{rf,rs,rv,totalFijos,totalSemifijos,totalVars};
+  }
+
+  // Respaldo -- si "Clasificación de gastos" todavía no cargó, se recalcula
+  // fila por fila desde la hoja "por mes" (menos preciso, ver el comentario
+  // de arriba).
+  const isCons=mes==='__consolidado__';
+  const meses=isCons?ST.meses:[mes];
+  const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
+  const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|GASTOS?\s+TOTALES?|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
     md.rows.forEach(row=>{
@@ -1857,10 +1891,21 @@ function calcRubros(mes){
 // las 4 series suman el total real de gastos del mes, sin duplicar nada.
 function calcCostosBarMes(mes){
   const{totalFijos,totalVars}=calcRubros(mes);
+  let comisiones=0,impuestos=0;
+
+  if(ST.clasifRubros){
+    const mesesIdx=clasifMesesIdx(mes);
+    ST.clasifRubros.rubros.forEach(r=>{
+      if(r.nombre!=='Comisiones Productores'&&r.nombre!=='Impuestos') return;
+      const total=mesesIdx.reduce((s,i)=>s+(r.vals[i]||0),0);
+      if(r.nombre==='Comisiones Productores') comisiones+=total; else impuestos+=total;
+    });
+    return{fijos:totalFijos,comisiones,impuestos,variables:totalVars-comisiones-impuestos};
+  }
+
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
-  let comisiones=0,impuestos=0;
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
     md.rows.forEach(row=>{
