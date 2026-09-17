@@ -923,6 +923,18 @@ function getCategoriaFor(nom){
   if(NOMBRE_A_RUBRO_VAR[nom]) return 'Variable';
   return null;
 }
+// La hoja "Gastos Fijos Detalle" (proveedor/cuenta) trae, además de cuentas
+// realmente fijas, alguna que la Clasificación de gastos marca Variable (ej.
+// "Honorarios por Servicios") -- probablemente quedó ahí por historial, no
+// por ser un gasto fijo. Sin este filtro, el total de esa hoja (que
+// alimenta la vista 2025/2026/interanual) suma esas cuentas igual y termina
+// dando un número más alto que "Estructura de gastos por mes" (que sí
+// respeta la categoría real). Solo se excluye lo EXPLÍCITAMENTE clasificado
+// Variable -- una cuenta sin clasificar todavía se sigue contando, porque
+// está en la hoja de Gastos Fijos por algo.
+function esCuentaFija(nombre){
+  return getCategoriaFor(nombre)!=='Variable';
+}
 
 const PARENT_CHILDREN={
   'Sueldos y CS Directos':['Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle','Sueldos y CS FAs'],
@@ -2057,6 +2069,7 @@ function buildInteranualData(){
   const totalesPorMes={}; meses.forEach(m=>totalesPorMes[m]={v2025:0,v2026:0});
   const rubros=d2025.cuentas.map(c2025=>{
     const c2026=by2026.get(normSearch(c2025.nombre));
+    const esFijo=esCuentaFija(c2025.nombre);
     const by2026Prov=c2026?new Map(c2026.providers.map(p=>[normSearch(p.nombre),p])):new Map();
     const perMes={};
     meses.forEach(mes=>{
@@ -2064,10 +2077,12 @@ function buildInteranualData(){
       const v2025=(c2025.total&&i25>=0)?c2025.total.vals[i25]:null;
       const v2026=(c2026&&c2026.total&&i26>=0)?c2026.total.vals[i26]:null;
       perMes[mes]={v2025,v2026};
-      // El total solo suma rubros que existen en los dos años -- si no, un
-      // rubro sin match todavía en 2026 infla el 2025 del total sin ninguna
-      // contraparte, y el Δ% general queda engañoso.
-      if(c2026){
+      // El total solo suma rubros que existen en los dos años Y que la
+      // Clasificación de gastos real marca como Fijo -- si no, un rubro sin
+      // match en 2026, o uno que en realidad es Variable (ej. Honorarios
+      // por Servicios, que quedó en esta hoja por historial), infla el
+      // total sin contraparte real y el Δ% general queda engañoso.
+      if(c2026&&esFijo){
         totalesPorMes[mes].v2025+=(v2025||0);
         totalesPorMes[mes].v2026+=(v2026||0);
       }
@@ -2081,7 +2096,7 @@ function buildInteranualData(){
       });
       return {nombre:p2025.nombre,matched:!!p2026,perMes:pPerMes};
     });
-    return {nombre:c2025.nombre,matched:!!c2026,perMes,providers};
+    return {nombre:c2025.nombre,matched:!!c2026,esFijo,perMes,providers};
   });
   return {meses,rubros,totalesPorMes};
 }
@@ -2093,9 +2108,13 @@ function buildComparativaInteranualTableHTML(){
   }
   const {meses,rubros,totalesPorMes}=data;
   const sinMatch=`<span style="color:var(--muted);font-size:10px">(sin match 2026)</span>`;
+  // Se muestran igual (para no perder el detalle que ya está cargado), pero
+  // etiquetadas y afuera del TOTAL -- ver esCuentaFija().
+  const noFijo=`<span style="color:var(--muted);font-size:10px">(no es Gasto Fijo)</span>`;
 
   let rowsHtml='';
   rubros.forEach((r,ci)=>{
+    const tag=(!r.matched?' '+sinMatch:'')+(!r.esFijo?' '+noFijo:'');
     const cells=meses.map(mes=>deltaCellHTML(r.perMes[mes].v2025,r.perMes[mes].v2026)).join('');
     const cid='cmp-'+ci;
     const key=normSearch(r.nombre).replace(/'/g,"\\'");
@@ -2103,7 +2122,7 @@ function buildComparativaInteranualTableHTML(){
     const hasDropdown=r.providers.length>0;
     if(hasDropdown){
       rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
-        <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${!r.matched?' '+sinMatch:''}</div></td>
+        <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${tag}</div></td>
         ${cells}
       </tr>`;
       r.providers.forEach(p=>{
@@ -2115,13 +2134,13 @@ function buildComparativaInteranualTableHTML(){
       });
     } else {
       rowsHtml+=`<tr class="row-parent">
-        <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${r.nombre}${!r.matched?' '+sinMatch:''}</div></td>
+        <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${r.nombre}${tag}</div></td>
         ${cells}
       </tr>`;
     }
   });
   const totalCells=meses.map(mes=>deltaCellHTML(totalesPorMes[mes].v2025,totalesPorMes[mes].v2026,true)).join('');
-  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td>${totalCells}</tr>`;
+  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos con match en ambos años)</td>${totalCells}</tr>`;
 
   const charts=`<div style="padding:16px 16px 4px;display:flex;gap:20px;flex-wrap:wrap">
     <div style="flex:1 1 300px;min-width:260px">
@@ -2151,13 +2170,13 @@ function buildSemestreComparativaHTML(data){
   let rowsHtml='';
   let tot25=0,tot26=0;
   data.rubros.forEach(r=>{
-    if(!r.matched) return;
+    if(!r.matched||!r.esFijo) return;
     let s25=0,s26=0;
     mesesH1.forEach(m=>{ s25+=(r.perMes[m].v2025||0); s26+=(r.perMes[m].v2026||0); });
     tot25+=s25; tot26+=s26;
     rowsHtml+=`<tr><td>${r.nombre}</td>${deltaCellHTML(s25,s26)}</tr>`;
   });
-  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td>${deltaCellHTML(tot25,tot26,true)}</tr>`;
+  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos con match en ambos años)</td>${deltaCellHTML(tot25,tot26,true)}</tr>`;
   const rango=mesesH1.length===MESES_H1.length?`${mesesH1[0]}–${mesesH1[mesesH1.length-1]} completo`:`${mesesH1[0]}–${mesesH1[mesesH1.length-1]} (parcial, todavía faltan meses de 2026)`;
   return `<div style="border-top:1px solid var(--border);padding:14px 16px">
     <div style="font-size:12px;font-weight:600;color:var(--grafito)">Primer semestre 2025 vs 2026</div>
@@ -2189,7 +2208,7 @@ function drawInteranualCharts(){
   dc('ch-interanual-rubros');
   const elRub=document.getElementById('ch-interanual-rubros');
   if(elRub){
-    const matched=rubros.filter(r=>r.matched).map(r=>{
+    const matched=rubros.filter(r=>r.matched&&r.esFijo).map(r=>{
       let s25=0,s26=0;
       meses.forEach(m=>{ s25+=(r.perMes[m].v2025||0); s26+=(r.perMes[m].v2026||0); });
       const delta=s25?((s26-s25)/s25*100):(s26?100:0);
