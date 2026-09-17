@@ -865,13 +865,20 @@ const RUBROS_FIJOS={
   'Personal':['Sueldos y CS Directos','Sueldos y CS Indirectos','Sueldos y CS','Sueldos y CS Mesa','Sueldos y CS BP','Sueldos y CS BC','Sueldos y CS Middle','Sueldos y CS Back','Sueldos y CS Adm','Sueldos y CS RRHH','Sueldos y CS IT','Sueldos y CS General','Sueldos y CS MKT','Sueldos y CS Performance','Sueldos y CS FAs','Adicional Obra Social'],
   'Tecnología':['Suscripciones Directas','Suscripciones Indirectas','Suscripciones','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados Directos','Servicios Contratados Indirectos','Suscripciones Mesa','Suscripciones BC','Suscripciones Prods','Suscripciones FAs','Suscripciones BP','Suscripciones Mza','Suscripciones Back','Suscripciones IT','Suscripciones Adm','Suscripciones RRHH','Suscripciones MKTG','Suscripciones Neix','Gtos Hardw y Comp Mesa','Gtos Hardw y Comp BC','Gtos Hardw y Comp Prods','Gtos Hardw y Comp FAs','Gtos Hardw y Comp BP','Gtos Hardw y Comp Mza','Gtos Hardw y Comp Back','Gtos Hardw y Comp IT','Gtos Hardw y Comp Adm','Gtos Hardw y Comp RRHH','Gtos Hardw y Comp MKTG','Gtos Hardw y Comp Neix','Serv. Contratados Mesa','Serv. Contratados Prods','Serv. Contratados FAs','Serv. Contratados BP','Serv. Contratados Mza','Serv. Contratados BC','Serv. Contratados Back','Serv. Contratados IT','Serv. Contratados Adm','Serv. Contratados RRHH','Serv. Contratados MKTG','Serv. Contratados Neix','Tecnología y Software'],
   'Infraestructura':['Alquileres y Expensas','Electricidad','Telefonia e Internet','Refrigerios y Cafetería'],
-  'Servicios Financieros':['Gastos bancarios','Int. Desc Bcario','Seguros','Pagina Web/Publicidad','Membresías/Regulatorio','Administración/Consultoría'],
+  // Int. Desc Bcario y Seguros salieron de acá -- en la Clasificación de
+  // gastos real (la que manda) son Variable, no Fijo. Honorarios
+  // Profesionales/Gastos Generales/Donaciones entraron porque esa misma
+  // hoja los marca Fijo (antes solo estaban, mal, en RUBROS_VARIABLES).
+  'Servicios Financieros':['Gastos bancarios','Pagina Web/Publicidad','Membresías/Regulatorio','Administración/Consultoría','Honorarios Profesionales','Gastos Generales','Gastos generales','Donaciones'],
 };
 const RUBROS_VARIABLES={
   'Comercial':['Gastos de Representación','Gastos de Representación Directos','Gastos de Representación Indirectos','Gastos Representacion Mesa','Gastos Representacion BC','Gastos Representacion Prods','Gastos Representacion FAs','Gastos Representacion BP','Gastos Representacion Mza','Eventos empresariales','Gastos Representacion Back','Gastos Representacion IT','Gastos Representacion Admin','Gastos Representacion RRHH','Gastos Representacion MKTG','Gastos Representacion Neix','Marketing','Merchandasing','Gastos de Publicidad Cable','Comisiones Productores','Representación','Afters y eventos'],
-  'Honorarios':['Otros','Honorarios Profesionales','Honorarios por Servicios','Gastos Director Titular Autónomo'],
-  'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Gastos Generales','Gastos generales','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Donaciones','Tasa CNV','Seguros'],
-  'Intereses e Impuestos':['Intereses y multas impositivos','Intereses pagados','Impuestos','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Gastos Corresp. Ext. u$s','Int. Desc Bcario'],
+  'Honorarios':['Otros','Honorarios por Servicios','Gastos Director Titular Autónomo'],
+  'Generales':['Viaticos y Movilidad','Viaticos y Mov. Back','Viaticos y Mov. IT','Viaticos y Mov. Adm','Viaticos y Mov. RRHH','Viaticos y Mov. MKTG','Viaticos y Mov. Neix','Gastos de Viajes Neix','Capacitacion y Cursos','Librería y Papelería','Certificaciones y Legalización','Gtos Mant de Oficina','Correspondencia y Mensajería','Gtos Grales TC Corporativa','Mantenim Bs Uso','Mantenim Auto','Utiles y Elementos de Oficina','Tasa CNV','Seguros'],
+  // Intereses pagados salió de acá -- en la Clasificación de gastos real no
+  // tiene categoría asignada (es de Mesa/trading, fuera del esquema
+  // Fijo/Variable de gastos de oficina), forzarlo a Variable era incorrecto.
+  'Intereses e Impuestos':['Intereses y multas impositivos','Impuestos','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Gastos Corresp. Ext. u$s','Int. Desc Bcario'],
 };
 // Índice invertido nombre→rubro
 const NOMBRE_A_RUBRO_FIJO={};
@@ -879,8 +886,14 @@ Object.entries(RUBROS_FIJOS).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBR
 const NOMBRE_A_RUBRO_VAR={};
 Object.entries(RUBROS_VARIABLES).forEach(([r,names])=>names.forEach(n=>NOMBRE_A_RUBRO_VAR[n]=r));
 
-const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Int. Desc Bcario','Pagina Web/Publicidad','Tecnología y Software','Membresías/Regulatorio','Administración/Consultoría']);
-const GASTOS_SEMIFIJOS=new Set(['Gastos Corresp. Ext. u$s','Gastos Bancarios','Gastos Bancarios 10,5%','Gastos Bancarios Exentos','Impuestos','Comisiones Productores']);
+const GASTOS_FIJOS=new Set(['Sueldos y CS','Sueldos y CS Directos','Sueldos y CS Indirectos','Suscripciones','Suscripciones Directas','Suscripciones Indirectas','Gastos de Hardware','Gastos de Hardware Directos','Gastos de Hardware Indirectos','Servicios Contratados','Servicios Contratados Directos','Servicios Contratados Indirectos','Alquileres y Expensas','Adicional Obra Social','Electricidad','Telefonia e Internet','Refrigerios y Cafetería','Pagina Web/Publicidad','Tecnología y Software','Membresías/Regulatorio','Administración/Consultoría']);
+// Vacío a propósito: en la Clasificación de gastos real que usa Neix no hay
+// ninguna cuenta "Semi-fijo" (todo es Fijo o Variable) -- Comisiones
+// Productores, Impuestos y las variantes de Gastos Bancarios/Int. Desc
+// Bcario/Gastos Corresp. Ext. u$s son Variable ahí, no semi-fijas. Se deja
+// el Set (en vez de borrar toda la infraestructura de Semi-fijo) por si en
+// el futuro la hoja real vuelve a usar esa categoría para alguna cuenta.
+const GASTOS_SEMIFIJOS=new Set([]);
 // Agrupa las 3 variantes de "Gastos Bancarios" en una sola cuenta para mostrar en gráficos/tablas
 const SEMIFIJO_GRUPO={'Gastos Bancarios':'Gastos Bancarios','Gastos Bancarios 10,5%':'Gastos Bancarios','Gastos Bancarios Exentos':'Gastos Bancarios'};
 const semifijoGrupoNombre=nom=>SEMIFIJO_GRUPO[nom]||nom;
@@ -889,16 +902,21 @@ const semifijoGrupoNombre=nom=>SEMIFIJO_GRUPO[nom]||nom;
 // lee de la hoja "Clasificación de gastos" (ST.clasifRubros). Las listas
 // hardcodeadas (GASTOS_FIJOS, GASTOS_SEMIFIJOS, RUBROS_FIJOS/VARIABLES) quedan
 // solo como respaldo para cuentas que todavía no estén en esa hoja.
+// La clave se normaliza con normSearch (sin acentos/mayúsculas/espacios) --
+// la hoja mensual "por mes" y la hoja "Clasificación de gastos" no siempre
+// escriben el nombre de la cuenta exactamente igual, y antes de esto un
+// desajuste de mayúsculas o tilde hacía caer en el respaldo hardcodeado
+// (desactualizado) en vez de usar la categoría real de la hoja.
 let _categoriaPorCuentaCache=null;
 function categoriaPorCuentaMap(){
   if(_categoriaPorCuentaCache) return _categoriaPorCuentaCache;
   const map=new Map();
-  if(ST.clasifRubros) ST.clasifRubros.rubros.forEach(r=>map.set(r.nombre,r.categoria));
+  if(ST.clasifRubros) ST.clasifRubros.rubros.forEach(r=>map.set(normSearch(r.nombre),r.categoria));
   _categoriaPorCuentaCache=map;
   return map;
 }
 function getCategoriaFor(nom){
-  const fromSheet=categoriaPorCuentaMap().get(nom);
+  const fromSheet=categoriaPorCuentaMap().get(normSearch(nom));
   if(fromSheet) return fromSheet;
   if(GASTOS_SEMIFIJOS.has(nom)) return 'Semi-fijo';
   if(GASTOS_FIJOS.has(nom)||NOMBRE_A_RUBRO_FIJO[nom]) return 'Fijo';
