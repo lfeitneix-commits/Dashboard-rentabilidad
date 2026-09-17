@@ -2002,15 +2002,16 @@ function renderIndicadores(){return renderAnalisis();}
 
 const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7D'};
 
-// ── ANÁLISIS INTERANUAL — Gastos Fijos, Diciembre 2025 como base ──
-// Compara, rubro por rubro, cada mes cargado de 2026 contra Diciembre 2025
-// (el último mes cerrado antes de 2026) — no un año completo contra otro,
-// porque 2026 todavía está en curso y comparar totales anuales distorsiona
-// el resultado (2026 se vería "más bajo" solo por tener menos meses).
-// Una celda de comparación: monto 2026 + Δ% vs. la base, coloreado (gasto
-// que sube = malo = bordeaux; que baja = bueno = verde). Color inline (no
-// clase) porque td.pos/td.neg del resto de la app pinta el <td> entero, y
-// acá el % va en una línea aparte dentro de la celda.
+// ── ANÁLISIS INTERANUAL — Gastos Fijos, mismo mes 2025 vs 2026 ──
+// Compara, rubro por rubro, cada mes cargado de 2026 contra el MISMO mes de
+// 2025 (Enero vs Enero, Febrero vs Febrero, etc.) en vez de un mes fijo
+// (se usaba Diciembre 2025) -- comparar contra un mes fijo con estacionalidad
+// propia (Diciembre trae aguinaldo/bonos) distorsionaba el Δ% de todos los
+// demás meses. Mismo-mes-año-contra-año es el estándar para este análisis.
+// Una celda de comparación: monto 2026 + Δ% vs. el mismo mes de 2025,
+// coloreado (gasto que sube = malo = bordeaux; que baja = bueno = verde).
+// Color inline (no clase) porque td.pos/td.neg del resto de la app pinta el
+// <td> entero, y acá el % va en una línea aparte dentro de la celda.
 function deltaCellHTML(base,v,bold){
   if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
   const delta=base?((v-base)/base*100):(v?100:0);
@@ -2019,71 +2020,172 @@ function deltaCellHTML(base,v,bold){
   return `<td class="r"${bold?' style="font-weight:700"':''}>${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
 }
 
-function buildComparativaInteranualTableHTML(){
+const MESES_H1=['Enero','Febrero','Marzo','Abril','Mayo','Junio'];
+
+// Arma el cruce 2025/2026 una sola vez -- lo comparten la tabla mensual, el
+// resumen de primer semestre y los gráficos, para no repetir el matching de
+// nombres (normSearch) en tres lugares distintos.
+function buildInteranualData(){
   const d2025=getGastosFijos2025();
   const d2026=ST.gastosFijosDetalle;
-  if(!d2026){
-    return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
-  }
-  const dicIdx=d2025.valCols.indexOf('Diciembre');
-  const meses2026=ST.meses; // Enero..Julio (los que estén cargados)
+  if(!d2026) return null;
+  const meses=ST.meses; // los que ya estén cargados de 2026 (hoy Ene-Jul)
+  const idx2025=mes=>d2025.valCols.indexOf(mes);
   const idx2026=mes=>d2026.valCols.indexOf(mes);
   // Nombre normalizado (sin acentos/mayúsculas) -- 2025 y 2026 no siempre
   // escriben el rubro/proveedor exactamente igual (ver el resto de la app:
   // es un bug recurrente entre hojas distintas).
   const by2026=new Map(d2026.cuentas.map(c=>[normSearch(c.nombre),c]));
+  const totalesPorMes={}; meses.forEach(m=>totalesPorMes[m]={v2025:0,v2026:0});
+  const rubros=d2025.cuentas.map(c2025=>{
+    const c2026=by2026.get(normSearch(c2025.nombre));
+    const by2026Prov=c2026?new Map(c2026.providers.map(p=>[normSearch(p.nombre),p])):new Map();
+    const perMes={};
+    meses.forEach(mes=>{
+      const i25=idx2025(mes),i26=idx2026(mes);
+      const v2025=(c2025.total&&i25>=0)?c2025.total.vals[i25]:null;
+      const v2026=(c2026&&c2026.total&&i26>=0)?c2026.total.vals[i26]:null;
+      perMes[mes]={v2025,v2026};
+      // El total solo suma rubros que existen en los dos años -- si no, un
+      // rubro sin match todavía en 2026 infla el 2025 del total sin ninguna
+      // contraparte, y el Δ% general queda engañoso.
+      if(c2026){
+        totalesPorMes[mes].v2025+=(v2025||0);
+        totalesPorMes[mes].v2026+=(v2026||0);
+      }
+    });
+    const providers=c2025.providers.map(p2025=>{
+      const p2026=by2026Prov.get(normSearch(p2025.nombre));
+      const pPerMes={};
+      meses.forEach(mes=>{
+        const i25=idx2025(mes),i26=idx2026(mes);
+        pPerMes[mes]={v2025:i25>=0?p2025.vals[i25]:null,v2026:(p2026&&i26>=0)?p2026.vals[i26]:null};
+      });
+      return {nombre:p2025.nombre,matched:!!p2026,perMes:pPerMes};
+    });
+    return {nombre:c2025.nombre,matched:!!c2026,perMes,providers};
+  });
+  return {meses,rubros,totalesPorMes};
+}
+
+function buildComparativaInteranualTableHTML(){
+  const data=buildInteranualData();
+  if(!data){
+    return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
+  }
+  const {meses,rubros,totalesPorMes}=data;
   const sinMatch=`<span style="color:var(--muted);font-size:10px">(sin match 2026)</span>`;
 
   let rowsHtml='';
-  const totalesFila={base:0}; meses2026.forEach(m=>totalesFila[m]=0);
-  d2025.cuentas.forEach((c2025,ci)=>{
-    const base=c2025.total?c2025.total.vals[dicIdx]:0;
-    const c2026=by2026.get(normSearch(c2025.nombre));
-    // El total solo suma rubros que existen en los dos años -- si no, un
-    // rubro sin match todavía en 2026 infla el 2025 del total sin ninguna
-    // contraparte, y el Δ% general queda engañoso.
-    if(c2026) totalesFila.base+=base;
-    const cells=meses2026.map(mes=>{
-      const i=idx2026(mes);
-      const v=(c2026&&c2026.total&&i>=0)?c2026.total.vals[i]:null;
-      if(v!=null) totalesFila[mes]+=v;
-      return deltaCellHTML(base,v);
-    }).join('');
+  rubros.forEach((r,ci)=>{
+    const cells=meses.map(mes=>deltaCellHTML(r.perMes[mes].v2025,r.perMes[mes].v2026)).join('');
     const cid='cmp-'+ci;
-    const key=normSearch(c2025.nombre).replace(/'/g,"\\'");
-    const open=ST.gfdExpanded.has(normSearch(c2025.nombre));
-    const hasDropdown=c2025.providers.length>0;
+    const key=normSearch(r.nombre).replace(/'/g,"\\'");
+    const open=ST.gfdExpanded.has(normSearch(r.nombre));
+    const hasDropdown=r.providers.length>0;
     if(hasDropdown){
       rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
-        <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c2025.nombre}${!c2026?' '+sinMatch:''}</div></td>
-        <td class="r">${fmtD(base)}</td>${cells}
+        <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${!r.matched?' '+sinMatch:''}</div></td>
+        ${cells}
       </tr>`;
-      const by2026Prov=c2026?new Map(c2026.providers.map(p=>[normSearch(p.nombre),p])):new Map();
-      c2025.providers.forEach(p2025=>{
-        const pBase=p2025.vals[dicIdx];
-        const p2026=by2026Prov.get(normSearch(p2025.nombre));
-        const pcells=meses2026.map(mes=>{
-          const i=idx2026(mes);
-          const v=(p2026&&i>=0)?p2026.vals[i]:null;
-          return deltaCellHTML(pBase,v);
-        }).join('');
+      r.providers.forEach(p=>{
+        const pcells=meses.map(mes=>deltaCellHTML(p.perMes[mes].v2025,p.perMes[mes].v2026)).join('');
         rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
-          <td class="indent">${p2025.nombre}${!p2026?' '+sinMatch:''}</td>
-          <td class="r">${fmtD(pBase)}</td>${pcells}
+          <td class="indent">${p.nombre}${!p.matched?' '+sinMatch:''}</td>
+          ${pcells}
         </tr>`;
       });
     } else {
       rowsHtml+=`<tr class="row-parent">
-        <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${c2025.nombre}${!c2026?' '+sinMatch:''}</div></td>
-        <td class="r">${fmtD(base)}</td>${cells}
+        <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${r.nombre}${!r.matched?' '+sinMatch:''}</div></td>
+        ${cells}
       </tr>`;
     }
   });
-  const totalCells=meses2026.map(mes=>deltaCellHTML(totalesFila.base,totalesFila[mes],true)).join('');
-  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td><td class="r" style="font-weight:700">${fmtD(totalesFila.base)}</td>${totalCells}</tr>`;
+  const totalCells=meses.map(mes=>deltaCellHTML(totalesPorMes[mes].v2025,totalesPorMes[mes].v2026,true)).join('');
+  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td>${totalCells}</tr>`;
 
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th><th class="c">Dic 2025 (base)</th>${meses2026.map(m=>`<th class="c">${m} 2026</th>`).join('')}</tr></thead>
+  const charts=`<div style="padding:16px 16px 4px;display:flex;gap:20px;flex-wrap:wrap">
+    <div style="flex:1 1 300px;min-width:260px">
+      <div style="font-size:12px;font-weight:600;color:var(--grafito)">Evolución total: 2025 vs 2026</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:10px">Gastos Fijos, mismo mes de cada año</div>
+      <div style="height:220px"><canvas id="ch-interanual-evol"></canvas></div>
+    </div>
+    <div style="flex:1 1 300px;min-width:260px">
+      <div style="font-size:12px;font-weight:600;color:var(--grafito)">Variación % por rubro</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:10px">Acumulado de los meses cargados · rubros con match en ambos años</div>
+      <div style="height:220px"><canvas id="ch-interanual-rubros"></canvas></div>
+    </div>
+  </div>`;
+  const table=`<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th>${meses.map(m=>`<th class="c">${m}<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th>`).join('')}</tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
+
+  return `${charts}<div style="border-top:1px solid var(--border)">${table}</div>${buildSemestreComparativaHTML(data)}`;
+}
+
+// Primer semestre 2025 vs 2026 -- suma, por rubro, solo los meses de Ene-Jun
+// que ya estén cargados en 2026 (no los 6 completos de 2025 contra menos
+// meses de 2026: sería la misma distorsión de "base fija" que ya se sacó de
+// la tabla mensual de arriba).
+function buildSemestreComparativaHTML(data){
+  const mesesH1=data.meses.filter(m=>MESES_H1.includes(m));
+  if(mesesH1.length<2) return '';
+  let rowsHtml='';
+  let tot25=0,tot26=0;
+  data.rubros.forEach(r=>{
+    if(!r.matched) return;
+    let s25=0,s26=0;
+    mesesH1.forEach(m=>{ s25+=(r.perMes[m].v2025||0); s26+=(r.perMes[m].v2026||0); });
+    tot25+=s25; tot26+=s26;
+    rowsHtml+=`<tr><td>${r.nombre}</td>${deltaCellHTML(s25,s26)}</tr>`;
+  });
+  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros con match en ambos años)</td>${deltaCellHTML(tot25,tot26,true)}</tr>`;
+  const rango=mesesH1.length===MESES_H1.length?`${mesesH1[0]}–${mesesH1[mesesH1.length-1]} completo`:`${mesesH1[0]}–${mesesH1[mesesH1.length-1]} (parcial, todavía faltan meses de 2026)`;
+  return `<div style="border-top:1px solid var(--border);padding:14px 16px">
+    <div style="font-size:12px;font-weight:600;color:var(--grafito)">Primer semestre 2025 vs 2026</div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:10px">${rango}</div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Rubro</th><th class="c">Total H1 (Δ% vs 2025)</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+  </div>`;
+}
+
+function drawInteranualCharts(){
+  if(typeof Chart==='undefined') return;
+  const data=buildInteranualData();
+  if(!data) return;
+  const {meses,rubros,totalesPorMes}=data;
+
+  dc('ch-interanual-evol');
+  const elEvol=document.getElementById('ch-interanual-evol');
+  if(elEvol){
+    rc('ch-interanual-evol',new Chart(elEvol,{type:'bar',
+      data:{labels:meses,datasets:[
+        {label:'2025',data:meses.map(m=>totalesPorMes[m].v2025),backgroundColor:'#9A8E7D',borderRadius:4},
+        {label:'2026',data:meses.map(m=>totalesPorMes[m].v2026),backgroundColor:'#003F61',borderRadius:4},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:10,usePointStyle:true}},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${$c(c.raw,true)}`}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#E8E6E3'},ticks:{callback:v=>$c(v,true),font:{family:'DM Mono',size:10}}}}}}));
+  }
+
+  dc('ch-interanual-rubros');
+  const elRub=document.getElementById('ch-interanual-rubros');
+  if(elRub){
+    const matched=rubros.filter(r=>r.matched).map(r=>{
+      let s25=0,s26=0;
+      meses.forEach(m=>{ s25+=(r.perMes[m].v2025||0); s26+=(r.perMes[m].v2026||0); });
+      const delta=s25?((s26-s25)/s25*100):(s26?100:0);
+      return {nombre:r.nombre,delta};
+    }).sort((a,b)=>b.delta-a.delta);
+    rc('ch-interanual-rubros',new Chart(elRub,{type:'bar',indexAxis:'y',
+      data:{labels:matched.map(r=>r.nombre),datasets:[{data:matched.map(r=>+r.delta.toFixed(1)),backgroundColor:matched.map(r=>r.delta>0.5?'#AB1930':r.delta<-0.5?'#004836':'#B0ABA4'),borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw>=0?'+':''}${c.raw}%`}}},
+        scales:{
+          x:{grid:{color:'#E8E6E3'},ticks:{callback:v=>v+'%',font:{family:'DM Mono',size:10}}},
+          y:{type:'category',grid:{display:false},ticks:{font:{size:10}}}
+        }}}));
+  }
 }
 
 function renderCostos(){
@@ -2185,6 +2287,7 @@ function changeGfdView(v){
   ST.gfdView=v;
   const card=document.getElementById('gfd-card');
   if(card) card.outerHTML=renderGastosFijosDetalleTable();
+  if(v==='interanual') setTimeout(drawInteranualCharts,60);
 }
 
 const DIACRITICS_RE=new RegExp('[̀-ͯ]','g');
@@ -2788,6 +2891,7 @@ function drawCharts(tab){
             tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${$c(c.raw,true)}`}}},
           scales:{x:{grid:{display:false},stacked:true},y:{grid:{color:'#E8E6E3'},stacked:true,ticks:{callback:v=>$c(v,true),font:{family:'DM Mono',size:10}}}}}}));
     }
+    if(ST.gfdView==='interanual') drawInteranualCharts();
   }
 }
 
