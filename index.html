@@ -2165,10 +2165,12 @@ function renderGastosFijosDetalleTable(){
   // El buscador y el export de Excel solo aplican a las vistas de detalle
   // (2025/2026) -- el análisis interanual ya es una tabla chica y fija, no
   // hace falta buscar adentro.
+  const q=ST.gfdSearchQuery||'';
+  const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const tools=isInteranual?'':`
         <button class="export-btn" onclick="exportGastosFijosDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
-        <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>`;
-  const body=isInteranual?buildComparativaInteranualTableHTML():buildGfdTableHTML('');
+        <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" value="${qAttr}" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear${q.length>0?' visible':''}" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>`;
+  const body=isInteranual?buildComparativaInteranualTableHTML():buildGfdTableHTML(q);
   return `<div class="tc" id="gfd-card" style="margin-top:4px">
     <div class="tc-hd">${GFD_VIEW_TITLE[view]}
       <div class="tc-hd-r">
@@ -2257,6 +2259,7 @@ function buildGfdTableHTML(q){
 }
 
 function filterGastosFijosDetalle(q){
+  ST.gfdSearchQuery=q;
   const wrap=document.getElementById('gfd-table-wrap');
   if(wrap) wrap.innerHTML=buildGfdTableHTML(q);
   const clr=document.getElementById('gfd-search-clear');
@@ -2789,7 +2792,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),gfdSearchQuery:'',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
 // Oculta del menú lateral las pestañas que no estén en `permitidas`.
 // El rol 'full' nunca llama a esto (ve todo, sin filtrar).
