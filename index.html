@@ -2050,9 +2050,11 @@ function buildComparativaInteranualTableHTML(){
       return deltaCellHTML(base,v);
     }).join('');
     const cid='cmp-'+ci;
+    const key=normSearch(c2025.nombre).replace(/'/g,"\\'");
+    const open=ST.gfdExpanded.has(normSearch(c2025.nombre));
     const hasDropdown=c2025.providers.length>0;
     if(hasDropdown){
-      rowsHtml+=`<tr class="row-parent" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
+      rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c2025.nombre}${!c2026?' '+sinMatch:''}</div></td>
         <td class="r">${fmtD(base)}</td>${cells}
       </tr>`;
@@ -2065,7 +2067,7 @@ function buildComparativaInteranualTableHTML(){
           const v=(p2026&&i>=0)?p2026.vals[i]:null;
           return deltaCellHTML(pBase,v);
         }).join('');
-        rowsHtml+=`<tr class="row-child hidden" data-parentid="${cid}">
+        rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
           <td class="indent">${p2025.nombre}${!p2026?' '+sinMatch:''}</td>
           <td class="r">${fmtD(pBase)}</td>${pcells}
         </tr>`;
@@ -2187,8 +2189,11 @@ const DIACRITICS_RE=new RegExp('[̀-ͯ]','g');
 const normSearch=s=>String(s||'').toLowerCase().normalize('NFD').replace(DIACRITICS_RE,'');
 // En Consolidado se muestran todos los meses de la hoja (+ Total Semestre).
 // Con un mes puntual seleccionado, se muestra solo la columna de ese mes.
+// La vista "2025" siempre muestra el año completo (Ene-Dic): el selector de
+// mes de arriba está atado a los meses que ya tiene cargados 2026 (hoy
+// Ene-Jul), así que filtrar 2025 por ese mismo mes dejaba sin ver Ago-Dic.
 function gfdVisibleColIdxs(valCols){
-  if(ST.consolidado) return valCols.map((_,i)=>i);
+  if(ST.consolidado||ST.gfdView==='2025') return valCols.map((_,i)=>i);
   const curMes=ST.currentMes||ST.meses[0];
   const idx=valCols.indexOf(curMes);
   return idx>=0?[idx]:[];
@@ -2212,11 +2217,12 @@ function buildGfdTableHTML(q){
     const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>normSearch(p.nombre).includes(query));
     if(query&&!cuentaMatches&&!providers.length) return;
     const cid='cf-'+ci;
-    const open=!!query;
+    const key=normSearch(c.nombre).replace(/'/g,"\\'");
+    const open=!!query||ST.gfdExpanded.has(normSearch(c.nombre));
     const hasDropdown=c.providers.length>0;
     const totalVals=pick(c.total?c.total.vals:valCols.map(()=>0));
     if(hasDropdown){
-      rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this)">
+      rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${c.nombre}</div></td>
         ${totalVals.map(v=>`<td class="${alignCls}">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
@@ -2263,12 +2269,19 @@ function clearGfdSearch(){
   filterGastosFijosDetalle('');
 }
 
-function toggleCostosCuenta(cid,el){
+// key = nombre de rubro normalizado (sin acentos/mayúsculas) -- se guarda en
+// ST.gfdExpanded para que abrir una cuenta en una vista (2025/2026/
+// interanual) la deje abierta también en las otras, ya que cada vista
+// re-renderiza su tabla desde cero al cambiar de pestaña.
+function toggleCostosCuenta(cid,el,key){
   const isOpen=el.classList.contains('open');
   el.classList.toggle('open');
   document.querySelectorAll(`.row-child[data-parentid="${cid}"]`).forEach(r=>{
     r.classList.toggle('hidden',isOpen);
   });
+  if(key){
+    if(isOpen) ST.gfdExpanded.delete(key); else ST.gfdExpanded.add(key);
+  }
 }
 
 
@@ -2776,7 +2789,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
 // Oculta del menú lateral las pestañas que no estén en `permitidas`.
 // El rol 'full' nunca llama a esto (ve todo, sin filtrar).
