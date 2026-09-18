@@ -992,14 +992,20 @@ function notaManual(nom,mes){
   const delMes=mes&&NOTAS_MANUALES[mes];
   return delMes&&delMes[nom];
 }
+// La hoja a veces usa "-" (o "---") en la columna Notas para decir "nada
+// que aclarar" -- eso no es una nota real, hay que tratarlo como vacío.
+function limpiarNota(n){
+  n=(n||'').trim();
+  return /^-+$/.test(n)?'':n;
+}
 function notaLiderSeguraUnMes(row,rows,mes){
-  if(ST.role!=='lideres') return notaManual(row._nom,mes)||row._allNotes||row._note||'';
+  if(ST.role!=='lideres') return notaManual(row._nom,mes)||limpiarNota(row._allNotes||row._note);
   const sufijo=AREA_SUFIJO_HIJO[ST.area];
   const hijo=row._child?row:(row._parentId&&sufijo
     ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
     :null);
-  if(hijo) return notaManual(hijo._nom,mes)||hijo._allNotes||hijo._note||'';
-  const notaCruda=row._allNotes||row._note||'';
+  if(hijo) return notaManual(hijo._nom,mes)||limpiarNota(hijo._allNotes||hijo._note);
+  const notaCruda=limpiarNota(row._allNotes||row._note);
   const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
   if(row._nom.trim()==='Viajes'){
     if(!getAreaVal(row,ST.area)) return '';
@@ -1009,27 +1015,30 @@ function notaLiderSeguraUnMes(row,rows,mes){
 }
 
 // En Consolidado, en vez de mostrar una sola nota (o vaciar si cambian mes
-// a mes), se juntan las notas de TODOS los meses con etiqueta de mes, para
-// poder saber a qué corresponde el monto consolidado. Cada mes se calcula
-// con su propia fila (mismos datos y misma seguridad para líderes que se
-// aplicaría viendo ese mes solo).
+// a mes), se juntan las notas de TODOS los meses para poder saber a qué
+// corresponde el monto consolidado. Se agrupa por TEXTO, no por mes: si el
+// mismo texto aparece en varios meses, se muestra una sola vez sin
+// etiqueta (no hay ambigüedad en cuál mes, así que no aporta repetirlo);
+// si un texto es de un solo mes, se le pone el mes adelante para saber a
+// cuál corresponde. Cada mes se calcula con su propia fila (misma
+// seguridad para líderes que se aplicaría viendo ese mes solo).
 function notaLiderSegura(row,rows,isConsolidado,mes){
   if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
-  const partes=[];
+  const mesesPorTexto=new Map();
   for(const m of ST.meses){
     const md=ST.mesData[m];
     if(!md) continue;
     const rowMes=md.annotated.find(r=>r._nom===row._nom);
     if(!rowMes) continue;
     const n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
-    if(n) partes.push(`${m}: ${n}`);
+    if(!n) continue;
+    if(!mesesPorTexto.has(n)) mesesPorTexto.set(n,[]);
+    mesesPorTexto.get(n).push(m);
   }
-  if(!partes.length) return '';
-  if(partes.length===1) return partes[0];
-  // Si varios meses dicen exactamente lo mismo (ej. "ya descontado", que
-  // se repite igual todos los meses), no repetirlo -- mostrarlo una vez.
-  const unicas=[...new Set(partes.map(p=>p.slice(p.indexOf(': ')+2)))];
-  return unicas.length===1?unicas[0]:partes.join(' | ');
+  if(!mesesPorTexto.size) return '';
+  const partes=[...mesesPorTexto.entries()].map(([texto,meses])=>
+    meses.length>1?texto:`${meses[0]}: ${texto}`);
+  return partes.join(' | ');
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
