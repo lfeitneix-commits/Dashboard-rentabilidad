@@ -968,53 +968,53 @@ function getAreaVal(row,area){
   return key?parseNum(row[key]):0;
 }
 
-// En consolidado: si la nota es la misma en todos los meses que la tienen,
-// mostrarla una sola vez; si cambia mes a mes (ej. "Viajes"), no mostrar nada.
-function getConsNoteFor(row,isConsolidado){
-  if(!isConsolidado) return row._allNotes||row._note||'';
-  const notas=new Set();
-  for(const m of ST.meses){
-    const md=ST.mesData[m];
-    if(!md) continue;
-    const r=md.annotated.find(rr=>rr._nom===row._nom);
-    const n=r&&(r._allNotes||r._note);
-    if(n) notas.add(n);
-  }
-  return notas.size===1?[...notas][0]:'';
-}
-
-// Nota "segura" para un líder de área: nunca la nota cruda tal cual si la
-// cuenta puede hablar de otra área.
+// Nota segura para un líder de área, para UN mes puntual (no consolidado):
+// nunca la nota cruda tal cual si la cuenta puede hablar de otra área.
 // - Cuentas con desglose real por área (padre con hijos): se usa la nota
-//   mensual / el glosario del hijo de ESTA área (por _parentId), nunca la
-//   del padre ni la de otro hijo, y el glosario solo si hubo gasto real.
-// - Cuentas sin desglose por área (ej. "Viajes"): la nota es un solo texto
-//   libre que puede mezclar varias áreas -- solo se muestra si esta área es
+//   mensual del hijo de ESTA área (por _parentId), nunca la del padre ni
+//   la de otro hijo.
+// - "Viajes" (sin desglose, pero mezcla personas de varias áreas en un
+//   solo texto): se separa por persona (roster) y se deja solo lo propio.
+// - Otras cuentas sin desglose: la nota solo se muestra si esta área es
 //   la única con monto ese mes.
-function notaLiderSegura(row,rows,isConsolidado){
-  const notaCruda=getConsNoteFor(row,isConsolidado);
-  if(ST.role!=='lideres') return notaCruda;
+function notaLiderSeguraUnMes(row,rows){
+  if(ST.role!=='lideres') return row._allNotes||row._note||'';
   const sufijo=AREA_SUFIJO_HIJO[ST.area];
   const hijo=row._child?row:(row._parentId&&sufijo
     ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
     :null);
-  if(hijo){
-    // Solo la nota puntual que se haya escrito ese mes para ESTE hijo --
-    // nunca el glosario "Aclaración de cuentas" como relleno genérico: si
-    // ese mes no se escribió nada, es porque no hay nada puntual que
-    // aclarar, y mostrar el glosario ahí da la falsa impresión de que sí
-    // hay una explicación específica de ese mes.
-    return getConsNoteFor(hijo,isConsolidado);
-  }
+  if(hijo) return hijo._allNotes||hijo._note||'';
+  const notaCruda=row._allNotes||row._note||'';
   const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
   if(row._nom.trim()==='Viajes'){
-    // "Viajes" mezcla el viaje de cada área en un solo texto (ej. "Viaje
-    // Ushuaia, Viaje Facu Linares") -- en vez de vaciarla entera, separo
-    // por persona y dejo solo lo que corresponde a esta área.
     if(!getAreaVal(row,ST.area)) return '';
     return separarNotaPorPersona(notaCruda,ST.area,!otraAreaConMonto);
   }
   return (!getAreaVal(row,ST.area)||otraAreaConMonto)?'':notaCruda;
+}
+
+// En Consolidado, en vez de mostrar una sola nota (o vaciar si cambian mes
+// a mes), se juntan las notas de TODOS los meses con etiqueta de mes, para
+// poder saber a qué corresponde el monto consolidado. Cada mes se calcula
+// con su propia fila (mismos datos y misma seguridad para líderes que se
+// aplicaría viendo ese mes solo).
+function notaLiderSegura(row,rows,isConsolidado){
+  if(!isConsolidado) return notaLiderSeguraUnMes(row,rows);
+  const partes=[];
+  for(const m of ST.meses){
+    const md=ST.mesData[m];
+    if(!md) continue;
+    const rowMes=md.annotated.find(r=>r._nom===row._nom);
+    if(!rowMes) continue;
+    const n=notaLiderSeguraUnMes(rowMes,md.annotated);
+    if(n) partes.push(`${m}: ${n}`);
+  }
+  if(!partes.length) return '';
+  if(partes.length===1) return partes[0];
+  // Si varios meses dicen exactamente lo mismo (ej. "ya descontado", que
+  // se repite igual todos los meses), no repetirlo -- mostrarlo una vez.
+  const unicas=[...new Set(partes.map(p=>p.slice(p.indexOf(': ')+2)))];
+  return unicas.length===1?unicas[0]:partes.join(' | ');
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
