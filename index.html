@@ -1901,10 +1901,12 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       if(hijo){
         // La nota mensual DEL HIJO tiene prioridad -- por definición
         // describe solo a ese hijo (ej. "Sueldos y CS BP"), no a otra área,
-        // y varía mes a mes. El glosario es solo un respaldo genérico para
-        // cuando ese mes no se escribió ninguna nota puntual.
+        // y varía mes a mes. El glosario es solo un respaldo genérico, y
+        // solo tiene sentido mostrarlo si este mes hubo gasto real en esa
+        // cuenta -- si el monto es 0 no hubo ningún movimiento que explicar.
         const notaHijo=isConsolidado?getConsNote(hijo):(hijo._allNotes||hijo._note||'');
-        const det=ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
+        const hijoConMonto=isConsolidado||!!getAreaVal(hijo,ST.area);
+        const det=hijoConMonto&&ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
         notaMostrar=notaHijo||det||'';
       } else if(!getAreaVal(row,ST.area)){
         notaMostrar='';
