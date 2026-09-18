@@ -2437,8 +2437,21 @@ function buildInteranualData(){
   // venía como una sola línea "Alquiler+Expensas" y en 2026 se separó en
   // "Alquiler P8 Buenavista" + "Expensas P8 Buenavista"). Sin esto, el de
   // 2025 no encuentra match exacto y queda comparado contra $0 (-100%).
+  // Chequeo exhaustivo de los 142 proveedores de 2025 contra los 65 de
+  // 2026 (Ene-Jul): además del caso de P8 Buenavista, estos 7 son la
+  // misma línea con el nombre acortado/sin el prefijo "Neix:" en 2026.
+  // El resto de los proveedores sin match de 2025 son gastos puntuales
+  // (un consultor, un proveedor de banners, etc.) que no se repitieron
+  // en 2026 -- no son bugs de nombre, así que no se fuerzan.
   const ALIAS_PROVEEDORES_COMBO={
     'p8 buenavista (alquiler+expensas)':['alquiler p8 buenavista','expensas p8 buenavista'],
+    'coding & company (mantenimiento)':['coding & company'],
+    'inargind (sgc/sponsor)':['inargind (sgc)'],
+    'visma argentina (abono licencias)':['visma argentina'],
+    'neix: adobe':['adobe'],
+    'neix: all pago':['all pago'],
+    'neix: camara de agentes (cuota social)':['camara de agentes (cuota social)'],
+    'neix: microsoft (nss s.a.)':['microsoft (nss s.a.)'],
   };
   const totalesPorMes={}; meses.forEach(m=>totalesPorMes[m]={v2025:0,v2026:0});
   const rubros=d2025.cuentas.map(c2025=>{
