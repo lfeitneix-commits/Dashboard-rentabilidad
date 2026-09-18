@@ -1011,7 +1011,13 @@ function notaLiderSeguraUnMes(row,rows,mes){
     if(!getAreaVal(row,ST.area)) return '';
     return separarNotaPorPersona(notaCruda,ST.area,!otraAreaConMonto);
   }
-  return (!getAreaVal(row,ST.area)||otraAreaConMonto)?'':notaCruda;
+  // Cuentas informativas que siempre muestran $0 en TODAS las áreas (ej.
+  // "Intereses pagados", "Alquileres comitentes" -- ya están descontadas
+  // de la facturación y el monto real va aparte) igual son inequívocamente
+  // de esta área: no hay otra área con monto, así que no hay ambigüedad
+  // aunque la propia también dé $0. Solo se oculta cuando otra área SÍ
+  // tiene monto ese mes (ahí sí podría ser de esa otra área).
+  return otraAreaConMonto?'':notaCruda;
 }
 
 // En Consolidado, en vez de mostrar una sola nota (o vaciar si cambian mes
