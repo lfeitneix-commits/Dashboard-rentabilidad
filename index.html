@@ -923,6 +923,44 @@ function readCsvCell(csvText,rowNum,colIdx){
   return parseNum(splitL(line)[colIdx]||'');
 }
 
+// ── ROSTER EMPLEADOS POR ÁREA (para separar notas de texto libre como
+// "Viajes", ej. "Viaje Ushuaia, Viaje Facu Linares" -- se identifica a
+// quién pertenece cada tramo por su apellido) ──────────────────────
+const ROSTER_AREA={
+  // Mesa
+  'olivares':'Mesa','sanches':'Mesa','mendiberri':'Mesa','furlong':'Mesa',
+  'romagnano':'Mesa','nerenberg':'Mesa','benedit':'Mesa','besil':'Mesa',
+  'nagore':'Mesa','latrechiana':'Mesa','paluch':'Mesa','naccarato':'Mesa',
+  'febles':'Mesa','jurado':'Mesa','garcía':'Mesa','garcia':'Mesa',
+  'pivato':'Mesa','herrero':'Mesa','schifani':'Mesa','miranda':'Mesa',
+  // Banca Corporativa
+  'merino':'Banca Corporativa','lipovetzky':'Banca Corporativa',
+  'battaglia':'Banca Corporativa','gonzalez':'Banca Corporativa',
+  'gonzález':'Banca Corporativa','viloria':'Banca Corporativa',
+  'linares':'Banca Corporativa',
+  // Banca Privada
+  'vodanovich':'Banca Privada','malaccorto':'Banca Privada',
+  'degrossi':'Banca Privada','furlani':'Banca Privada',
+};
+// Separa una nota de texto libre (tramos separados por coma) y deja solo
+// los tramos que mencionan a alguien de ESTA área. Si esta área es la
+// única con monto ese mes, no hay ambigüedad y se muestra todo el texto
+// tal cual (incluye tramos sin nombre, ej. "Viaje Ushuaia" sin apellido).
+// Si hay más de un área con monto, un tramo sin nombre reconocido NO se
+// puede atribuir con seguridad, así que se descarta (mejor perderlo que
+// mostrar el viaje de otra área).
+function separarNotaPorPersona(nota,area,esUnicaAreaConMonto){
+  if(!nota) return nota;
+  if(esUnicaAreaConMonto) return nota;
+  const tramos=nota.split(',').map(s=>s.trim()).filter(Boolean);
+  const propios=tramos.filter(t=>{
+    const palabras=t.toLowerCase().split(/\s+/);
+    const areaDeAlguien=palabras.map(w=>ROSTER_AREA[w]).find(a=>a);
+    return areaDeAlguien===area;
+  });
+  return propios.join(', ');
+}
+
 // ── AREA VALUE ──────────────────────────────────────────────────
 function getAreaVal(row,area){
   const key=Object.keys(row).find(k=>k.trim()===area)||
@@ -967,6 +1005,13 @@ function notaLiderSegura(row,rows,isConsolidado){
     return notaHijo||det||'';
   }
   const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
+  if(row._nom.trim()==='Viajes'){
+    // "Viajes" mezcla el viaje de cada área en un solo texto (ej. "Viaje
+    // Ushuaia, Viaje Facu Linares") -- en vez de vaciarla entera, separo
+    // por persona y dejo solo lo que corresponde a esta área.
+    if(!getAreaVal(row,ST.area)) return '';
+    return separarNotaPorPersona(notaCruda,ST.area,!otraAreaConMonto);
+  }
   return (!getAreaVal(row,ST.area)||otraAreaConMonto)?'':notaCruda;
 }
 
