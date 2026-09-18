@@ -999,10 +999,12 @@ function notaLiderSegura(row,rows,isConsolidado){
     ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
     :null);
   if(hijo){
-    const notaHijo=getConsNoteFor(hijo,isConsolidado);
-    const hijoConMonto=isConsolidado||!!getAreaVal(hijo,ST.area);
-    const det=hijoConMonto&&ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
-    return notaHijo||det||'';
+    // Solo la nota puntual que se haya escrito ese mes para ESTE hijo --
+    // nunca el glosario "Aclaración de cuentas" como relleno genérico: si
+    // ese mes no se escribió nada, es porque no hay nada puntual que
+    // aclarar, y mostrar el glosario ahí da la falsa impresión de que sí
+    // hay una explicación específica de ese mes.
+    return getConsNoteFor(hijo,isConsolidado);
   }
   const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
   if(row._nom.trim()==='Viajes'){
