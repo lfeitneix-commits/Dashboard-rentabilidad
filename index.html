@@ -314,6 +314,91 @@ const GASTOS_FIJOS_DETALLE_GID='548055577';
 // otra área). Vacío hasta tener el GID real de esa pestaña -- con vacío,
 // el fetch no se dispara y todo sigue funcionando igual que antes.
 const ACLARACION_CUENTAS_GID='';
+// Snapshot de la hoja "Aclaración de cuentas" (foto del 18/09/2026) -- se
+// usa como respaldo mientras no haya GID real: en cuanto se complete
+// ACLARACION_CUENTAS_GID, el fetch en vivo la reemplaza por la versión
+// actualizada. Si esta lista queda vieja (se agregan cuentas o cambia el
+// detalle), hay que cargar el GID para que deje de depender de esta foto.
+const ACLARACION_CUENTAS_FALLBACK=`CUENTAS DIRECTAS,DETALLE
+Suscripciones Mesa,"Compras NYSE Market Inc, Gastos Dólar Visa, Gastos IA, Suscrip IA - Trading, GitHub, Suscrip IA"
+Suscripciones BC,Gastos Dólar Visa
+Suscripciones FAs,Gastos Dólar Visa
+Suscripciones BP,Pago Adobe - Marina
+Suscripciones Mza,-
+Gtos Hardw y Comp Mesa,"Mouse, teclados, carry disk, televisor, HDMI, discos y placas"
+Gtos Hardw y Comp BC,Pago estacionamiento Marcelo
+Gtos Hardw y Comp FAs,-
+Gtos Hardw y Comp BP,"Adaptador USB, Soporte TV, Televisor"
+Gtos Hardw y Comp Mza,Cargador Soledad
+Serv. Contratados Mesa,"1816 Data, 1816 SAS (consultoría mercado), Bloomberg L.P., Liquidesk S.A.S. (Quantex), NYSE Market Inc"
+Serv. Contratados FAs,Aguirre Alejandro (servicio de camarera)
+Serv. Contratados BP,"Compras Macarena García (adicional), Hospedaje Lucas Malaccorto"
+Serv. Contratados Mza,Tecnet Argentina (internet)
+Gastos Representacion Mesa,"Fabric Mora (cena clientes), Panificadora (desayuno Bancor), Panadería La Delicia (evento), Tuétano SA (cena Balanz), Pedidos Ya (regalos cliente), Big Box S.A. (regalos varios — ABI, Eddy/Bancor, cliente), Nervio SA (Neix-Supervielle)"
+Gastos Representacion BC,"Domaine Bousquet (cena Bren Mza), Nepac SA (cena cliente)"
+Gastos Representacion FAs,"Braku SA (regalo), Pago Patagonia (regalo)"
+Gastos Representacion BP,"Happening (propina), Nepac SA (almuerzo cliente), Café/Desayuno/Cena Lucas M. (varios, cliente)"
+Gastos Representacion Mza,Big Box S.A. (regalo)
+Eventos empresariales,-
+Gtos trad,
+Gtos varios,
+CUENTAS INDIRECTAS,
+Suscripciones Back,"Slack, Suscrip IA"
+Suscripciones IT,"Gastos Dólar Visa, Pago Adobe - Martín, Pago Starlink, GitHub"
+Suscripciones Adm,"Suscrip IA, Gastos Amex Dólar, Gastos IA"
+Suscripciones RRHH,"Gastos Dólar Visa, Suscrip LinkedIn"
+Suscripciones MKTG,"Suscrip IA, Gastos IA"
+Suscripciones Neix,"Compras ByMA S.A., Cuota Cámara de Agentes, Encode S.A. (Certificado Firma Digital), NSS S.A. (licencias/abonos Microsoft), Gastos Dólar Visa/Amex, Pago Adobe, Pago All Pago, Cuota Inscripción Bolsa de Comercio, Suscrip IA, LanBot, Mailchimp, Slack, Digital Ocean, Provisión Gastos Semestral"
+Alquileres y Expensas,-
+Adicional Obra Social,-
+Electricidad,"Edemsa (Mendoza), Edenor"
+Telefonia e Internet,"CPS Comunicaciones, Telecom Argentina, Telmex Argentina, Pago Internet Peli"
+Gastos Generales,"Farmacia Aleselcra (medicamentos), Cencosud (super), Coto (cafetera), Decoratio (frigobar Mesa), Go-AR Publicidad (aviso fúnebre), Grupo Fabole (botiquín), Rol Vajilla, Tintoexpress, ajustes impositivos varios"
+Librería y Papelería,"Bairesimpo (toner), Ofidirect (varios), Sie Ingeniería (cinta rotuladora)"
+Refrigerios y Cafetería,"5 Socios SA, Buenos Aires Ve (café), Cencosud, Coto (desayuno saludable/fruta — el más recurrente), Entre Bollos, Golosinas del Sur, Grupo Sashimi, Ofidirect (cápsulas Nespresso), Portufrut, Sodastream"
+Certificaciones y Legalización,"Coulter Ignacio (certif. firma), Josefina Vivot (poder Capital N), Pago certificación balance"
+Gtos Mant de Oficina,"Aguas Cristalinas (purificador), Air Confort (AA), Ambientes Funcionales (obras), Rags Telas, Suárez Hernán (mtto aire)"
+Correspondencia y Mensajería,"ADMA Distribuidora, Coronel Jorge (moto), DHL Express, Rappi (envíos/motos), Trade Box"
+Gtos Grales TC Corporativa,Pago Allianz Lucas
+Mantenim Bs Uso,
+Mantenim Auto,
+Utiles y Elementos de Oficina,"ADMA (precintos IT), Coto (pilas), Grimalt (papel/toallas), Importadora Fot (monitores), Prodmobi (sillas), Sercap Insumos (mouse/teclados), Trade Box"
+Viaticos y Mov. Back,"Nafta Silvia — Estación Fratel, Deheza"
+Viaticos y Mov. IT,
+Viaticos y Mov. Adm,"Nafta Pulga — CM Combustibles, Deheza, Servicentro Los, estacionamientos"
+Viaticos y Mov. RRHH,Cabify (charter)
+Viaticos y Mov. MKTG,
+Viaticos y Mov. Neix,"Nafta (Estación Paraná, Opessa), Autopistas Lucas, Uber, Giletti Walter (charter techo)"
+Gastos de Viajes Neix,"Despegar.com (aéreos Paulina), Jetsmart, Sintec-Tur, Travel Services, Airbnb (Paula Uruguay), Buquebús"
+Serv. Contratados BC,"Marina Müller (servicios mensuales/referenciamiento), diferencias de cambio IVA"
+Serv. Contratados Back,"Bank S.A. (proc. datos y custodia), BCS Sociedad Anónima (asesoría PLAFT/FATCA), Celeri Tecnología (Complif), Lab. de Inv. y D. (abono), Refinitiv Limited (data), Victorica José (copiado contable)"
+Serv. Contratados IT,"EDSI Trend Argentina (antivirus), Estudio Gallo S. (mantenimiento sistema), Mazzuchini Sergio (consultoría/auditoría/soporte técnico), Oracle Argentina (servicio nube), Beeks Financial"
+Serv. Contratados Adm,"Costa Victoria, Luna Mario Alberto"
+Serv. Contratados RRHH,"Alfa Médica (exámenes preocupacionales), Ganun Aida Blanca (examen preocupacional), Llobera Mariana (evaluación psicotécnica), Scarlato Daniel (búsqueda de personal), Visma Argentina (licencias)"
+Serv. Contratados MKTG,"Attori Lucas (cobertura audiovisual), Belluschi Candela (diseño mensual), Imágenes del Sur (servicios audiovisuales/eventos), Menin Leandro (impresiones/tarjetas), Premas SA (hospitalidad)"
+Serv. Contratados Neix,"Air Confort SRL, Arce Martín (mediciones), Gimenez Ezequiel, Halegua Pérez, Interbanking SA (plus bancos), Interlim Argentina (limpieza), Isikawa (seguridad), Leber Pablo (reparaciones), Loustaunau Alejandro (limpieza alfombras), Macarena García (consultoría admin), Morón Ricardo (transporte), Nubi S.A. (comisiones por gestión — liquidación de sueldos), Prodmobi S.A. (reparación sillas), Prosegur Activa (alarmas), Star Servicios (limpieza)"
+Gastos Representacion Back,Big Box S.A. (regalos operaciones)
+Gastos Representacion IT,
+Gastos Representacion Admin,Big Box S.A. (regalo Marcelo Rivas)
+Gastos Representacion RRHH,"Gift Card Argentina (regalos corporativos), Gossip SA (regalo nacimiento)"
+Gastos Representacion MKTG,"Franklin Chocolates (bombones), Pago Santi Cheese (regalo)"
+Gastos Representacion Neix,"Frappe SRL (regalo cumpleaños), M&T Desa Gastronomía (cena Neix-Loma), Velarde Anaya (ramo rosas), María Isabel Bustos (arreglo nacimiento), Bazar Avenida (televisor premio), Orloff y Durini (portacelulares cliente), Enoteca SRL (regalos día del padre), Estrada Helena (libros), Movistar Arena (clientes), Nicolás Ruiz (parlante), Griffouliere (sponsor evento)"
+Capacitacion y Cursos,Maestrías
+Gastos bancarios,
+Gastos Corresp. Ext. u$s,
+Intereses y multas impositivos,
+Gastos Bancarios,
+Int. Desc Bcario,
+"Gastos Bancarios 10,5%",
+Gastos Bancarios Exentos,
+Seguros,Chubb Seguros
+Marketing,"Coding & Company (fee mantenimiento mensual — el más recurrente), Inargind SA (SGC/sponsor), Instituto de Hermanos (publicidad revista), La Nación"
+Donaciones,PADI
+Otros,"Ajuste Sircreb, Pago NYSE"
+Honorarios Profesionales,
+Honorarios por Servicios,"Durán Juan José, Mosse Jonas (retreat/workshop), Maschwitz (certificación)"
+Gastos Director Titular Autónomo,"Autónomos Lucas, Autónomos Silvia (pagos mensuales recurrentes)"
+`;
 // Gastos Fijos 2025, por proveedor y mes (USD) — año cerrado, no viene de
 // Sheets (no hay gid publicado para esto), se pega el CSV entero tal cual
 // lo pasó el usuario y se parsea con el mismo parser que la hoja 2026
@@ -3110,7 +3195,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,aclaracionCuentas:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),gfdSearchQuery:'',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,aclaracionCuentas:parseAclaracionCuentas(ACLARACION_CUENTAS_FALLBACK),currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),gfdSearchQuery:'',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
 // Oculta del menú lateral las pestañas que no estén en `permitidas`.
 // El rol 'full' nunca llama a esto (ve todo, sin filtrar).
