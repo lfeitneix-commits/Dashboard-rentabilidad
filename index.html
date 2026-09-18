@@ -2406,13 +2406,14 @@ const RUBRO_CAT_COLOR={'Fijo':'#003F61','Semi-fijo':'#476785','Variable':'#9A8E7
 // propia (Diciembre trae aguinaldo/bonos) distorsionaba el Δ% de todos los
 // demás meses. Mismo-mes-año-contra-año es el estándar para este análisis.
 // Una celda de comparación: monto 2026 + Δ% vs. el mismo mes de 2025,
-// coloreado (gasto que sube = malo = bordeaux; que baja = bueno = verde).
+// coloreado por signo (positivo = verde, negativo = bordeaux), igual que
+// el gráfico de variación por rubro.
 // Color inline (no clase) porque td.pos/td.neg del resto de la app pinta el
 // <td> entero, y acá el % va en una línea aparte dentro de la celda.
 function deltaCellHTML(base,v,bold){
   if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
   const delta=base?((v-base)/base*100):(v?100:0);
-  const color=delta>0.5?'var(--bordeaux)':delta<-0.5?'var(--verde)':'var(--muted)';
+  const color=delta>0.5?'var(--verde)':delta<-0.5?'var(--bordeaux)':'var(--muted)';
   const sign=delta>=0?'+':'';
   return `<td class="r"${bold?' style="font-weight:700"':''}>${fmtD(v)}<div style="font-size:10px;font-weight:700;color:${color}">${sign}${delta.toFixed(0)}%</div></td>`;
 }
