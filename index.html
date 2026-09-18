@@ -1034,31 +1034,23 @@ function notaLiderSeguraUnMes(row,rows,mes){
   return otraAreaConMonto?'':notaCruda;
 }
 
-// En Consolidado, en vez de mostrar una sola nota (o vaciar si cambian mes
-// a mes), se juntan las notas de TODOS los meses para poder saber a qué
-// corresponde el monto consolidado. Se agrupa por TEXTO, no por mes: si el
-// mismo texto aparece en varios meses, se muestra una sola vez sin
-// etiqueta (no hay ambigüedad en cuál mes, así que no aporta repetirlo);
-// si un texto es de un solo mes, se le pone el mes adelante para saber a
-// cuál corresponde. Cada mes se calcula con su propia fila (misma
+// En Consolidado se juntan las notas de TODOS los meses (en vez de vaciar
+// si cambian mes a mes), pero sin etiqueta de mes -- solo el texto, una
+// vez por cada valor distinto (si se repite igual en varios meses, no se
+// repite en la celda). Cada mes se calcula con su propia fila (misma
 // seguridad para líderes que se aplicaría viendo ese mes solo).
 function notaLiderSegura(row,rows,isConsolidado,mes){
   if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
-  const mesesPorTexto=new Map();
+  const textos=new Set();
   for(const m of ST.meses){
     const md=ST.mesData[m];
     if(!md) continue;
     const rowMes=md.annotated.find(r=>r._nom===row._nom);
     if(!rowMes) continue;
     const n=normalizarParaConsolidado(notaLiderSeguraUnMes(rowMes,md.annotated,m));
-    if(!n) continue;
-    if(!mesesPorTexto.has(n)) mesesPorTexto.set(n,[]);
-    mesesPorTexto.get(n).push(m);
+    if(n) textos.add(n);
   }
-  if(!mesesPorTexto.size) return '';
-  const partes=[...mesesPorTexto.entries()].map(([texto,meses])=>
-    meses.length>1?texto:`${meses[0]}: ${texto}`);
-  return partes.join(' | ');
+  return [...textos].join(' | ');
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
