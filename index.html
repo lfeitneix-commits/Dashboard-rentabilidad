@@ -2432,6 +2432,14 @@ function buildInteranualData(){
   // escriben el rubro/proveedor exactamente igual (ver el resto de la app:
   // es un bug recurrente entre hojas distintas).
   const by2026=new Map(d2026.cuentas.map(c=>[normSearch(c.nombre),c]));
+  // Casos puntuales donde un proveedor de 2025 se abrió en varios de 2026
+  // (ej. el alquiler de la oficina de Neix -- P8 Buenavista -- en 2025
+  // venía como una sola línea "Alquiler+Expensas" y en 2026 se separó en
+  // "Alquiler P8 Buenavista" + "Expensas P8 Buenavista"). Sin esto, el de
+  // 2025 no encuentra match exacto y queda comparado contra $0 (-100%).
+  const ALIAS_PROVEEDORES_COMBO={
+    'p8 buenavista (alquiler+expensas)':['alquiler p8 buenavista','expensas p8 buenavista'],
+  };
   const totalesPorMes={}; meses.forEach(m=>totalesPorMes[m]={v2025:0,v2026:0});
   const rubros=d2025.cuentas.map(c2025=>{
     const c2026=by2026.get(normSearch(c2025.nombre));
@@ -2454,7 +2462,10 @@ function buildInteranualData(){
       }
     });
     const providers=c2025.providers.map(p2025=>{
-      const p2026=by2026Prov.get(normSearch(p2025.nombre));
+      const key=normSearch(p2025.nombre);
+      const aliasKeys=ALIAS_PROVEEDORES_COMBO[key];
+      const combo=aliasKeys&&aliasKeys.map(k=>by2026Prov.get(k)).filter(Boolean);
+      const p2026=by2026Prov.get(key)||(combo&&combo.length?{nombre:p2025.nombre,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
       const pPerMes={};
       meses.forEach(mes=>{
         const i25=idx2025(mes),i26=idx2026(mes);
