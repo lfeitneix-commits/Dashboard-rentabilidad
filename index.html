@@ -994,9 +994,17 @@ function notaManual(nom,mes){
 }
 // La hoja a veces usa "-" (o "---") en la columna Notas para decir "nada
 // que aclarar" -- eso no es una nota real, hay que tratarlo como vacío.
+// Y las notas de cuentas "ya descontadas de la facturación de la mesa"
+// (ej. "Valor de este mes: 94.543,30 (gasto ya descontado...)") varían el
+// monto todos los meses -- no interesa ese detalle mes a mes, solo que es
+// un gasto ya descontado, así que se normalizan a un texto fijo (y de
+// paso, al ser igual todos los meses, en Consolidado se junta en una sola
+// mención en vez de listarse mes por mes).
 function limpiarNota(n){
   n=(n||'').trim();
-  return /^-+$/.test(n)?'':n;
+  if(/^-+$/.test(n)) return '';
+  if(/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(n)) return '(gasto ya descontado de la facturación de la mesa)';
+  return n;
 }
 function notaLiderSeguraUnMes(row,rows,mes){
   if(ST.role!=='lideres') return notaManual(row._nom,mes)||limpiarNota(row._allNotes||row._note);
