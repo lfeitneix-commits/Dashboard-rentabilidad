@@ -308,6 +308,12 @@ const SHEETS=[{mes:'Enero',gid:'226754153'},{mes:'Febrero',gid:'1511706532'},{me
 const CAPN_GID='314640513';
 const CLASIF_GID='263291172';
 const GASTOS_FIJOS_DETALLE_GID='548055577';
+// Glosario "qué es cada cuenta" por proveedor/gasto (hoja "Aclaración de
+// cuentas") -- se usa solo para líderes de área, para no mostrarles la nota
+// mensual "cruda" de una cuenta con desglose por área (podría hablar de
+// otra área). Vacío hasta tener el GID real de esa pestaña -- con vacío,
+// el fetch no se dispara y todo sigue funcionando igual que antes.
+const ACLARACION_CUENTAS_GID='';
 // Gastos Fijos 2025, por proveedor y mes (USD) — año cerrado, no viene de
 // Sheets (no hay gid publicado para esto), se pega el CSV entero tal cual
 // lo pasó el usuario y se parsea con el mismo parser que la hoja 2026
@@ -610,6 +616,10 @@ const CUENTAS_OCULTAS_NO_MESA=['Aranceles Mercados','Intereses pagados','Alquile
 // área, así que los hijos (Mesa/BP/BC/FAs) solo repetirían el mismo
 // número. Se muestran como una fila plana con el monto directo.
 const PARENTS_SIN_DESPLEGABLE_LIDERES=new Set(['Sueldos y CS Directos','Suscripciones Directas','Gastos de Hardware Directos','Servicios Contratados Directos','Gastos de Representación Directos']);
+// Sufijo con el que terminan los nombres de hijo por área (ej. "Sueldos y
+// CS BP", "Gtos Hardw y Comp Mesa") -- para identificar CUÁL de los varios
+// hijos de un padre "Directos" es el de la propia área del líder logueado.
+const AREA_SUFIJO_HIJO={'Mesa':'Mesa','FAs':'FAs','Banca Corporativa':'BC','Banca Privada':'BP'};
 // Cuentas "padre" sin desplegable para TODOS los roles — ya no tienen
 // cuentas hijo reales en la hoja (la reestructuración las dejó como un
 // monto único), así que la flechita de expandir no mostraba nada.
@@ -789,6 +799,21 @@ function currentGfdData(){
 // La columna Categoría (índice 1) tiene encabezado vacío, por eso se lee
 // por posición con splitL en vez de parseCSV (que ignora columnas sin
 // nombre salvo la 0).
+// Hoja "Aclaración de cuentas": dos columnas (cuenta, detalle), con dos
+// filas de encabezado de sección ("CUENTAS DIRECTAS"/"CUENTAS INDIRECTAS")
+// que se saltan. "-" o vacío significa que no hay detalle para esa cuenta.
+function parseAclaracionCuentas(csvText){
+  const{rows,headers}=parseCSV(csvText);
+  const nameCol=headers[0],detCol=headers[1];
+  const map=new Map();
+  rows.forEach(row=>{
+    const nombre=String(row[nameCol]||'').trim();
+    if(!nombre||/^CUENTAS\s+(DIRECTAS|INDIRECTAS)$/i.test(nombre)) return;
+    const detalle=String(row[detCol]||'').trim();
+    if(detalle&&detalle!=='-') map.set(nombre,detalle);
+  });
+  return map;
+}
 function parseClasificacionRubros(csvText){
   const lines=csvText.trim().split(/\r?\n/);
   const headerCols=splitL(lines[0]).map(h=>h.trim());
@@ -1770,13 +1795,35 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
-    // Al aplanar un padre "Directos" para un líder, el hijo de su única
-    // área (ej. "Sueldos y CS Mesa") deja de renderizarse -- pero ahí es
-    // donde está la nota real (ej. explicando qué es esa cuenta), no en el
-    // padre. Se busca ese hijo para no perder la nota.
-    const notaHijoLideres=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))
-      ?rows.find(r=>r._child&&CHILD_TO_PARENT[r._nom]===row._nom&&getAreaVal(r,ST.area))
-      :null;
+    // Nota a mostrar en la columna Notas -- para un líder de área, nunca la
+    // nota "cruda" tal cual si la cuenta puede hablar de otra área:
+    // - Cuentas con desglose real por área (padre con hijos, aplanado o
+    //   no): se usa el glosario "Aclaración de cuentas" del hijo de ESTA
+    //   área (por _parentId, el mismo vínculo real que usa el desplegable
+    //   de padres/hijos) -- nunca la nota del padre ni la de otro hijo.
+    // - Cuentas sin desglose por área (ej. "Viajes", "Comisiones
+    //   Productores"): la nota mensual de la hoja solo se muestra si esta
+    //   área tiene monto en esa fila ese mes -- si da $0, la nota
+    //   casi seguro es de otra área (ej. "Viaje Facu Linares", que es de
+    //   Banca Corporativa, no debe verse en Banca Privada).
+    const notaCruda=isConsolidado?getConsNote(row):(row._note||'');
+    let notaMostrar=notaCruda;
+    if(ST.role==='lideres'){
+      const sufijo=AREA_SUFIJO_HIJO[ST.area];
+      const hijo=row._child?row:(row._parentId&&sufijo
+        ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
+        :null);
+      if(hijo){
+        // El glosario tiene prioridad; si no hay entrada ahí, la nota
+        // mensual DEL HIJO es igual segura de mostrar -- por definición
+        // describe solo a ese hijo (ej. "Sueldos y CS BP"), no a otra área.
+        const det=ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
+        const notaHijo=isConsolidado?getConsNote(hijo):(hijo._allNotes||hijo._note||'');
+        notaMostrar=det||notaHijo||'';
+      } else if(!getAreaVal(row,ST.area)){
+        notaMostrar='';
+      }
+    }
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
@@ -1785,7 +1832,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</div></td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
+        ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
       </tr>`;
     } else if(row._child){
       const childVisible=ST.expandedRows.has(row._parentId);
@@ -1795,18 +1842,15 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td class="indent">${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
+        ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
       </tr>`;
     } else {
-      const notaFilaPlana=(notaHijoLideres&&(notaHijoLideres._allNotes||notaHijoLideres._note))
-        ||(isConsolidado?getConsNote(row):row._note)
-        ||'';
       html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${notaFilaPlana}</td>`:''}
+        ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
       </tr>`;
     }
   });
@@ -3066,7 +3110,7 @@ function drawCharts(tab){
 }
 
 // ── STATE & NAV ──────────────────────────────────────────────────
-const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),gfdSearchQuery:'',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
+const ST={mesData:{},meses:[],clasifData:{},clasifRubros:null,aclaracionCuentas:null,currentTab:'por-mes',currentMes:null,capnData:null,capnMes:'__consolidado__',capnMesExplicit:false,matrizData:null,matrizCols:null,matrizError:null,gastosFijosDetalle:null,gastosFijosDetalleLoading:false,gastosFijosDetalle2025:null,gfdView:'2026',gfdExpanded:new Set(),gfdSearchQuery:'',expandedRows:new Set(),expandedSecs:new Set(),expandedSubs:new Set(),consolidado:false,scrollPos:{},role:'full',area:null};
 
 // Oculta del menú lateral las pestañas que no estén en `permitidas`.
 // El rol 'full' nunca llama a esto (ve todo, sin filtrar).
@@ -4046,6 +4090,7 @@ async function loadData(){
       fetchCSV(BASE+MATRIZ_GID+ts).catch(()=>null),
       fetchCSV(BASE+CAPN_GID+ts).catch(()=>null),
       fetchCSV(BASE+CLASIF_GID+ts).catch(e=>{console.error('CLASIF:',e);return null;}),
+      ACLARACION_CUENTAS_GID?fetchCSV(BASE+ACLARACION_CUENTAS_GID+ts).catch(e=>{console.error('ACLARACION:',e);return null;}):Promise.resolve(null),
     ];
     const results=await Promise.allSettled(fetches);
     let loaded=0;
@@ -4122,6 +4167,10 @@ async function loadData(){
       ST.clasifData['__consolidado__']={fijos:totFijos,semifijos:totSemifijos,variables:totVars};
       ST.clasifRubros=parseClasificacionRubros(clasifResult.value);
       _categoriaPorCuentaCache=null;
+    }
+    const aclaracionResult=results[SHEETS.length+3];
+    if(aclaracionResult&&aclaracionResult.status==='fulfilled'&&aclaracionResult.value){
+      ST.aclaracionCuentas=parseAclaracionCuentas(aclaracionResult.value);
     }
     // Process CapN sheet
     const capnResult=results[SHEETS.length+1];
