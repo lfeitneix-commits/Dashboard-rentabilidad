@@ -1023,14 +1023,15 @@ function notaLiderSeguraUnMes(row,rows,mes){
   return otraAreaConMonto?'':notaCruda;
 }
 
-// En Consolidado no se muestra ninguna nota -- mezclar el texto de varios
-// meses en una sola celda (con o sin etiqueta) seguía dando problemas. La
-// nota puntual de cada mes se ve entrando a ese mes específico.
 // En Consolidado se juntan las notas de TODOS los meses (sin decir de qué
 // mes es cada una) para no perder la información, pero sin repetir dos
 // veces el mismo texto si se repite igual en varios meses. Cada mes se
 // calcula con su propia fila (misma seguridad para líderes que se
 // aplicaría viendo ese mes solo).
+// Las cuentas "ya descontadas de la facturación de la mesa" traen un
+// monto distinto cada mes en el texto -- sin normalizar, cada mes queda
+// como un texto "distinto" y se listan todos separados por " | " aunque
+// digan lo mismo. Se normalizan a un texto fijo antes de deduplicar.
 function notaLiderSegura(row,rows,isConsolidado,mes){
   if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
   const textos=new Set();
@@ -1039,7 +1040,8 @@ function notaLiderSegura(row,rows,isConsolidado,mes){
     if(!md) continue;
     const rowMes=md.annotated.find(r=>r._nom===row._nom);
     if(!rowMes) continue;
-    const n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
+    let n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
+    if(n&&/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(n)) n='(gasto ya descontado de la facturación de la mesa)';
     if(n) textos.add(n);
   }
   return [...textos].join(' | ');
