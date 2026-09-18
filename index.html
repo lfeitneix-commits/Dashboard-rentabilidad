@@ -853,10 +853,34 @@ function buildAgg(rows,nameCol,numCol,notesCol){
     }
   });
   AREAS.forEach(a=>{
+    // Para un líder de área todavía no está definida la metodología de
+    // asignación de indirectos por área -- se le muestra el resultado
+    // solo con sus gastos directos, sin la porción de indirectos.
+    if(ST.role==='lideres'){
+      agg[a].gastos_ind=0;
+      agg[a].resultado=agg[a].ingresos-agg[a].gastos_dir;
+    }
     // egresos se recalcula para que cierre siempre con resultado (después de impuesto)
     agg[a].egresos=agg[a].ingresos-agg[a].resultado;
   });
   return agg;
+}
+
+// Para un líder de área, excluye las filas que caen bajo "GASTOS
+// INDIRECTOS" -- la asignación de indirectos por área todavía no está
+// definida, así que el resumen y los rubros de esa vista solo consideran
+// gastos directos. Recorre las filas en orden replicando el mismo criterio
+// de sección que usa buildAgg (detectMainSection).
+function filasDirectasLideres(md){
+  if(!md) return [];
+  if(ST.role!=='lideres') return md.rows;
+  let curTipo=null;
+  return md.rows.filter(row=>{
+    const nom=String(row['']||row[md.nameCol]||'').trim();
+    const main=detectMainSection(nom);
+    if(main) curTipo=main.tipo;
+    return curTipo!=='ind';
+  });
 }
 
 // ── PARENT-CHILD STRUCTURE ──────────────────────────────────────
@@ -1194,10 +1218,11 @@ function mkStacked(id,meses,mesData){
 function mkCost(id,areas,data){
   dc(id);const ctx=document.getElementById(id);if(!ctx)return;
   const shortLabels=areas.map(a=>a.replace('Banca Corporativa','B. Corp.').replace('Banca Privada','B. Privada').replace('FAs','FAs'));
-  rc(id,new Chart(ctx,{type:'bar',data:{labels:shortLabels,datasets:[
-    {label:'G. Directos',data:areas.map(a=>data[a].gastos_dir),backgroundColor:'#476785',borderRadius:4,stack:'c'},
-    {label:'G. Indirectos',data:areas.map(a=>data[a].gastos_ind),backgroundColor:'#9A8E7D',borderRadius:4,stack:'c'},
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>' '+$c(c.raw)}}},
+  // Para un líder de área todavía no se muestran indirectos (ver buildAgg)
+  // -- data[a].gastos_ind ya viene en 0, no tiene sentido mostrar esa serie.
+  const datasetsCost=[{label:'G. Directos',data:areas.map(a=>data[a].gastos_dir),backgroundColor:'#476785',borderRadius:4,stack:'c'}];
+  if(ST.role!=='lideres') datasetsCost.push({label:'G. Indirectos',data:areas.map(a=>data[a].gastos_ind),backgroundColor:'#9A8E7D',borderRadius:4,stack:'c'});
+  rc(id,new Chart(ctx,{type:'bar',data:{labels:shortLabels,datasets:datasetsCost},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>' '+$c(c.raw)}}},
     scales:{x:{type:'category',grid:{display:false},stacked:true,ticks:{font:{size:10},maxRotation:0}},y:{grid:{color:'#E8E6E3'},stacked:true,ticks:{callback:v=>$c(v,true),font:{family:'DM Mono',size:10}}}}}}));
 }
 function mkVertBar(id,areas,vals,colors){
@@ -1286,10 +1311,14 @@ function areaTable(data,capn){
   const tN=AREAS.reduce((s,a)=>s+data[a].gastos_ind,0);
   const tMg=tI?(tR/tI*100):0;
   const tMgOp=tI?((tI-tD)/tI*100):0;
+  // Para un líder de área todavía no se muestran indirectos (ver buildAgg) --
+  // se saca la fila entera en vez de mostrarla en 0. "Margen operativo" (ya
+  // usaba solo gastos_dir) queda igual a "Margen" en ese caso -- redundante
+  // pero no incorrecto, se deja para no tocar de más.
   const rows=[
     {label:'Ingresos',      key:'ingresos',   fmt:a=>fmt(data[a].ingresos),   capnFmt:capn?()=>fmt(capn.ingresos):null,   total:fmt(tI),  cls:''},
     {label:'G. Directos',   key:'gastos_dir', fmt:a=>fmt(data[a].gastos_dir), capnFmt:capn?()=>fmt(capn.gastos_dir):null, total:fmt(tD),  cls:''},
-    {label:'G. Indirectos', key:'gastos_ind', fmt:a=>fmt(data[a].gastos_ind), capnFmt:capn?()=>'—':null,                  total:fmt(tN),  cls:''},
+    ...(ST.role==='lideres'?[]:[{label:'G. Indirectos', key:'gastos_ind', fmt:a=>fmt(data[a].gastos_ind), capnFmt:capn?()=>'—':null, total:fmt(tN), cls:''}]),
     {label:'Egresos',       key:'egresos',    fmt:a=>fmt(data[a].egresos),    capnFmt:capn?()=>fmt(capn.egresos):null,    total:fmt(tE),  cls:''},
     {label:'Resultado',     key:'resultado',  fmt:a=>`<span class="${sgn(data[a].resultado)}">${fmt(data[a].resultado)}</span>`, capnFmt:capn?()=>`<span class="${sgn(capn.resultado)}">${fmt(capn.resultado)}</span>`:null, total:`<span class="${sgn(tR)}">${fmt(tR)}</span>`, cls:''},
     {label:'Margen',        key:'margen',     fmt:a=>{const m=data[a].ingresos?(data[a].resultado/data[a].ingresos*100):0;return`<span class="chip ${sgn(m)}">${m.toFixed(1)}%</span>`;}, capnFmt:capn?()=>{const m=capn.ingresos?(capn.resultado/capn.ingresos*100):0;return`<span class="chip ${sgn(m)}">${m.toFixed(1)}%</span>`;}:null, total:`<span class="chip ${sgn(tMg)}">${tMg.toFixed(1)}%</span>`, cls:''},
@@ -1446,7 +1475,7 @@ function renderDetalle(){
         <div class="tc-hd-r">
           <button class="export-btn" onclick="exportDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
           <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="det-search" type="text" placeholder="Buscar cuenta…" autocomplete="off"/><div class="search-clear" id="det-search-clear" onclick="clearDetSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
-          <select class="filter-sel" id="det-tipo"><option>Todos los tipos</option><option>Facturación</option><option>Gastos directos</option><option>Gastos indirectos</option></select>
+          <select class="filter-sel" id="det-tipo"><option>Todos los tipos</option><option>Facturación</option><option>Gastos directos</option>${ST.role==='lideres'?'':'<option>Gastos indirectos</option>'}</select>
           <select class="filter-sel" id="det-area"><option>Todas las áreas</option>${AREAS.map(a=>`<option>${a}</option>`).join('')}</select>
         </div>
       </div>
@@ -1643,6 +1672,10 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     </tr>`;
   }
 
+  // Para un líder de área todavía no se muestran los indirectos (la
+  // asignación por área no está definida) -- se ocultan sin importar qué
+  // tipo esté elegido en el filtro.
+  const ocultarIndirectos=ST.role==='lideres';
   let sectionVisible=!tipoFilter;
   let currentSecId=null;
   let currentSecTipo=null;
@@ -1653,7 +1686,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     // ── MAIN SECTION ──
     if(row._kind==='section'){
-      sectionVisible=!tipoFilter||row._tipo===tipoFilter;
+      sectionVisible=(!tipoFilter||row._tipo===tipoFilter)&&!(ocultarIndirectos&&row._tipo==='ind');
       if(!sectionVisible)return;
       currentSecId='sec-'+row._seclabel.replace(/[^a-zA-Z0-9]/g,'');
       currentSecTipo=row._tipo;
@@ -1769,7 +1802,12 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   });
 
   // ── FILAS DEL PIE: nombres y valores vienen del sheet ──
-  if(!tipoFilter&&!q){
+  // Para un líder de área estas filas (Gastos Totales/Resultado antes-después
+  // de impuestos/Impuestos) cierran con los indirectos adentro -- ya se
+  // muestra "RESULTADO SUBTOTAL DIRECTOS" arriba (subtotal_dir), que es el
+  // resultado solo con gastos directos, así que estas se ocultan para no
+  // mostrar un número que mezcla algo que no se está viendo en el detalle.
+  if(!tipoFilter&&!q&&!ocultarIndirectos){
     // Orden: gastos totales (cierra Directos+Indirectos) → resultado antes → impuestos → resultado después
     const footerRows=[
       {row:d.gastosTotalesRow,style:'bordeaux'},
@@ -1884,7 +1922,11 @@ function calcRubros(mes){
   // real: Julio daba 793k de Fijos acá vs 818k en "Gastos Fijos Detalle",
   // que sí coincide con el total que la propia Clasificación de gastos
   // calcula para ese mes).
-  if(ST.clasifRubros){
+  // ST.clasifRubros es un total de TODA la empresa, sin desglose por área --
+  // no sirve para un líder de área (una sola área visible): siempre se
+  // recalcula fila por fila desde su propia hoja "por mes" en ese caso,
+  // igual que ya hace calcFijosVariables.
+  if(ST.role!=='lideres'&&ST.clasifRubros){
     const mesesIdx=clasifMesesIdx(mes);
     ST.clasifRubros.rubros.forEach(r=>{
       const total=mesesIdx.reduce((s,i)=>s+(r.vals[i]||0),0);
@@ -1897,16 +1939,16 @@ function calcRubros(mes){
     return{rf,rs,rv,totalFijos,totalSemifijos,totalVars};
   }
 
-  // Respaldo -- si "Clasificación de gastos" todavía no cargó, se recalcula
-  // fila por fila desde la hoja "por mes" (menos preciso, ver el comentario
-  // de arriba).
+  // Respaldo (y camino obligado para líderes de área) -- se recalcula fila
+  // por fila desde la hoja "por mes". Para un líder de área se excluyen las
+  // filas de "GASTOS INDIRECTOS" (ver filasDirectasLideres).
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
   const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|GASTOS?\s+TOTALES?|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
-    md.rows.forEach(row=>{
+    filasDirectasLideres(md).forEach(row=>{
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!nom||SKIP_RE.test(nom))return;
       const note=String(row._allNotes||'').trim();
@@ -2080,7 +2122,7 @@ function renderAnalisis(){
   const chartsHtml=`
   <div class="chart-grid">
     <div class="cc"><div class="cc-t">Fijos · Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
-    <div class="cc"><div class="cc-t">Directos vs. Indirectos</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an8"></canvas></div></div>
+    ${ST.role!=='lideres'?`<div class="cc"><div class="cc-t">Directos vs. Indirectos</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an8"></canvas></div></div>`:''}
     <div class="cc wide"><div class="cc-t">Ingresos vs. Costos</div><div class="cc-s">${isCons?'Evolución mensual':'Por área · '+label}</div><div style="height:280px"><canvas id="ch-an2"></canvas></div></div>
     <div class="cc wide"><div class="cc-t">Desglose por rubros</div><div class="cc-s">Fijos y variables · ${label}</div><div style="height:280px"><canvas id="ch-an3"></canvas></div></div>
     ${ST.role!=='lideres'?`<div class="cc"><div class="cc-t">Facturación bruta</div><div class="cc-s">Por área · ${label}</div><div style="height:280px"><canvas id="ch-an4"></canvas></div></div>
@@ -2736,7 +2778,7 @@ function calcFijosVariables(mes){
   meses.forEach(m=>{
     const md=ST.mesData[m];
     if(!md) return;
-    md.rows.forEach(row=>{
+    filasDirectasLideres(md).forEach(row=>{
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!nom||SKIP_RE.test(nom)) return;
       const note=String(row._allNotes||'').trim();
@@ -2841,12 +2883,15 @@ function drawCharts(tab){
         const dirArea=AREAS.map(a=>agg2b[a]?.gastos_dir||0);
         const indArea=AREAS.map(a=>agg2b[a]?.gastos_ind||0);
         const short=AREAS.map(a=>a.replace('Banca Corporativa','B. Corp.').replace('Banca Privada','B. Privada'));
+        // Para un líder de área todavía no se muestran indirectos (ver
+        // buildAgg) -- la serie quedaría siempre en 0, así que se saca.
+        const datasetsAn2=[
+          {label:'Ingresos',data:ingArea,backgroundColor:'rgba(0,63,97,.7)',borderRadius:3},
+          {label:'Directos',data:dirArea,backgroundColor:'rgba(171,25,48,.7)',borderRadius:3},
+        ];
+        if(ST.role!=='lideres') datasetsAn2.push({label:'Indirectos',data:indArea,backgroundColor:'rgba(154,142,125,.7)',borderRadius:3});
         rc('ch-an2',new Chart(an2,{type:'bar',
-          data:{labels:short,datasets:[
-            {label:'Ingresos',data:ingArea,backgroundColor:'rgba(0,63,97,.7)',borderRadius:3},
-            {label:'Directos',data:dirArea,backgroundColor:'rgba(171,25,48,.7)',borderRadius:3},
-            {label:'Indirectos',data:indArea,backgroundColor:'rgba(154,142,125,.7)',borderRadius:3},
-          ]},
+          data:{labels:short,datasets:datasetsAn2},
           options:{responsive:true,maintainAspectRatio:false,
             plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:10,usePointStyle:true}},
               tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${$c(c.raw)}`}}},
@@ -2919,7 +2964,7 @@ function drawCharts(tab){
           const PNAMES=new Set(Object.keys(PARENT_CHILDREN));
           const CF2=new Map();Object.entries(PARENT_CHILDREN).forEach(([p,ch])=>{if(GASTOS_FIJOS.has(p))ch.forEach(c=>CF2.set(c,true));});
           let tot=0;
-          md.rows.forEach(row=>{
+          filasDirectasLideres(md).forEach(row=>{
             const nom=String(row['']||row[md.nameCol]||'').trim();
             if(!nom||PNAMES.has(nom))return;
             const esFijo=GASTOS_FIJOS.has(nom)||(CF2.has(nom)?CF2.get(nom):false);
@@ -3692,6 +3737,10 @@ function exportDetalle(){
   meses.forEach(m=>{
     const d=m==='__consolidado__'?getConsolidadoDetalle():ST.mesData[m];
     if(!d) return;
+    // d.agg de getConsolidadoDetalle() es el de un solo mes (queda pegado
+    // por el spread de "base") -- para el resultado solo-directos hay que
+    // usar el agg consolidado real, sumado entre todos los meses.
+    const aggExport=m==='__consolidado__'?getAgg():d.agg;
 
     // Re-order rows same as buildDetalleTable (subsection headers before items)
     const finalRows=[];
@@ -3732,12 +3781,15 @@ function exportDetalle(){
     const data=[headers];
     const rowMeta=[{type:'header'}]; // track row types for styling
 
+    // Para un líder de área todavía no se exportan los indirectos (ver el
+    // mismo criterio en buildDetalleTable).
+    const ocultarIndirectosExp=ST.role==='lideres';
     let sectionVisible=!tipoFilter;
 
     finalRows.forEach(row=>{
       if(!row||row._kind==='skip') return;
       if(row._kind==='section'){
-        sectionVisible=!tipoFilter||row._tipo===tipoFilter;
+        sectionVisible=(!tipoFilter||row._tipo===tipoFilter)&&!(ocultarIndirectosExp&&row._tipo==='ind');
         if(!sectionVisible) return;
         const vals=showAreas.map(a=>getAreaVal(row,a));
         const tot=vals.reduce((s,v)=>s+v,0);
@@ -3762,21 +3814,37 @@ function exportDetalle(){
       rowMeta.push({type:row._child?'child':row._parent?'parent':'account'});
     });
 
-    // Total gastos row
-    const totalRow=d.annotated.find(r=>r._kind==='skip'&&/GASTOS.*TOTALES.*POR.*[AÁ]REA/i.test(r._nom));
-    if(totalRow&&!tipoFilter&&!q){
-      const tVals=showAreas.map(a=>getAreaVal(totalRow,a));
-      const tTot=tVals.reduce((s,v)=>s+v,0);
-      data.push(['','TOTAL GASTOS POR ÁREA',...tVals.map(v=>v||''),tTot||'','']);
-      rowMeta.push({type:'total'});
-    }
-    // Resultado row
-    const factRow=d.annotated.find(r=>r._kind==='section'&&r._tipo==='ing');
-    if(factRow&&totalRow&&!tipoFilter&&!q){
-      const rVals=showAreas.map(a=>getAreaVal(factRow,a)-getAreaVal(totalRow,a));
-      const rTot=rVals.reduce((s,v)=>s+v,0);
-      data.push(['','RESULTADO',...rVals.map(v=>v||''),rTot||'','']);
-      rowMeta.push({type:'resultado'});
+    if(ocultarIndirectosExp){
+      // Sin indirectos todavía: el total de gastos y el resultado se
+      // exportan solo con gastos directos (agg ya viene calculado así,
+      // ver buildAgg).
+      if(!tipoFilter&&!q){
+        const gVals=showAreas.map(a=>aggExport[a]?.gastos_dir||0);
+        const gTot=gVals.reduce((s,v)=>s+v,0);
+        data.push(['','TOTAL GASTOS DIRECTOS',...gVals.map(v=>v||''),gTot||'','']);
+        rowMeta.push({type:'total'});
+        const rVals=showAreas.map(a=>aggExport[a]?.resultado||0);
+        const rTot=rVals.reduce((s,v)=>s+v,0);
+        data.push(['','RESULTADO (solo gastos directos)',...rVals.map(v=>v||''),rTot||'','']);
+        rowMeta.push({type:'resultado'});
+      }
+    } else {
+      // Total gastos row
+      const totalRow=d.annotated.find(r=>r._kind==='skip'&&/GASTOS.*TOTALES.*POR.*[AÁ]REA/i.test(r._nom));
+      if(totalRow&&!tipoFilter&&!q){
+        const tVals=showAreas.map(a=>getAreaVal(totalRow,a));
+        const tTot=tVals.reduce((s,v)=>s+v,0);
+        data.push(['','TOTAL GASTOS POR ÁREA',...tVals.map(v=>v||''),tTot||'','']);
+        rowMeta.push({type:'total'});
+      }
+      // Resultado row
+      const factRow=d.annotated.find(r=>r._kind==='section'&&r._tipo==='ing');
+      if(factRow&&totalRow&&!tipoFilter&&!q){
+        const rVals=showAreas.map(a=>getAreaVal(factRow,a)-getAreaVal(totalRow,a));
+        const rTot=rVals.reduce((s,v)=>s+v,0);
+        data.push(['','RESULTADO',...rVals.map(v=>v||''),rTot||'','']);
+        rowMeta.push({type:'resultado'});
+      }
     }
 
     const ws=XLSX.utils.aoa_to_sheet(data);
