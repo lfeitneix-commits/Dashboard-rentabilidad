@@ -992,11 +992,14 @@ function notaManual(nom,mes){
   const delMes=mes&&NOTAS_MANUALES[mes];
   return delMes&&delMes[nom];
 }
-// La hoja a veces usa "-" (o "---") en la columna Notas para decir "nada
-// que aclarar" -- eso no es una nota real, hay que tratarlo como vacío.
+// La hoja a veces usa "-", "----", "—" o similar en la columna Notas para
+// decir "nada que aclarar" -- no es una nota real. En vez de buscar un
+// patrón exacto de guiones (que no cubre todas las variantes que se usan
+// en la práctica), se trata como vacío cualquier texto que no tenga ni
+// una letra ni un número: si no hay nada que decir, no hay nada que leer.
 function limpiarNota(n){
   n=(n||'').trim();
-  return /^-+$/.test(n)?'':n;
+  return /[a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/.test(n)?n:'';
 }
 // Solo para Consolidado: las notas de cuentas "ya descontadas de la
 // facturación de la mesa" (ej. "Valor de este mes: 94.543,30 (gasto ya
