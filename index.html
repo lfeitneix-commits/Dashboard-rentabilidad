@@ -2497,7 +2497,10 @@ function buildComparativaInteranualTableHTML(){
     // semestre fijo aparte, es la misma fila desglosada por mes con una
     // columna extra al final.
     const cons25=meses.reduce((s,mes)=>s+(r.perMes[mes].v2025||0),0);
-    const cons26=meses.reduce((s,mes)=>s+(r.perMes[mes].v2026||0),0);
+    // Igual que con los proveedores: si el rubro no matcheó con 2026, no
+    // hay dato real que sumar -- dejar sin dato (—) en vez de un "-100%"
+    // fabricado.
+    const cons26=r.matched?meses.reduce((s,mes)=>s+(r.perMes[mes].v2026||0),0):null;
     const consCell=deltaCellHTML(cons25,cons26,true);
     const cid='cmp-'+ci;
     const key=normSearch(r.nombre).replace(/'/g,"\\'");
@@ -2511,7 +2514,11 @@ function buildComparativaInteranualTableHTML(){
       r.providers.forEach(p=>{
         const pcells=meses.map(mes=>deltaCellHTML(p.perMes[mes].v2025,p.perMes[mes].v2026)).join('');
         const pCons25=meses.reduce((s,mes)=>s+(p.perMes[mes].v2025||0),0);
-        const pCons26=meses.reduce((s,mes)=>s+(p.perMes[mes].v2026||0),0);
+        // Si el proveedor no matcheó con 2026 (p.matched=false), no hay
+        // ningún dato real de 2026 que sumar -- sumar como $0 fabrica un
+        // "-100%" que no significa "bajó a cero", significa "no lo
+        // encontramos". Se deja sin dato (—) en vez de inventar una caída.
+        const pCons26=p.matched?meses.reduce((s,mes)=>s+(p.perMes[mes].v2026||0),0):null;
         rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
           <td class="indent">${p.nombre}${!p.matched?' '+sinMatch:''}</td>
           ${pcells}${deltaCellHTML(pCons25,pCons26,true)}
