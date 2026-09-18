@@ -1026,9 +1026,23 @@ function notaLiderSeguraUnMes(row,rows,mes){
 // En Consolidado no se muestra ninguna nota -- mezclar el texto de varios
 // meses en una sola celda (con o sin etiqueta) seguía dando problemas. La
 // nota puntual de cada mes se ve entrando a ese mes específico.
+// En Consolidado se juntan las notas de TODOS los meses (sin decir de qué
+// mes es cada una) para no perder la información, pero sin repetir dos
+// veces el mismo texto si se repite igual en varios meses. Cada mes se
+// calcula con su propia fila (misma seguridad para líderes que se
+// aplicaría viendo ese mes solo).
 function notaLiderSegura(row,rows,isConsolidado,mes){
   if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
-  return '';
+  const textos=new Set();
+  for(const m of ST.meses){
+    const md=ST.mesData[m];
+    if(!md) continue;
+    const rowMes=md.annotated.find(r=>r._nom===row._nom);
+    if(!rowMes) continue;
+    const n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
+    if(n) textos.add(n);
+  }
+  return [...textos].join(' | ');
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
