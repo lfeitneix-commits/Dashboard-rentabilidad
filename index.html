@@ -968,6 +968,17 @@ function getAreaVal(row,area){
   return key?parseNum(row[key]):0;
 }
 
+// Notas puntuales cargadas a mano mientras se actualiza la hoja real con
+// el mismo texto (mismo criterio que el fallback de "Aclaración de
+// cuentas": un empujón temporal, no un reemplazo permanente de la hoja).
+const NOTAS_MANUALES={
+  'Abril':{
+    'Gastos Representacion Mesa':'Happening (cena Genne), Argenwine (cena BNA/JPM)',
+    'Gastos Representacion BC':'Compras Gustavo Lazzari (charla BC)',
+    'Gastos Representacion BP':'Café y almuerzo Nica cliente',
+  },
+};
+
 // Nota segura para un líder de área, para UN mes puntual (no consolidado):
 // nunca la nota cruda tal cual si la cuenta puede hablar de otra área.
 // - Cuentas con desglose real por área (padre con hijos): se usa la nota
@@ -977,13 +988,17 @@ function getAreaVal(row,area){
 //   solo texto): se separa por persona (roster) y se deja solo lo propio.
 // - Otras cuentas sin desglose: la nota solo se muestra si esta área es
 //   la única con monto ese mes.
-function notaLiderSeguraUnMes(row,rows){
-  if(ST.role!=='lideres') return row._allNotes||row._note||'';
+function notaManual(nom,mes){
+  const delMes=mes&&NOTAS_MANUALES[mes];
+  return delMes&&delMes[nom];
+}
+function notaLiderSeguraUnMes(row,rows,mes){
+  if(ST.role!=='lideres') return notaManual(row._nom,mes)||row._allNotes||row._note||'';
   const sufijo=AREA_SUFIJO_HIJO[ST.area];
   const hijo=row._child?row:(row._parentId&&sufijo
     ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
     :null);
-  if(hijo) return hijo._allNotes||hijo._note||'';
+  if(hijo) return notaManual(hijo._nom,mes)||hijo._allNotes||hijo._note||'';
   const notaCruda=row._allNotes||row._note||'';
   const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
   if(row._nom.trim()==='Viajes'){
@@ -998,15 +1013,15 @@ function notaLiderSeguraUnMes(row,rows){
 // poder saber a qué corresponde el monto consolidado. Cada mes se calcula
 // con su propia fila (mismos datos y misma seguridad para líderes que se
 // aplicaría viendo ese mes solo).
-function notaLiderSegura(row,rows,isConsolidado){
-  if(!isConsolidado) return notaLiderSeguraUnMes(row,rows);
+function notaLiderSegura(row,rows,isConsolidado,mes){
+  if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
   const partes=[];
   for(const m of ST.meses){
     const md=ST.mesData[m];
     if(!md) continue;
     const rowMes=md.annotated.find(r=>r._nom===row._nom);
     if(!rowMes) continue;
-    const n=notaLiderSeguraUnMes(rowMes,md.annotated);
+    const n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
     if(n) partes.push(`${m}: ${n}`);
   }
   if(!partes.length) return '';
@@ -1968,7 +1983,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
-    const notaMostrar=notaLiderSegura(row,rows,isConsolidado);
+    const notaMostrar=notaLiderSegura(row,rows,isConsolidado,mesF);
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
@@ -4009,7 +4024,7 @@ function exportDetalle(){
       const vals=showAreas.map(a=>getAreaVal(row,a));
       const tot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(row,a):s,0);
       const indent=row._child?'      ':row._parent?'    ':'    ';
-      const notaExport=notaLiderSegura(row,d.annotated,m==='__consolidado__');
+      const notaExport=notaLiderSegura(row,d.annotated,m==='__consolidado__',m);
       data.push([row._num||'', indent+row._nom, ...vals.map(v=>v||''), tot||'', notaExport]);
       rowMeta.push({type:row._child?'child':row._parent?'parent':'account'});
     });
