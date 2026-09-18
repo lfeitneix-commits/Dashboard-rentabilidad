@@ -1770,6 +1770,13 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
+    // Al aplanar un padre "Directos" para un líder, el hijo de su única
+    // área (ej. "Sueldos y CS Mesa") deja de renderizarse -- pero ahí es
+    // donde está la nota real (ej. explicando qué es esa cuenta), no en el
+    // padre. Se busca ese hijo para no perder la nota.
+    const notaHijoLideres=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))
+      ?rows.find(r=>r._child&&CHILD_TO_PARENT[r._nom]===row._nom&&getAreaVal(r,ST.area))
+      :null;
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
@@ -1791,12 +1798,15 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
       </tr>`;
     } else {
+      const notaFilaPlana=(notaHijoLideres&&(notaHijoLideres._allNotes||notaHijoLideres._note))
+        ||(isConsolidado?getConsNote(row):row._note)
+        ||'';
       html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
+        ${notesCol?`<td class="note-cell">${notaFilaPlana}</td>`:''}
       </tr>`;
     }
   });
