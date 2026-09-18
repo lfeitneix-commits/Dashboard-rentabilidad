@@ -1899,12 +1899,13 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
         :null);
       if(hijo){
-        // El glosario tiene prioridad; si no hay entrada ahí, la nota
-        // mensual DEL HIJO es igual segura de mostrar -- por definición
-        // describe solo a ese hijo (ej. "Sueldos y CS BP"), no a otra área.
-        const det=ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
+        // La nota mensual DEL HIJO tiene prioridad -- por definición
+        // describe solo a ese hijo (ej. "Sueldos y CS BP"), no a otra área,
+        // y varía mes a mes. El glosario es solo un respaldo genérico para
+        // cuando ese mes no se escribió ninguna nota puntual.
         const notaHijo=isConsolidado?getConsNote(hijo):(hijo._allNotes||hijo._note||'');
-        notaMostrar=det||notaHijo||'';
+        const det=ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
+        notaMostrar=notaHijo||det||'';
       } else if(!getAreaVal(row,ST.area)){
         notaMostrar='';
       }
