@@ -691,6 +691,7 @@ const QUANT_SERVICIOS={
   total:4253.00,
 };
 const AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
+const TODAS_AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
 const AREA_COLOR={'Mesa':'#003F61','FAs':'#9A8E7D','Banca Corporativa':'#AB1930','Banca Privada':'#004836'};
 // Cuentas informativas de Mesa (siempre en $0 en todas las áreas, el
 // monto real vive solo en la nota) — no aportan nada fuera de Mesa, así
@@ -927,6 +928,46 @@ function getAreaVal(row,area){
   const key=Object.keys(row).find(k=>k.trim()===area)||
             Object.keys(row).find(k=>k.trim().toLowerCase()===area.toLowerCase());
   return key?parseNum(row[key]):0;
+}
+
+// En consolidado: si la nota es la misma en todos los meses que la tienen,
+// mostrarla una sola vez; si cambia mes a mes (ej. "Viajes"), no mostrar nada.
+function getConsNoteFor(row,isConsolidado){
+  if(!isConsolidado) return row._allNotes||row._note||'';
+  const notas=new Set();
+  for(const m of ST.meses){
+    const md=ST.mesData[m];
+    if(!md) continue;
+    const r=md.annotated.find(rr=>rr._nom===row._nom);
+    const n=r&&(r._allNotes||r._note);
+    if(n) notas.add(n);
+  }
+  return notas.size===1?[...notas][0]:'';
+}
+
+// Nota "segura" para un líder de área: nunca la nota cruda tal cual si la
+// cuenta puede hablar de otra área.
+// - Cuentas con desglose real por área (padre con hijos): se usa la nota
+//   mensual / el glosario del hijo de ESTA área (por _parentId), nunca la
+//   del padre ni la de otro hijo, y el glosario solo si hubo gasto real.
+// - Cuentas sin desglose por área (ej. "Viajes"): la nota es un solo texto
+//   libre que puede mezclar varias áreas -- solo se muestra si esta área es
+//   la única con monto ese mes.
+function notaLiderSegura(row,rows,isConsolidado){
+  const notaCruda=getConsNoteFor(row,isConsolidado);
+  if(ST.role!=='lideres') return notaCruda;
+  const sufijo=AREA_SUFIJO_HIJO[ST.area];
+  const hijo=row._child?row:(row._parentId&&sufijo
+    ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
+    :null);
+  if(hijo){
+    const notaHijo=getConsNoteFor(hijo,isConsolidado);
+    const hijoConMonto=isConsolidado||!!getAreaVal(hijo,ST.area);
+    const det=hijoConMonto&&ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
+    return notaHijo||det||'';
+  }
+  const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
+  return (!getAreaVal(row,ST.area)||otraAreaConMonto)?'':notaCruda;
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
@@ -1880,38 +1921,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
-    // Nota a mostrar en la columna Notas -- para un líder de área, nunca la
-    // nota "cruda" tal cual si la cuenta puede hablar de otra área:
-    // - Cuentas con desglose real por área (padre con hijos, aplanado o
-    //   no): se usa el glosario "Aclaración de cuentas" del hijo de ESTA
-    //   área (por _parentId, el mismo vínculo real que usa el desplegable
-    //   de padres/hijos) -- nunca la nota del padre ni la de otro hijo.
-    // - Cuentas sin desglose por área (ej. "Viajes", "Comisiones
-    //   Productores"): la nota mensual de la hoja solo se muestra si esta
-    //   área tiene monto en esa fila ese mes -- si da $0, la nota
-    //   casi seguro es de otra área (ej. "Viaje Facu Linares", que es de
-    //   Banca Corporativa, no debe verse en Banca Privada).
-    const notaCruda=isConsolidado?getConsNote(row):(row._note||'');
-    let notaMostrar=notaCruda;
-    if(ST.role==='lideres'){
-      const sufijo=AREA_SUFIJO_HIJO[ST.area];
-      const hijo=row._child?row:(row._parentId&&sufijo
-        ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
-        :null);
-      if(hijo){
-        // La nota mensual DEL HIJO tiene prioridad -- por definición
-        // describe solo a ese hijo (ej. "Sueldos y CS BP"), no a otra área,
-        // y varía mes a mes. El glosario es solo un respaldo genérico, y
-        // solo tiene sentido mostrarlo si este mes hubo gasto real en esa
-        // cuenta -- si el monto es 0 no hubo ningún movimiento que explicar.
-        const notaHijo=isConsolidado?getConsNote(hijo):(hijo._allNotes||hijo._note||'');
-        const hijoConMonto=isConsolidado||!!getAreaVal(hijo,ST.area);
-        const det=hijoConMonto&&ST.aclaracionCuentas?ST.aclaracionCuentas.get(hijo._nom):null;
-        notaMostrar=notaHijo||det||'';
-      } else if(!getAreaVal(row,ST.area)){
-        notaMostrar='';
-      }
-    }
+    const notaMostrar=notaLiderSegura(row,rows,isConsolidado);
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
@@ -3952,7 +3962,8 @@ function exportDetalle(){
       const vals=showAreas.map(a=>getAreaVal(row,a));
       const tot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(row,a):s,0);
       const indent=row._child?'      ':row._parent?'    ':'    ';
-      data.push([row._num||'', indent+row._nom, ...vals.map(v=>v||''), tot||'', row._note||'']);
+      const notaExport=notaLiderSegura(row,d.annotated,m==='__consolidado__');
+      data.push([row._num||'', indent+row._nom, ...vals.map(v=>v||''), tot||'', notaExport]);
       rowMeta.push({type:row._child?'child':row._parent?'parent':'account'});
     });
 
