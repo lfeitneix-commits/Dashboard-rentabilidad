@@ -135,6 +135,10 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 
 /* DETALLE: PARENT (colapsable) */
 .row-parent>td{background:var(--surface);font-weight:600;font-size:12px}
+/* Análisis interanual: un rubro tageado "(no es Gasto Fijo)" no suma al
+   TOTAL -- que no se vea en negrita como los rubros Fijos reales, para no
+   sugerir que pesa en el consolidado. */
+.row-parent.no-fijo>td{font-weight:400}
 .row-parent .toggle-icon{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;font-size:10px;margin-right:4px;color:var(--bordeaux);cursor:pointer;user-select:none;transition:transform .2s;flex-shrink:0}
 .row-parent.open .toggle-icon{transform:rotate(90deg)}
 .row-parent .name-wrap{display:flex;align-items:center;gap:2px}
@@ -2590,7 +2594,7 @@ function buildInteranualTableRowsHTML(data,q){
     const open=!!query||ST.gfdExpanded.has(normSearch(r.nombre));
     const hasDropdown=r.providers.length>0;
     if(hasDropdown){
-      rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
+      rowsHtml+=`<tr class="row-parent${open?' open':''}${r.esFijo?'':' no-fijo'}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${tag}</div></td>
         ${cells}${consCell}
       </tr>`;
@@ -2605,7 +2609,7 @@ function buildInteranualTableRowsHTML(data,q){
         </tr>`;
       });
     } else {
-      rowsHtml+=`<tr class="row-parent">
+      rowsHtml+=`<tr class="row-parent${r.esFijo?'':' no-fijo'}">
         <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${r.nombre}${tag}</div></td>
         ${cells}${consCell}
       </tr>`;
