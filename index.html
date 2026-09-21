@@ -947,6 +947,7 @@ const ROSTER_AREA={
 // otra área, ej. Facu Linares es de Corpo pero viajó con gente de FAs).
 // Se chequean en orden -- el patrón más específico va primero.
 const VIAJES_AREA=[
+  {re:/facu[\s-]*bauti/i,            area:'FAs'},
   {re:/facu\s+lina\w*\s+y\s+bauti/i, area:'FAs'},
   {re:/facu\s+linares/i,             area:'Banca Corporativa'},
   {re:/\bbren\b/i,                   area:'Banca Corporativa'},
