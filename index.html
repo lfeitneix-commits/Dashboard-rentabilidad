@@ -939,25 +939,38 @@ const ROSTER_AREA={
   'gonzález':'Banca Corporativa','viloria':'Banca Corporativa',
   'linares':'Banca Corporativa',
   // Banca Privada
-  'vodanovich':'Banca Privada','malaccorto':'Banca Privada',
+  'vodanovich':'Banca Privada','malaccorto':'Banca Privada','malacorto':'Banca Privada',
   'degrossi':'Banca Privada','furlani':'Banca Privada',
 };
+// Viajes puntuales que el usuario confirmó a mano (más confiable que
+// adivinar por apellido -- la misma persona puede aparecer en un viaje de
+// otra área, ej. Facu Linares es de Corpo pero viajó con gente de FAs).
+// Se chequean en orden -- el patrón más específico va primero.
+const VIAJES_AREA=[
+  {re:/facu\s+lina\w*\s+y\s+bauti/i, area:'FAs'},
+  {re:/facu\s+linares/i,             area:'Banca Corporativa'},
+  {re:/\bbren\b/i,                   area:'Banca Corporativa'},
+  {re:/ushuaia/i,                    area:'Mesa'},
+  {re:/lucas\s+malac?corto/i,        area:'Banca Privada'},
+];
+function areaDelTramo(t){
+  const conocido=VIAJES_AREA.find(v=>v.re.test(t));
+  if(conocido) return conocido.area;
+  const palabras=t.toLowerCase().split(/\s+/);
+  return palabras.map(w=>ROSTER_AREA[w]).find(a=>a);
+}
 // Separa una nota de texto libre (tramos separados por coma) y deja solo
-// los tramos que mencionan a alguien de ESTA área. Si esta área es la
-// única con monto ese mes, no hay ambigüedad y se muestra todo el texto
-// tal cual (incluye tramos sin nombre, ej. "Viaje Ushuaia" sin apellido).
-// Si hay más de un área con monto, un tramo sin nombre reconocido NO se
-// puede atribuir con seguridad, así que se descarta (mejor perderlo que
-// mostrar el viaje de otra área).
+// los tramos que son de ESTA área (por el viaje puntual conocido, o si no,
+// por apellido). Si esta área es la única con monto ese mes, no hay
+// ambigüedad y se muestra todo el texto tal cual (incluye tramos sin
+// nombre reconocido). Si hay más de un área con monto, un tramo sin
+// atribución NO se puede confirmar, así que se descarta (mejor perderlo
+// que mostrar el viaje de otra área).
 function separarNotaPorPersona(nota,area,esUnicaAreaConMonto){
   if(!nota) return nota;
   if(esUnicaAreaConMonto) return nota;
   const tramos=nota.split(',').map(s=>s.trim()).filter(Boolean);
-  const propios=tramos.filter(t=>{
-    const palabras=t.toLowerCase().split(/\s+/);
-    const areaDeAlguien=palabras.map(w=>ROSTER_AREA[w]).find(a=>a);
-    return areaDeAlguien===area;
-  });
+  const propios=tramos.filter(t=>areaDelTramo(t)===area);
   return propios.join(', ');
 }
 
@@ -1023,28 +1036,12 @@ function notaLiderSeguraUnMes(row,rows,mes){
   return otraAreaConMonto?'':notaCruda;
 }
 
-// En Consolidado se juntan las notas de TODOS los meses (sin decir de qué
-// mes es cada una) para no perder la información, pero sin repetir dos
-// veces el mismo texto si se repite igual en varios meses. Cada mes se
-// calcula con su propia fila (misma seguridad para líderes que se
-// aplicaría viendo ese mes solo).
-// Las cuentas "ya descontadas de la facturación de la mesa" traen un
-// monto distinto cada mes en el texto -- sin normalizar, cada mes queda
-// como un texto "distinto" y se listan todos separados por " | " aunque
-// digan lo mismo. Se normalizan a un texto fijo antes de deduplicar.
+// En Consolidado no se muestra ninguna nota -- las aclaraciones ya se
+// escriben directamente en el Google Sheet, mes a mes. La nota puntual de
+// cada mes se ve entrando a ese mes específico.
 function notaLiderSegura(row,rows,isConsolidado,mes){
   if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
-  const textos=new Set();
-  for(const m of ST.meses){
-    const md=ST.mesData[m];
-    if(!md) continue;
-    const rowMes=md.annotated.find(r=>r._nom===row._nom);
-    if(!rowMes) continue;
-    let n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
-    if(n&&/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(n)) n='(gasto ya descontado de la facturación de la mesa)';
-    if(n) textos.add(n);
-  }
-  return [...textos].join(' | ');
+  return '';
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
