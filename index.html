@@ -954,24 +954,31 @@ const VIAJES_AREA=[
   {re:/ushuaia/i,                    area:'Mesa'},
   {re:/lucas\s+malac?corto/i,        area:'Banca Privada'},
 ];
-function areaDelTramo(t){
-  const conocido=VIAJES_AREA.find(v=>v.re.test(t));
-  if(conocido) return conocido.area;
+// Un tramo puede mencionar más de un viaje/área junto en un solo texto
+// sin coma (ej. "Viajes Bren y Facu-Bauti" -- Bren es de Corpo, Facu-Bauti
+// es de FAs, los dos en la misma frase). Por eso no se le muestra el tramo
+// completo a cada área: se extrae SOLO el pedacito de texto que corresponde
+// al viaje puntual conocido de esa área (ej. Corpo ve "Viaje Bren", FAs ve
+// "Viaje Facu-Bauti", cada una sin el viaje de la otra).
+function tramoParaArea(t,area){
+  const match=VIAJES_AREA.find(v=>v.area===area&&v.re.test(t));
+  if(match) return 'Viaje '+t.match(match.re)[0];
   const palabras=t.toLowerCase().split(/\s+/);
-  return palabras.map(w=>ROSTER_AREA[w]).find(a=>a);
+  if(palabras.some(w=>ROSTER_AREA[w]===area)) return t;
+  return null;
 }
 // Separa una nota de texto libre (tramos separados por coma) y deja solo
-// los tramos que son de ESTA área (por el viaje puntual conocido, o si no,
-// por apellido). Si esta área es la única con monto ese mes, no hay
-// ambigüedad y se muestra todo el texto tal cual (incluye tramos sin
-// nombre reconocido). Si hay más de un área con monto, un tramo sin
-// atribución NO se puede confirmar, así que se descarta (mejor perderlo
-// que mostrar el viaje de otra área).
+// el pedacito de cada tramo que corresponde a ESTA área (por viaje puntual
+// conocido, o si no, el tramo completo por apellido). Si esta área es la
+// única con monto ese mes, no hay ambigüedad y se muestra todo el texto tal
+// cual (incluye tramos sin nombre reconocido). Si hay más de un área con
+// monto, un tramo sin mención de esta área NO se puede confirmar, así que
+// se descarta (mejor perderlo que mostrar el viaje de otra área).
 function separarNotaPorPersona(nota,area,esUnicaAreaConMonto){
   if(!nota) return nota;
   if(esUnicaAreaConMonto) return nota;
   const tramos=nota.split(',').map(s=>s.trim()).filter(Boolean);
-  const propios=tramos.filter(t=>areaDelTramo(t)===area);
+  const propios=tramos.map(t=>tramoParaArea(t,area)).filter(Boolean);
   return propios.join(', ');
 }
 
