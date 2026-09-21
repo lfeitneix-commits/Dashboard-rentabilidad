@@ -2518,6 +2518,16 @@ function buildInteranualData(){
   const aliasReverso=new Map();
   Object.entries(ALIAS_PROVEEDORES_COMBO).forEach(([k,arr])=>arr.forEach(a=>aliasReverso.set(a,k)));
 
+  // Proveedores que la Clasificación reubicó de RUBRO entre 2025 y 2026 --
+  // mismo gasto recurrente, pero bajo otra cuenta (ej. Gimenez Ezequiel
+  // estaba en Honorarios Profesionales en 2025 y en 2026 lo pasaron a
+  // Servicios Contratados). Sin esto, el matching por rubro (que compara
+  // proveedores DENTRO del mismo rubro) los ve como dos gastos distintos:
+  // uno "de baja" en el rubro viejo y otro "nuevo" en el rubro nuevo.
+  const RECLASIFICACION_PROVEEDORES={
+    'gimenez ezequiel':{rubro2025:'Honorarios Profesionales',rubro2026:'Servicios Contratados'},
+  };
+
   // El usuario quiere ver TODO: no solo los rubros/proveedores de 2025 (con
   // o sin match en 2026), sino también los que arrancaron recién en 2026 y
   // antes ni existían -- así que la lista de rubros es la UNIÓN de ambos
@@ -2557,22 +2567,36 @@ function buildInteranualData(){
       }
     });
     // Proveedores: misma unión -- los de 2025 más los que aparecen recién
-    // en 2026 (sin contar los que ya están cubiertos por un alias/combo).
+    // en 2026 (sin contar los que ya están cubiertos por un alias/combo, ni
+    // los que son el destino 2026 de una reclasificación -- esos ya se
+    // muestran desde su rubro de origen 2025, más abajo).
     const nombresProv=c2025?c2025.providers.map(p=>p.nombre):[];
     const vistosProv=new Set(nombresProv.map(n=>normSearch(n)));
     if(c2026) c2026.providers.forEach(p=>{
       const key2026=normSearch(p.nombre);
       const key2025DelCombo=aliasReverso.get(key2026);
-      if(vistosProv.has(key2026)||(key2025DelCombo&&vistosProv.has(key2025DelCombo))) return;
+      const reclasifDestino=RECLASIFICACION_PROVEEDORES[key2026];
+      const esDestinoReclasif=reclasifDestino&&normSearch(reclasifDestino.rubro2026)===key;
+      if(vistosProv.has(key2026)||(key2025DelCombo&&vistosProv.has(key2025DelCombo))||esDestinoReclasif) return;
       vistosProv.add(key2026);
       nombresProv.push(p.nombre);
     });
     const providers=nombresProv.map(nombreProv=>{
-      const key=normSearch(nombreProv);
-      const p2025=by2025Prov.get(key)||null;
-      const aliasKeys=ALIAS_PROVEEDORES_COMBO[key];
-      const combo=aliasKeys&&aliasKeys.map(k=>by2026Prov.get(k)).filter(Boolean);
-      const p2026=by2026Prov.get(key)||(combo&&combo.length?{nombre:nombreProv,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
+      const provKey=normSearch(nombreProv);
+      const p2025=by2025Prov.get(provKey)||null;
+      const reclasif=RECLASIFICACION_PROVEEDORES[provKey];
+      const esOrigenReclasif=reclasif&&normSearch(reclasif.rubro2025)===key;
+      let p2026;
+      if(esOrigenReclasif){
+        // Se movió de rubro -- buscar su fila 2026 en el rubro DESTINO, no
+        // en el actual.
+        const c2026Destino=by2026.get(normSearch(reclasif.rubro2026));
+        p2026=c2026Destino?.providers.find(p=>normSearch(p.nombre)===provKey)||null;
+      } else {
+        const aliasKeys=ALIAS_PROVEEDORES_COMBO[provKey];
+        const combo=aliasKeys&&aliasKeys.map(k=>by2026Prov.get(k)).filter(Boolean);
+        p2026=by2026Prov.get(provKey)||(combo&&combo.length?{nombre:nombreProv,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
+      }
       const pPerMes={};
       meses.forEach(mes=>{
         const i25=idx2025(mes),i26=idx2026(mes);
