@@ -2556,25 +2556,28 @@ function buildInteranualData(){
   return {meses,rubros,totalesPorMes};
 }
 
-function buildComparativaInteranualTableHTML(){
-  const data=buildInteranualData();
-  if(!data){
-    return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
-  }
-  const {meses,rubros,totalesPorMes}=data;
-  // Nuevo en 2026 = no se pagaba en 2025 (arrancó este año). Dejó de
-  // pagarse = estaba en 2025 y no aparece en 2026. El usuario pidió ver
-  // TODO -- ambos casos quedan visibles, con su Δ% real (-100%/+100%), en
-  // vez de esconderse como "sin match".
-  const nuevo26=`<span style="color:var(--verde);font-size:10px">(nuevo en 2026)</span>`;
-  const dejoPagar=`<span style="color:var(--bordeaux);font-size:10px">(no se pagó en 2026)</span>`;
-  // Se muestran igual (para no perder el detalle que ya está cargado), pero
-  // etiquetadas y afuera del TOTAL -- ver esCuentaFija().
-  const noFijo=`<span style="color:var(--muted);font-size:10px">(no es Gasto Fijo)</span>`;
+// Tags visibles al lado del nombre. Nuevo en 2026 = no se pagaba en 2025
+// (arrancó este año). Dejó de pagarse = estaba en 2025 y no aparece en 2026.
+const INTERANUAL_TAG_NUEVO=`<span style="color:var(--verde);font-size:10px">(nuevo en 2026)</span>`;
+const INTERANUAL_TAG_BAJA=`<span style="color:var(--bordeaux);font-size:10px">(no se pagó en 2026)</span>`;
+// Se muestran igual (para no perder el detalle que ya está cargado), pero
+// etiquetadas y afuera del TOTAL -- ver esCuentaFija().
+const INTERANUAL_TAG_NO_FIJO=`<span style="color:var(--muted);font-size:10px">(no es Gasto Fijo)</span>`;
 
+// Solo las filas de la tabla (sin los gráficos) -- se regenera sola al
+// tipear en el buscador, sin tener que volver a dibujar los charts. Con la
+// unión 2025+2026 la tabla puede tener muchas filas (proveedores puntuales
+// que no se repitieron), así que igual que en las vistas 2025/2026 conviene
+// poder filtrar por nombre.
+function buildInteranualTableRowsHTML(data,q){
+  const {meses,rubros,totalesPorMes}=data;
+  const query=normSearch(q).trim();
   let rowsHtml='';
   rubros.forEach((r,ci)=>{
-    const tag=(!r.en2025?' '+nuevo26:'')+(!r.en2026?' '+dejoPagar:'')+(!r.esFijo?' '+noFijo:'');
+    const rubroMatches=query&&normSearch(r.nombre).includes(query);
+    const providers=(!query||rubroMatches)?r.providers:r.providers.filter(p=>normSearch(p.nombre).includes(query));
+    if(query&&!rubroMatches&&!providers.length) return;
+    const tag=(!r.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!r.en2026?' '+INTERANUAL_TAG_BAJA:'')+(!r.esFijo?' '+INTERANUAL_TAG_NO_FIJO:'');
     const cells=meses.map(mes=>deltaCellHTML(r.perMes[mes].v2025,r.perMes[mes].v2026)).join('');
     // Consolidado: suma los meses ya cargados de cada lado -- no un
     // semestre fijo aparte, es la misma fila desglosada por mes con una
@@ -2584,15 +2587,15 @@ function buildComparativaInteranualTableHTML(){
     const consCell=deltaCellHTML(cons25,cons26,true);
     const cid='cmp-'+ci;
     const key=normSearch(r.nombre).replace(/'/g,"\\'");
-    const open=ST.gfdExpanded.has(normSearch(r.nombre));
+    const open=!!query||ST.gfdExpanded.has(normSearch(r.nombre));
     const hasDropdown=r.providers.length>0;
     if(hasDropdown){
       rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${tag}</div></td>
         ${cells}${consCell}
       </tr>`;
-      r.providers.forEach(p=>{
-        const ptag=(!p.en2025?' '+nuevo26:'')+(!p.en2026?' '+dejoPagar:'');
+      providers.forEach(p=>{
+        const ptag=(!p.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!p.en2026?' '+INTERANUAL_TAG_BAJA:'');
         const pcells=meses.map(mes=>deltaCellHTML(p.perMes[mes].v2025,p.perMes[mes].v2026)).join('');
         const pCons25=meses.reduce((s,mes)=>s+p.perMes[mes].v2025,0);
         const pCons26=meses.reduce((s,mes)=>s+p.perMes[mes].v2026,0);
@@ -2608,11 +2611,39 @@ function buildComparativaInteranualTableHTML(){
       </tr>`;
     }
   });
-  const totalCells=meses.map(mes=>deltaCellHTML(totalesPorMes[mes].v2025,totalesPorMes[mes].v2026,true)).join('');
-  const totalCons25=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2025,0);
-  const totalCons26=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2026,0);
-  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${totalCells}${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
+  // El TOTAL suma TODOS los rubros Fijos, filtrados o no -- mezclarlo con
+  // una búsqueda puntual sería engañoso, así que se oculta mientras se
+  // busca (mismo criterio que la tabla de Gastos Fijos 2025/2026).
+  if(!query){
+    const totalCells=meses.map(mes=>deltaCellHTML(totalesPorMes[mes].v2025,totalesPorMes[mes].v2026,true)).join('');
+    const totalCons25=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2025,0);
+    const totalCons26=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2026,0);
+    rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${totalCells}${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
+  }
+  if(query&&!rowsHtml) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th>${meses.map(m=>`<th class="c">${m}<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th>`).join('')}<th class="c">Consolidado<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table></div>`;
+}
 
+function filterInteranual(q){
+  ST.interanualSearchQuery=q;
+  const data=buildInteranualData();
+  const wrap=document.getElementById('interanual-table-wrap');
+  if(wrap&&data) wrap.innerHTML=buildInteranualTableRowsHTML(data,q);
+  const clr=document.getElementById('interanual-search-clear');
+  if(clr) clr.classList.toggle('visible',q.length>0);
+}
+function clearInteranualSearch(){
+  const el=document.getElementById('interanual-search');
+  if(el) el.value='';
+  filterInteranual('');
+}
+
+function buildComparativaInteranualTableHTML(){
+  const data=buildInteranualData();
+  if(!data){
+    return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
+  }
   const charts=`<div style="padding:16px 16px 4px;display:flex;gap:20px;flex-wrap:wrap">
     <div style="flex:1 1 300px;min-width:260px">
       <div style="font-size:12px;font-weight:600;color:var(--grafito)">Evolución total: 2025 vs 2026</div>
@@ -2625,8 +2656,7 @@ function buildComparativaInteranualTableHTML(){
       <div style="height:220px"><canvas id="ch-interanual-rubros"></canvas></div>
     </div>
   </div>`;
-  const table=`<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th>${meses.map(m=>`<th class="c">${m}<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th>`).join('')}<th class="c">Consolidado<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th></tr></thead>
-    <tbody>${rowsHtml}</tbody></table></div>`;
+  const table=`<div id="interanual-table-wrap">${buildInteranualTableRowsHTML(data,ST.interanualSearchQuery||'')}</div>`;
 
   return `${charts}<div style="border-top:1px solid var(--border)">${table}</div>`;
 }
@@ -2762,12 +2792,16 @@ function renderGastosFijosDetalleTable(){
     return `<div class="tc" id="gfd-card"><div class="tc-hd">${GFD_VIEW_TITLE[view]}<div class="tc-hd-r">${segGroup}</div></div>
       <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">${msg}</div></div>`;
   }
-  // El buscador y el export de Excel solo aplican a las vistas de detalle
-  // (2025/2026) -- el análisis interanual ya es una tabla chica y fija, no
-  // hace falta buscar adentro.
+  // El export de Excel solo aplica a las vistas de detalle (2025/2026) --
+  // el análisis interanual tiene su propio buscador (más abajo), pero no
+  // exporta porque su tabla no es la hoja tal cual, es el cruce 2025 vs 2026.
   const q=ST.gfdSearchQuery||'';
   const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  const tools=isInteranual?'':`
+  const qInter=ST.interanualSearchQuery||'';
+  const qInterAttr=qInter.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const tools=isInteranual
+    ?`<div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="interanual-search" type="text" placeholder="Buscar rubro o proveedor…" autocomplete="off" value="${qInterAttr}" oninput="filterInteranual(this.value)"/><div class="search-clear" id="interanual-search-clear${qInter.length>0?' visible':''}" onclick="clearInteranualSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>`
+    :`
         <button class="export-btn" onclick="exportGastosFijosDetalle()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel</button>
         <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="gfd-search" type="text" placeholder="Buscar proveedor o cuenta…" autocomplete="off" value="${qAttr}" oninput="filterGastosFijosDetalle(this.value)"/><div class="search-clear" id="gfd-search-clear${q.length>0?' visible':''}" onclick="clearGfdSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>`;
   const body=isInteranual?buildComparativaInteranualTableHTML():buildGfdTableHTML(q);
