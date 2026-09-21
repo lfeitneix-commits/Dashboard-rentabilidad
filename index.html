@@ -2485,6 +2485,21 @@ function buildInteranualData(){
   const aliasReverso=new Map();
   Object.entries(ALIAS_PROVEEDORES_COMBO).forEach(([k,arr])=>arr.forEach(a=>aliasReverso.set(a,k)));
 
+  // Proveedores que en 2026 todavía no tienen su propia fila en "Gastos
+  // Fijos - Proveedor x Mes" -- la plata real está (adentro de "Sin
+  // discriminar / Ajuste", que ya suma al TOTAL de la cuenta), pero sin
+  // nombre. Mientras no se desglose en el Sheet, se carga a mano acá:
+  // Santangelo Sofia (Cta 4.2.3.38.08 Hon. Profesionales RRHH en el mayor
+  // contable) cobra por Honorarios Profesionales todos los meses pero nunca
+  // tuvo línea propia. Monto real en ARS del mayor, convertido a USD con el
+  // tipo de cambio implícito de otro pago de Honorarios Profesionales del
+  // mismo mes (Sumarsi SRL) -- la hoja no trae columna de cotización, así
+  // que esto es una estimación, no el numero exacto que calcularía el
+  // Sheet. Sacar en cuanto tenga su propia fila ahí.
+  const PROVEEDOR_MANUAL_2026={
+    'santangelo sofia':{'Enero':6467.59,'Febrero':0,'Marzo':3027.20,'Abril':3000.30,'Mayo':3546.11,'Junio':3466.39,'Julio':3342.42},
+  };
+
   // El usuario quiere ver TODO: no solo los rubros/proveedores de 2025 (con
   // o sin match en 2026), sino también los que arrancaron recién en 2026 y
   // antes ni existían -- así que la lista de rubros es la UNIÓN de ambos
@@ -2540,15 +2555,16 @@ function buildInteranualData(){
       const aliasKeys=ALIAS_PROVEEDORES_COMBO[key];
       const combo=aliasKeys&&aliasKeys.map(k=>by2026Prov.get(k)).filter(Boolean);
       const p2026=by2026Prov.get(key)||(combo&&combo.length?{nombre:nombreProv,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
+      const manual2026=PROVEEDOR_MANUAL_2026[key];
       const pPerMes={};
       meses.forEach(mes=>{
         const i25=idx2025(mes),i26=idx2026(mes);
         pPerMes[mes]={
           v2025:p2025?(i25>=0?p2025.vals[i25]:0):0,
-          v2026:p2026?(i26>=0?p2026.vals[i26]:0):0,
+          v2026:manual2026?(manual2026[mes]||0):(p2026?(i26>=0?p2026.vals[i26]:0):0),
         };
       });
-      return {nombre:nombreProv,en2025:!!p2025,en2026:!!p2026,perMes:pPerMes};
+      return {nombre:nombreProv,en2025:!!p2025,en2026:!!p2026||!!manual2026,perMes:pPerMes};
     });
     return {nombre,en2025:!!c2025,en2026:!!c2026,esFijo,perMes,providers};
   });
