@@ -870,6 +870,39 @@ function parseGastosFijosDetalle(csvText){
   return{valCols,cuentas,grandTotal};
 }
 
+// Proveedores 2026 que todavía no tienen su propia fila en "Gastos Fijos -
+// Proveedor x Mes" -- la plata real está (adentro de "Sin discriminar /
+// Ajuste", que ya suma al TOTAL de la cuenta), pero sin nombre. Mientras no
+// se desglose en el Sheet, se cargan a mano acá y se insertan como un
+// proveedor más de su cuenta -- así aparecen igual en la vista 2026 como
+// en el análisis interanual, sin duplicar el código de matching en cada
+// lado. No duplican plata: el TOTAL de la cuenta sigue siendo el oficial
+// de la hoja (ya la incluye), esto solo la desglosa por nombre.
+// Santangelo Sofia (Cta 4.2.3.38.08 Hon. Profesionales RRHH en el mayor
+// contable) cobra todos los meses pero nunca tuvo línea propia acá. Monto
+// real en ARS del mayor, convertido a USD con el tipo de cambio implícito
+// de otro pago de Honorarios Profesionales del mismo mes (Sumarsi SRL) --
+// la hoja no trae columna de cotización, así que es una estimación, no el
+// número exacto que calcularía el Sheet. Sacar en cuanto tenga su propia
+// fila ahí.
+const PROVEEDOR_MANUAL_2026={
+  'santangelo sofia':{
+    nombre:'Santangelo Sofia',
+    rubro:'Honorarios Profesionales',
+    montos:{'Enero':6467.59,'Febrero':0,'Marzo':3027.20,'Abril':3000.30,'Mayo':3546.11,'Junio':3466.39,'Julio':3342.42},
+  },
+};
+function aplicarProveedoresManuales2026(data){
+  if(!data) return data;
+  Object.values(PROVEEDOR_MANUAL_2026).forEach(({nombre,rubro,montos})=>{
+    const cuenta=data.cuentas.find(c=>normSearch(c.nombre)===normSearch(rubro));
+    if(!cuenta) return;
+    if(cuenta.providers.some(p=>normSearch(p.nombre)===normSearch(nombre))) return;
+    cuenta.providers.push({nombre,vals:data.valCols.map(mes=>montos[mes]||0)});
+  });
+  return data;
+}
+
 // 2025 es un año cerrado, estático (no viene de Sheets) -- se parsea una
 // sola vez con el mismo parser que 2026 y se cachea en ST.
 function getGastosFijos2025(){
@@ -2485,21 +2518,6 @@ function buildInteranualData(){
   const aliasReverso=new Map();
   Object.entries(ALIAS_PROVEEDORES_COMBO).forEach(([k,arr])=>arr.forEach(a=>aliasReverso.set(a,k)));
 
-  // Proveedores que en 2026 todavía no tienen su propia fila en "Gastos
-  // Fijos - Proveedor x Mes" -- la plata real está (adentro de "Sin
-  // discriminar / Ajuste", que ya suma al TOTAL de la cuenta), pero sin
-  // nombre. Mientras no se desglose en el Sheet, se carga a mano acá:
-  // Santangelo Sofia (Cta 4.2.3.38.08 Hon. Profesionales RRHH en el mayor
-  // contable) cobra por Honorarios Profesionales todos los meses pero nunca
-  // tuvo línea propia. Monto real en ARS del mayor, convertido a USD con el
-  // tipo de cambio implícito de otro pago de Honorarios Profesionales del
-  // mismo mes (Sumarsi SRL) -- la hoja no trae columna de cotización, así
-  // que esto es una estimación, no el numero exacto que calcularía el
-  // Sheet. Sacar en cuanto tenga su propia fila ahí.
-  const PROVEEDOR_MANUAL_2026={
-    'santangelo sofia':{'Enero':6467.59,'Febrero':0,'Marzo':3027.20,'Abril':3000.30,'Mayo':3546.11,'Junio':3466.39,'Julio':3342.42},
-  };
-
   // El usuario quiere ver TODO: no solo los rubros/proveedores de 2025 (con
   // o sin match en 2026), sino también los que arrancaron recién en 2026 y
   // antes ni existían -- así que la lista de rubros es la UNIÓN de ambos
@@ -2555,16 +2573,15 @@ function buildInteranualData(){
       const aliasKeys=ALIAS_PROVEEDORES_COMBO[key];
       const combo=aliasKeys&&aliasKeys.map(k=>by2026Prov.get(k)).filter(Boolean);
       const p2026=by2026Prov.get(key)||(combo&&combo.length?{nombre:nombreProv,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
-      const manual2026=PROVEEDOR_MANUAL_2026[key];
       const pPerMes={};
       meses.forEach(mes=>{
         const i25=idx2025(mes),i26=idx2026(mes);
         pPerMes[mes]={
           v2025:p2025?(i25>=0?p2025.vals[i25]:0):0,
-          v2026:manual2026?(manual2026[mes]||0):(p2026?(i26>=0?p2026.vals[i26]:0):0),
+          v2026:p2026?(i26>=0?p2026.vals[i26]:0):0,
         };
       });
-      return {nombre:nombreProv,en2025:!!p2025,en2026:!!p2026||!!manual2026,perMes:pPerMes};
+      return {nombre:nombreProv,en2025:!!p2025,en2026:!!p2026,perMes:pPerMes};
     });
     return {nombre,en2025:!!c2025,en2026:!!c2026,esFijo,perMes,providers};
   });
@@ -3463,7 +3480,7 @@ async function loadGastosFijosDetalleLazy(){
   ST.gastosFijosDetalleLoading=true;
   try{
     const csv=await fetchCSV(BASE+GASTOS_FIJOS_DETALLE_GID+'&t='+Date.now());
-    ST.gastosFijosDetalle=parseGastosFijosDetalle(csv);
+    ST.gastosFijosDetalle=aplicarProveedoresManuales2026(parseGastosFijosDetalle(csv));
   }catch(e){
     console.error('GASTOS_FIJOS_DETALLE:',e);
   }finally{
