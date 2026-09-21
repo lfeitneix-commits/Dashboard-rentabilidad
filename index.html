@@ -1020,7 +1020,24 @@ function notaLiderSeguraUnMes(row,rows,mes){
   const hijo=row._child?row:(row._parentId&&sufijo
     ?rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' '+sufijo))
     :null);
-  if(hijo) return notaManual(hijo._nom,mes)||limpiarNota(hijo._allNotes||hijo._note);
+  if(hijo){
+    let nota=notaManual(hijo._nom,mes)||limpiarNota(hijo._allNotes||hijo._note);
+    // "Eventos empresariales" es hijo de "Gastos de Representación
+    // Directos" pero, a diferencia de los demás hijos, no tiene sufijo de
+    // área en el nombre (no termina en " BC"/" Mesa"/etc.) -- por eso el
+    // hijo por sufijo nunca lo encuentra y su nota quedaba invisible para
+    // los líderes. Se suma su nota acá, con la misma seguridad que
+    // "Viajes": solo si esta área es la única con monto ahí ese mes.
+    const eventos=rows.find(r=>r._parentId===row._parentId&&r._nom.trim()==='Eventos empresariales');
+    if(eventos){
+      const otraAreaEventos=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(eventos,a));
+      if(getAreaVal(eventos,ST.area)&&!otraAreaEventos){
+        const notaEventos=limpiarNota(eventos._allNotes||eventos._note);
+        if(notaEventos) nota=[nota,notaEventos].filter(Boolean).join(', ');
+      }
+    }
+    return nota;
+  }
   const notaCruda=limpiarNota(row._allNotes||row._note);
   const otraAreaConMonto=TODAS_AREAS.some(a=>a!==ST.area&&!!getAreaVal(row,a));
   if(row._nom.trim()==='Viajes'){
