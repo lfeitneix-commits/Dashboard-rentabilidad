@@ -2459,18 +2459,18 @@ function buildInteranualData(){
   // Nombre normalizado (sin acentos/mayúsculas) -- 2025 y 2026 no siempre
   // escriben el rubro/proveedor exactamente igual (ver el resto de la app:
   // es un bug recurrente entre hojas distintas).
+  const by2025=new Map(d2025.cuentas.map(c=>[normSearch(c.nombre),c]));
   const by2026=new Map(d2026.cuentas.map(c=>[normSearch(c.nombre),c]));
   // Casos puntuales donde un proveedor de 2025 se abrió en varios de 2026
   // (ej. el alquiler de la oficina de Neix -- P8 Buenavista -- en 2025
   // venía como una sola línea "Alquiler+Expensas" y en 2026 se separó en
   // "Alquiler P8 Buenavista" + "Expensas P8 Buenavista"). Sin esto, el de
-  // 2025 no encuentra match exacto y queda comparado contra $0 (-100%).
+  // 2025 no encuentra match exacto y queda comparado contra $0 (-100%) como
+  // si se hubiera dejado de pagar, cuando en realidad sigue ahí con otro
+  // nombre.
   // Chequeo exhaustivo de los 142 proveedores de 2025 contra los 65 de
   // 2026 (Ene-Jul): además del caso de P8 Buenavista, estos 7 son la
   // misma línea con el nombre acortado/sin el prefijo "Neix:" en 2026.
-  // El resto de los proveedores sin match de 2025 son gastos puntuales
-  // (un consultor, un proveedor de banners, etc.) que no se repitieron
-  // en 2026 -- no son bugs de nombre, así que no se fuerzan.
   const ALIAS_PROVEEDORES_COMBO={
     'p8 buenavista (alquiler+expensas)':['alquiler p8 buenavista','expensas p8 buenavista'],
     'coding & company (mantenimiento)':['coding & company'],
@@ -2481,40 +2481,77 @@ function buildInteranualData(){
     'neix: camara de agentes (cuota social)':['camara de agentes (cuota social)'],
     'neix: microsoft (nss s.a.)':['microsoft (nss s.a.)'],
   };
+  // Lado 2026 -> lado 2025 de cada combo, para no listar el proveedor de
+  // 2026 dos veces (una como "hijo" del combo, otra como si fuera nuevo).
+  const aliasReverso=new Map();
+  Object.entries(ALIAS_PROVEEDORES_COMBO).forEach(([k,arr])=>arr.forEach(a=>aliasReverso.set(a,k)));
+
+  // El usuario quiere ver TODO: no solo los rubros/proveedores de 2025 (con
+  // o sin match en 2026), sino también los que arrancaron recién en 2026 y
+  // antes ni existían -- así que la lista de rubros es la UNIÓN de ambos
+  // años, no solo los de 2025.
+  const nombresRubros=d2025.cuentas.map(c=>c.nombre);
+  const vistosRubros=new Set(nombresRubros.map(n=>normSearch(n)));
+  d2026.cuentas.forEach(c=>{
+    const key=normSearch(c.nombre);
+    if(!vistosRubros.has(key)){ vistosRubros.add(key); nombresRubros.push(c.nombre); }
+  });
+
   const totalesPorMes={}; meses.forEach(m=>totalesPorMes[m]={v2025:0,v2026:0});
-  const rubros=d2025.cuentas.map(c2025=>{
-    const c2026=by2026.get(normSearch(c2025.nombre));
-    const esFijo=esCuentaFija(c2025.nombre);
+  const rubros=nombresRubros.map(nombre=>{
+    const key=normSearch(nombre);
+    const c2025=by2025.get(key)||null;
+    const c2026=by2026.get(key)||null;
+    const esFijo=esCuentaFija(nombre);
     const by2026Prov=c2026?new Map(c2026.providers.map(p=>[normSearch(p.nombre),p])):new Map();
+    const by2025Prov=c2025?new Map(c2025.providers.map(p=>[normSearch(p.nombre),p])):new Map();
     const perMes={};
     meses.forEach(mes=>{
       const i25=idx2025(mes),i26=idx2026(mes);
-      const v2025=(c2025.total&&i25>=0)?c2025.total.vals[i25]:null;
-      const v2026=(c2026&&c2026.total&&i26>=0)?c2026.total.vals[i26]:null;
+      // Si el rubro directamente no existe ESE año (nunca se pagó / recién
+      // arrancó), el monto real de ese año es $0 -- no "sin dato". Eso es
+      // justamente lo que se quiere ver: la baja o el alta se refleja como
+      // un Δ% real (-100% o +100%), no como un "—" que la esconde.
+      const v2025=c2025?(c2025.total&&i25>=0?c2025.total.vals[i25]:0):0;
+      const v2026=c2026?(c2026.total&&i26>=0?c2026.total.vals[i26]:0):0;
       perMes[mes]={v2025,v2026};
-      // El total solo suma rubros que existen en los dos años Y que la
-      // Clasificación de gastos real marca como Fijo -- si no, un rubro sin
-      // match en 2026, o uno que en realidad es Variable (ej. Honorarios
-      // por Servicios, que quedó en esta hoja por historial), infla el
-      // total sin contraparte real y el Δ% general queda engañoso.
-      if(c2026&&esFijo){
-        totalesPorMes[mes].v2025+=(v2025||0);
-        totalesPorMes[mes].v2026+=(v2026||0);
+      // El total solo suma rubros que la Clasificación de gastos real marca
+      // como Fijo -- si no, uno que en realidad es Variable (ej. Honorarios
+      // por Servicios, que quedó en esta hoja por historial) infla el total
+      // sin ser un costo fijo real y el Δ% general queda engañoso.
+      if(esFijo){
+        totalesPorMes[mes].v2025+=v2025;
+        totalesPorMes[mes].v2026+=v2026;
       }
     });
-    const providers=c2025.providers.map(p2025=>{
-      const key=normSearch(p2025.nombre);
+    // Proveedores: misma unión -- los de 2025 más los que aparecen recién
+    // en 2026 (sin contar los que ya están cubiertos por un alias/combo).
+    const nombresProv=c2025?c2025.providers.map(p=>p.nombre):[];
+    const vistosProv=new Set(nombresProv.map(n=>normSearch(n)));
+    if(c2026) c2026.providers.forEach(p=>{
+      const key2026=normSearch(p.nombre);
+      const key2025DelCombo=aliasReverso.get(key2026);
+      if(vistosProv.has(key2026)||(key2025DelCombo&&vistosProv.has(key2025DelCombo))) return;
+      vistosProv.add(key2026);
+      nombresProv.push(p.nombre);
+    });
+    const providers=nombresProv.map(nombreProv=>{
+      const key=normSearch(nombreProv);
+      const p2025=by2025Prov.get(key)||null;
       const aliasKeys=ALIAS_PROVEEDORES_COMBO[key];
       const combo=aliasKeys&&aliasKeys.map(k=>by2026Prov.get(k)).filter(Boolean);
-      const p2026=by2026Prov.get(key)||(combo&&combo.length?{nombre:p2025.nombre,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
+      const p2026=by2026Prov.get(key)||(combo&&combo.length?{nombre:nombreProv,vals:combo[0].vals.map((_,i)=>combo.reduce((s,p)=>s+(p.vals[i]||0),0))}:null);
       const pPerMes={};
       meses.forEach(mes=>{
         const i25=idx2025(mes),i26=idx2026(mes);
-        pPerMes[mes]={v2025:i25>=0?p2025.vals[i25]:null,v2026:(p2026&&i26>=0)?p2026.vals[i26]:null};
+        pPerMes[mes]={
+          v2025:p2025?(i25>=0?p2025.vals[i25]:0):0,
+          v2026:p2026?(i26>=0?p2026.vals[i26]:0):0,
+        };
       });
-      return {nombre:p2025.nombre,matched:!!p2026,perMes:pPerMes};
+      return {nombre:nombreProv,en2025:!!p2025,en2026:!!p2026,perMes:pPerMes};
     });
-    return {nombre:c2025.nombre,matched:!!c2026,esFijo,perMes,providers};
+    return {nombre,en2025:!!c2025,en2026:!!c2026,esFijo,perMes,providers};
   });
   return {meses,rubros,totalesPorMes};
 }
@@ -2525,23 +2562,25 @@ function buildComparativaInteranualTableHTML(){
     return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
   }
   const {meses,rubros,totalesPorMes}=data;
-  const sinMatch=`<span style="color:var(--muted);font-size:10px">(sin match 2026)</span>`;
+  // Nuevo en 2026 = no se pagaba en 2025 (arrancó este año). Dejó de
+  // pagarse = estaba en 2025 y no aparece en 2026. El usuario pidió ver
+  // TODO -- ambos casos quedan visibles, con su Δ% real (-100%/+100%), en
+  // vez de esconderse como "sin match".
+  const nuevo26=`<span style="color:var(--verde);font-size:10px">(nuevo en 2026)</span>`;
+  const dejoPagar=`<span style="color:var(--bordeaux);font-size:10px">(no se pagó en 2026)</span>`;
   // Se muestran igual (para no perder el detalle que ya está cargado), pero
   // etiquetadas y afuera del TOTAL -- ver esCuentaFija().
   const noFijo=`<span style="color:var(--muted);font-size:10px">(no es Gasto Fijo)</span>`;
 
   let rowsHtml='';
   rubros.forEach((r,ci)=>{
-    const tag=(!r.matched?' '+sinMatch:'')+(!r.esFijo?' '+noFijo:'');
+    const tag=(!r.en2025?' '+nuevo26:'')+(!r.en2026?' '+dejoPagar:'')+(!r.esFijo?' '+noFijo:'');
     const cells=meses.map(mes=>deltaCellHTML(r.perMes[mes].v2025,r.perMes[mes].v2026)).join('');
     // Consolidado: suma los meses ya cargados de cada lado -- no un
     // semestre fijo aparte, es la misma fila desglosada por mes con una
     // columna extra al final.
-    const cons25=meses.reduce((s,mes)=>s+(r.perMes[mes].v2025||0),0);
-    // Igual que con los proveedores: si el rubro no matcheó con 2026, no
-    // hay dato real que sumar -- dejar sin dato (—) en vez de un "-100%"
-    // fabricado.
-    const cons26=r.matched?meses.reduce((s,mes)=>s+(r.perMes[mes].v2026||0),0):null;
+    const cons25=meses.reduce((s,mes)=>s+r.perMes[mes].v2025,0);
+    const cons26=meses.reduce((s,mes)=>s+r.perMes[mes].v2026,0);
     const consCell=deltaCellHTML(cons25,cons26,true);
     const cid='cmp-'+ci;
     const key=normSearch(r.nombre).replace(/'/g,"\\'");
@@ -2553,15 +2592,12 @@ function buildComparativaInteranualTableHTML(){
         ${cells}${consCell}
       </tr>`;
       r.providers.forEach(p=>{
+        const ptag=(!p.en2025?' '+nuevo26:'')+(!p.en2026?' '+dejoPagar:'');
         const pcells=meses.map(mes=>deltaCellHTML(p.perMes[mes].v2025,p.perMes[mes].v2026)).join('');
-        const pCons25=meses.reduce((s,mes)=>s+(p.perMes[mes].v2025||0),0);
-        // Si el proveedor no matcheó con 2026 (p.matched=false), no hay
-        // ningún dato real de 2026 que sumar -- sumar como $0 fabrica un
-        // "-100%" que no significa "bajó a cero", significa "no lo
-        // encontramos". Se deja sin dato (—) en vez de inventar una caída.
-        const pCons26=p.matched?meses.reduce((s,mes)=>s+(p.perMes[mes].v2026||0),0):null;
+        const pCons25=meses.reduce((s,mes)=>s+p.perMes[mes].v2025,0);
+        const pCons26=meses.reduce((s,mes)=>s+p.perMes[mes].v2026,0);
         rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
-          <td class="indent">${p.nombre}${!p.matched?' '+sinMatch:''}</td>
+          <td class="indent">${p.nombre}${ptag}</td>
           ${pcells}${deltaCellHTML(pCons25,pCons26,true)}
         </tr>`;
       });
@@ -2575,7 +2611,7 @@ function buildComparativaInteranualTableHTML(){
   const totalCells=meses.map(mes=>deltaCellHTML(totalesPorMes[mes].v2025,totalesPorMes[mes].v2026,true)).join('');
   const totalCons25=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2025,0);
   const totalCons26=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2026,0);
-  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos con match en ambos años)</td>${totalCells}${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
+  rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${totalCells}${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
 
   const charts=`<div style="padding:16px 16px 4px;display:flex;gap:20px;flex-wrap:wrap">
     <div style="flex:1 1 300px;min-width:260px">
@@ -2585,7 +2621,7 @@ function buildComparativaInteranualTableHTML(){
     </div>
     <div style="flex:1 1 300px;min-width:260px">
       <div style="font-size:12px;font-weight:600;color:var(--grafito)">Variación % por rubro</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:10px">Acumulado de los meses cargados · rubros con match en ambos años</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:10px">Acumulado de los meses cargados · todos los rubros Fijos, incluye altas y bajas</div>
       <div style="height:220px"><canvas id="ch-interanual-rubros"></canvas></div>
     </div>
   </div>`;
@@ -2618,9 +2654,11 @@ function drawInteranualCharts(){
   dc('ch-interanual-rubros');
   const elRub=document.getElementById('ch-interanual-rubros');
   if(elRub){
-    const matched=rubros.filter(r=>r.matched&&r.esFijo).map(r=>{
+    // Todos los rubros Fijos, hayan matcheado o no -- una alta o baja
+    // completa de un rubro entra igual, como +100%/-100%.
+    const deltas=rubros.filter(r=>r.esFijo).map(r=>{
       let s25=0,s26=0;
-      meses.forEach(m=>{ s25+=(r.perMes[m].v2025||0); s26+=(r.perMes[m].v2026||0); });
+      meses.forEach(m=>{ s25+=r.perMes[m].v2025; s26+=r.perMes[m].v2026; });
       const delta=s25?((s26-s25)/s25*100):(s26?100:0);
       return {nombre:r.nombre,delta};
     }).sort((a,b)=>b.delta-a.delta);
@@ -2636,7 +2674,7 @@ function drawInteranualCharts(){
     // en la lista, no según el Δ% real) -- esa es la escala "rara" que no
     // se entendía.
     rc('ch-interanual-rubros',new Chart(elRub,{type:'bar',
-      data:{labels:matched.map(r=>r.nombre),datasets:[{data:matched.map(r=>+r.delta.toFixed(1)),backgroundColor:matched.map(r=>r.delta<-0.5?'#AB1930':r.delta>0.5?'#004836':'#B0ABA4'),borderRadius:4}]},
+      data:{labels:deltas.map(r=>r.nombre),datasets:[{data:deltas.map(r=>+r.delta.toFixed(1)),backgroundColor:deltas.map(r=>r.delta<-0.5?'#AB1930':r.delta>0.5?'#004836':'#B0ABA4'),borderRadius:4}]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
         layout:{padding:{left:44,right:44}},
         plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw>=0?'+':''}${c.raw}%`}}},
