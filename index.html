@@ -1287,6 +1287,38 @@ const PARENT_CHILDREN={
 const CHILD_TO_PARENT={};
 Object.entries(PARENT_CHILDREN).forEach(([parent,children])=>children.forEach(ch=>{CHILD_TO_PARENT[ch]=parent;}));
 
+// "Mza" es una sucursal de FAs -- el propio Sheet ya pone su plata en la
+// misma columna FAs de esas filas (no tiene columna propia), pero se lista
+// como una cuenta hija separada ("Suscripciones Mza", "Gastos
+// Representacion Mza", etc.), lo cual confunde (parece otra área más). Se
+// fusiona con su hermana "... FAs" del mismo padre (sumando columnas y
+// uniendo notas) y se saca del árbol, para que ninguna vista aguas abajo
+// (Detalle, Consolidado, agregados) la vea como una línea aparte -- mismo
+// criterio que ya usa Matriz de gastos (columna "FAs + Mza").
+function mergeMzaEnFAs(rows){
+  const AREAS_TODAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
+  const setAreaVal=(row,area,val)=>{
+    const prop=Object.keys(row).find(p=>p.trim()===area)||Object.keys(row).find(p=>p.trim().toLowerCase()===area.toLowerCase());
+    if(prop) row[prop]=val;
+  };
+  const aSacar=new Set();
+  rows.forEach(row=>{
+    if(!row._child||!row._nom||!row._nom.trim().endsWith(' Mza')) return;
+    const hermanaFAs=rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' FAs'));
+    if(!hermanaFAs) return;
+    AREAS_TODAS.forEach(a=>setAreaVal(hermanaFAs,a,getAreaVal(hermanaFAs,a)+getAreaVal(row,a)));
+    const notaMza=limpiarNota(row._allNotes||row._note);
+    if(notaMza){
+      const notaFAs=limpiarNota(hermanaFAs._allNotes||hermanaFAs._note);
+      const combinada=[notaFAs,notaMza].filter(Boolean).join(', ');
+      hermanaFAs._note=combinada;
+      hermanaFAs._allNotes=combinada;
+    }
+    aSacar.add(row);
+  });
+  return aSacar.size?rows.filter(r=>!aSacar.has(r)):rows;
+}
+
 // ── ANNOTATE ROWS FOR DETALLE ───────────────────────────────────
 // Strategy: 2-pass
 // Pass 1: tag each row with its section tipo and detect parents (rows with numeric children)
@@ -4489,7 +4521,7 @@ async function loadData(){
           const notesCol= headers.find(h=>/nota/i.test(h))||headers.find(h=>/^_col/.test(h))||null;
           // totalGastosCell: sum SUBTOTAL DIRECTOS + GASTOS INDIRECTOS for areas sin CapN
           // Computed after annotateRows
-          const annotated=annotateRows(rows,nameCol,numCol,notesCol);
+          const annotated=mergeMzaEnFAs(annotateRows(rows,nameCol,numCol,notesCol));
           const subtotalRow=annotated.find(r=>r._kind==='subtotal_dir'&&/^SUBTOTAL\s+DIRECTOS$/i.test(r._nom));
           const indirectosRow=annotated.find(r=>r._kind==='section'&&/^GASTOS\s+INDIRECTOS$/i.test(r._nom));
           const impuestosRow=annotated.find(r=>r._kind==='skip'&&/^Impuestos$/i.test(r._nom));
