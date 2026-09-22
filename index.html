@@ -2647,10 +2647,9 @@ function buildInteranualTableRowsHTML(data,q){
     const providers=(!query||rubroMatches)?r.providers:r.providers.filter(p=>normSearch(p.nombre).includes(query));
     if(query&&!rubroMatches&&!providers.length) return;
     const tag=(!r.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!r.en2026?' '+INTERANUAL_TAG_BAJA:'');
-    const cells=meses.map(mes=>deltaCellHTML(r.perMes[mes].v2025,r.perMes[mes].v2026)).join('');
-    // Consolidado: suma los meses ya cargados de cada lado -- no un
-    // semestre fijo aparte, es la misma fila desglosada por mes con una
-    // columna extra al final.
+    // Solo el período completo (suma de los meses ya cargados) -- ya no se
+    // desglosa mes a mes, a pedido: demasiadas columnas y el % de cada mes
+    // suelto no aporta (lo que importa es la tendencia del período).
     const cons25=meses.reduce((s,mes)=>s+r.perMes[mes].v2025,0);
     const cons26=meses.reduce((s,mes)=>s+r.perMes[mes].v2026,0);
     const consCell=deltaCellHTML(cons25,cons26,true);
@@ -2661,22 +2660,21 @@ function buildInteranualTableRowsHTML(data,q){
     if(hasDropdown){
       rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${tag}</div></td>
-        ${cells}${consCell}
+        ${consCell}
       </tr>`;
       providers.forEach(p=>{
         const ptag=(!p.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!p.en2026?' '+INTERANUAL_TAG_BAJA:'');
-        const pcells=meses.map(mes=>deltaCellHTML(p.perMes[mes].v2025,p.perMes[mes].v2026)).join('');
         const pCons25=meses.reduce((s,mes)=>s+p.perMes[mes].v2025,0);
         const pCons26=meses.reduce((s,mes)=>s+p.perMes[mes].v2026,0);
         rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
           <td class="indent">${p.nombre}${ptag}</td>
-          ${pcells}${deltaCellHTML(pCons25,pCons26,true)}
+          ${deltaCellHTML(pCons25,pCons26,true)}
         </tr>`;
       });
     } else {
       rowsHtml+=`<tr class="row-parent">
         <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${r.nombre}${tag}</div></td>
-        ${cells}${consCell}
+        ${consCell}
       </tr>`;
     }
   });
@@ -2684,13 +2682,13 @@ function buildInteranualTableRowsHTML(data,q){
   // una búsqueda puntual sería engañoso, así que se oculta mientras se
   // busca (mismo criterio que la tabla de Gastos Fijos 2025/2026).
   if(!query){
-    const totalCells=meses.map(mes=>deltaCellHTML(totalesPorMes[mes].v2025,totalesPorMes[mes].v2026,true)).join('');
     const totalCons25=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2025,0);
     const totalCons26=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2026,0);
-    rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${totalCells}${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
+    rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
   }
   if(query&&!rowsHtml) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th>${meses.map(m=>`<th class="c">${m}<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th>`).join('')}<th class="c">Consolidado<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th></tr></thead>
+  const periodo=meses.length?`${meses[0]}-${meses[meses.length-1]}`:'';
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th><th class="c">Período (${periodo})<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th></tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
 }
 
@@ -2713,6 +2711,12 @@ function buildComparativaInteranualTableHTML(){
   if(!data){
     return `<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Cargando datos de 2026 para comparar…</div>`;
   }
+  // Los montos están en USD -- al % de variación ya se le resta la
+  // depreciación del peso del período (crecer X% en pesos no es lo mismo
+  // que crecer X% en dólares si el tipo de cambio también subió). Aclarado
+  // acá para no confundir un "creció poco en dólares" con "creció poco",
+  // cuando en pesos puede haber crecido mucho más.
+  const notaCambiaria=`<div style="margin:12px 16px 0;padding:8px 12px;background:var(--crema);border-radius:8px;font-size:11px;color:var(--muted)">Los montos están en USD: al % de crecimiento ya se le resta la depreciación del peso del período (un rubro puede crecer bastante en pesos y verse con un % más chico acá, en dólares).</div>`;
   const charts=`<div style="padding:16px 16px 4px;display:flex;gap:20px;flex-wrap:wrap">
     <div style="flex:1 1 300px;min-width:260px">
       <div style="font-size:12px;font-weight:600;color:var(--grafito)">Evolución total: 2025 vs 2026</div>
@@ -2727,7 +2731,7 @@ function buildComparativaInteranualTableHTML(){
   </div>`;
   const table=`<div id="interanual-table-wrap">${buildInteranualTableRowsHTML(data,ST.interanualSearchQuery||'')}</div>`;
 
-  return `${charts}<div style="border-top:1px solid var(--border)">${table}</div>`;
+  return `${notaCambiaria}${charts}<div style="border-top:1px solid var(--border)">${table}</div>`;
 }
 
 function drawInteranualCharts(){
