@@ -1033,16 +1033,10 @@ function getAreaVal(row,area){
 // Notas puntuales cargadas a mano mientras se actualiza la hoja real con
 // el mismo texto (mismo criterio que el fallback de "Aclaración de
 // cuentas": un empujón temporal, no un reemplazo permanente de la hoja).
-const NOTAS_MANUALES={
-  'Abril':{
-    'Gastos Representacion Mesa':'Happening (cena Genne), Argenwine (cena BNA/JPM)',
-    'Gastos Representacion BC':'Compras Gustavo Lazzari (charla BC)',
-    'Gastos Representacion BP':'Café y almuerzo Nica cliente',
-  },
-  'Marzo':{
-    'Gastos Representacion BP':'Propina Happening (evento BP)',
-  },
-};
+// Vacío: las notas que estaban acá ya se cargaron directo en el Google
+// Sheet, así que se leen en vivo de ahí (ver notaManual() más abajo). Se
+// deja la estructura para el próximo empujón temporal que haga falta.
+const NOTAS_MANUALES={};
 
 // Nota segura para un líder de área, para UN mes puntual (no consolidado):
 // nunca la nota cruda tal cual si la cuenta puede hablar de otra área.
