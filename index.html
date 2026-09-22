@@ -2771,7 +2771,7 @@ function drawInteranualCharts(){
       let s25=0,s26=0;
       meses.forEach(m=>{ s25+=r.perMes[m].v2025; s26+=r.perMes[m].v2026; });
       const delta=s25?((s26-s25)/s25*100):(s26?100:0);
-      return {nombre:r.nombre,delta};
+      return {nombre:r.nombre,delta,monto:s26-s25};
     }).sort((a,b)=>b.delta-a.delta);
     // El signo/color es al revés de deltaCellHTML a pedido: en este gráfico
     // negativo (bajó) = rojo, positivo (subió) = verde. Además se dibuja el
@@ -2788,7 +2788,10 @@ function drawInteranualCharts(){
       data:{labels:deltas.map(r=>r.nombre),datasets:[{data:deltas.map(r=>+r.delta.toFixed(1)),backgroundColor:deltas.map(r=>r.delta<-0.5?'#AB1930':r.delta>0.5?'#004836':'#B0ABA4'),borderRadius:4}]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
         layout:{padding:{left:44,right:44}},
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw>=0?'+':''}${c.raw}%`}}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
+          const m=deltas[c.dataIndex].monto;
+          return `${c.raw>=0?'+':''}${c.raw}% (${m>=0?'+':'-'}${$c(Math.abs(m),true)})`;
+        }}}},
         scales:{
           x:{grid:{color:'#E8E6E3'},ticks:{maxTicksLimit:6,callback:v=>v+'%',font:{family:'DM Mono',size:10}}},
           y:{type:'category',grid:{display:false},ticks:{font:{size:10}}}
