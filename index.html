@@ -701,6 +701,15 @@ const CUENTAS_OCULTAS_NO_MESA=['Aranceles Mercados','Intereses pagados','Alquile
 // área, así que los hijos (Mesa/BP/BC/FAs) solo repetirían el mismo
 // número. Se muestran como una fila plana con el monto directo.
 const PARENTS_SIN_DESPLEGABLE_LIDERES=new Set(['Sueldos y CS Directos','Suscripciones Directas','Gastos de Hardware Directos','Servicios Contratados Directos','Gastos de Representación Directos']);
+// Excepción a lo anterior para la líder de FAs: "Mza" es una sucursal de
+// FAs y el Sheet le pone su plata en la misma columna FAs (no tiene
+// columna propia) -- por eso el monto del padre para FAs ya incluye a
+// Mza, pero su nota queda adentro de una cuenta hija con nombre distinto.
+// En vez de aplanar (perdiendo la nota de Mza) o fusionar en una sola
+// fila (perdiendo el desglose), a la líder de FAs se le abre el
+// desplegable en estos padres mostrando SOLO sus dos hijas propias
+// ("... FAs" y "... Mza"), nunca las de otra área.
+const MZA_SPLIT_PARENTS=new Set(['Suscripciones Directas','Gastos de Hardware Directos','Servicios Contratados Directos','Gastos de Representación Directos']);
 // Sufijo con el que terminan los nombres de hijo por área (ej. "Sueldos y
 // CS BP", "Gtos Hardw y Comp Mesa") -- para identificar CUÁL de los varios
 // hijos de un padre "Directos" es el de la propia área del líder logueado.
@@ -1286,38 +1295,6 @@ const PARENT_CHILDREN={
 // Índice invertido: hijo → padre
 const CHILD_TO_PARENT={};
 Object.entries(PARENT_CHILDREN).forEach(([parent,children])=>children.forEach(ch=>{CHILD_TO_PARENT[ch]=parent;}));
-
-// "Mza" es una sucursal de FAs -- el propio Sheet ya pone su plata en la
-// misma columna FAs de esas filas (no tiene columna propia), pero se lista
-// como una cuenta hija separada ("Suscripciones Mza", "Gastos
-// Representacion Mza", etc.), lo cual confunde (parece otra área más). Se
-// fusiona con su hermana "... FAs" del mismo padre (sumando columnas y
-// uniendo notas) y se saca del árbol, para que ninguna vista aguas abajo
-// (Detalle, Consolidado, agregados) la vea como una línea aparte -- mismo
-// criterio que ya usa Matriz de gastos (columna "FAs + Mza").
-function mergeMzaEnFAs(rows){
-  const AREAS_TODAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
-  const setAreaVal=(row,area,val)=>{
-    const prop=Object.keys(row).find(p=>p.trim()===area)||Object.keys(row).find(p=>p.trim().toLowerCase()===area.toLowerCase());
-    if(prop) row[prop]=val;
-  };
-  const aSacar=new Set();
-  rows.forEach(row=>{
-    if(!row._child||!row._nom||!row._nom.trim().endsWith(' Mza')) return;
-    const hermanaFAs=rows.find(r=>r._child&&r._parentId===row._parentId&&r._nom.trim().endsWith(' FAs'));
-    if(!hermanaFAs) return;
-    AREAS_TODAS.forEach(a=>setAreaVal(hermanaFAs,a,getAreaVal(hermanaFAs,a)+getAreaVal(row,a)));
-    const notaMza=limpiarNota(row._allNotes||row._note);
-    if(notaMza){
-      const notaFAs=limpiarNota(hermanaFAs._allNotes||hermanaFAs._note);
-      const combinada=[notaFAs,notaMza].filter(Boolean).join(', ');
-      hermanaFAs._note=combinada;
-      hermanaFAs._allNotes=combinada;
-    }
-    aSacar.add(row);
-  });
-  return aSacar.size?rows.filter(r=>!aSacar.has(r)):rows;
-}
 
 // ── ANNOTATE ROWS FOR DETALLE ───────────────────────────────────
 // Strategy: 2-pass
@@ -2083,7 +2060,11 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     // ── ACCOUNT ROWS ──
     if(ST.role==='lideres'&&ST.area!=='Mesa'&&CUENTAS_OCULTAS_NO_MESA.includes(row._nom.trim()))return;
-    if(ST.role==='lideres'&&row._child&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(CHILD_TO_PARENT[row._nom]))return;
+    if(ST.role==='lideres'&&row._child&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(CHILD_TO_PARENT[row._nom])){
+      const permiteSplitFAsMza=ST.area==='FAs'&&MZA_SPLIT_PARENTS.has(CHILD_TO_PARENT[row._nom]);
+      const esHijoFAsOMza=permiteSplitFAsMza&&/ (FAs|Mza)$/.test(row._nom.trim());
+      if(!esHijoFAsOMza) return;
+    }
     if(row._child&&PARENTS_SIN_DESPLEGABLE.has(CHILD_TO_PARENT[row._nom]))return;
     if(q){
       const haystack=(row._nom+' '+(row._num||'')).toLowerCase();
@@ -2103,7 +2084,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const hiddenStyle=parentVisible?'':' style="display:none"';
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
-    const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
+    const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom)&&!(ST.area==='FAs'&&MZA_SPLIT_PARENTS.has(row._nom)))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
     const notaMostrar=notaLiderSegura(row,rows,isConsolidado,mesF);
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
@@ -4521,7 +4502,7 @@ async function loadData(){
           const notesCol= headers.find(h=>/nota/i.test(h))||headers.find(h=>/^_col/.test(h))||null;
           // totalGastosCell: sum SUBTOTAL DIRECTOS + GASTOS INDIRECTOS for areas sin CapN
           // Computed after annotateRows
-          const annotated=mergeMzaEnFAs(annotateRows(rows,nameCol,numCol,notesCol));
+          const annotated=annotateRows(rows,nameCol,numCol,notesCol);
           const subtotalRow=annotated.find(r=>r._kind==='subtotal_dir'&&/^SUBTOTAL\s+DIRECTOS$/i.test(r._nom));
           const indirectosRow=annotated.find(r=>r._kind==='section'&&/^GASTOS\s+INDIRECTOS$/i.test(r._nom));
           const impuestosRow=annotated.find(r=>r._kind==='skip'&&/^Impuestos$/i.test(r._nom));
