@@ -1560,19 +1560,24 @@ function getCapNAgg(mes){
   if(!d||!d.rows) return {ingresos:0,egresos:0,resultado:0,gastos_dir:0,gastos_ind:0};
   const isConsolidado=mes==='__consolidado__';
   const mesesCols=d.headers.filter(h=>h&&h!==''&&!/consolidado/i.test(h)&&h!=='Neix Banca Privada');
-  const consolidadoCol=d.headers.find(h=>/consolidado/i.test(h))||null;
   let ing=0,gasto=0,res=0;
   d.rows.forEach(row=>{
     const nom=String(row['']||'').trim();
     if(!nom) return;
     if(isConsolidado){
-      if(/^FACTURACI[OÓ]N/i.test(nom)) ing=parseNum(row[consolidadoCol]||'');
-      if(/^GASTOS$/i.test(nom))        gasto=parseNum(row[consolidadoCol]||'');
-      if(/^RESULTADO/i.test(nom))      res=parseNum(row[consolidadoCol]||'');
+      // Se suma directo de los meses cargados en vez de confiar en la
+      // columna "CONSOLIDADO CAP N" del propio Sheet -- esa columna es una
+      // fórmula aparte que puede quedar desactualizada si no se la
+      // arrastra al cargar un mes nuevo (visto en la práctica: quedó
+      // sumando solo hasta el mes anterior después de cargar uno nuevo).
+      const suma=mesesCols.reduce((s,m)=>s+parseNum(row[m]||''),0);
+      if(/^FACTURACI[OÓ]N/i.test(nom)) ing=suma;
+      if(/^GASTOS$/i.test(nom))        gasto=suma;
+      if(/^RESULTADO/i.test(nom)&&!/antes/i.test(nom)) res=suma;
     } else {
       if(/^FACTURACI[OÓ]N/i.test(nom)) ing=parseNum(row[mes]||'');
       if(/^GASTOS$/i.test(nom))        gasto=parseNum(row[mes]||'');
-      if(/^RESULTADO/i.test(nom))      res=parseNum(row[mes]||'');
+      if(/^RESULTADO/i.test(nom)&&!/antes/i.test(nom)) res=parseNum(row[mes]||'');
     }
   });
   return{ingresos:ing,egresos:gasto,resultado:res,gastos_dir:gasto,gastos_ind:0};
@@ -3595,13 +3600,17 @@ function getConsolidadoDetalle(){
 }
 
 
+// col acepta un solo nombre de columna (un mes puntual) o un array de
+// columnas a sumar (Consolidado -- ver comentario en getCapNAgg sobre por
+// qué no se usa la columna "CONSOLIDADO CAP N" del Sheet directamente).
 function calcFijosVariablesCapN(col,d){
+  const cols=Array.isArray(col)?col:[col];
   const FIJOS_CAPN=new Set(['Alquiler','Sueldos y CS','Contabilidad','MTI']);
   let fijos=0,variables=0;
   d.rows.forEach(row=>{
     const nom=String(row['']||'').trim();
     if(!nom||/^(FACTURACI|GASTOS|RESULTADO)/i.test(nom)) return;
-    const v=col?parseNum(row[col]||''):0;
+    const v=cols.reduce((s,c)=>s+(c?parseNum(row[c]||''):0),0);
     if(v===0) return;
     if(FIJOS_CAPN.has(nom)) fijos+=v;
     else variables+=v;
@@ -3618,11 +3627,12 @@ function rebuildAnalisisCapN(){
     return;
   }
   const mesesCols=d.headers.filter(h=>h&&h!==''&&!/consolidado/i.test(h)&&h!=='Neix Banca Privada');
-  const consolidadoCol=d.headers.find(h=>/consolidado/i.test(h))||null;
   const curMes=ST.capnMes;
   const isConsolidado=curMes==='__consolidado__';
-  const capnCol=isConsolidado?consolidadoCol:curMes;
-  const getV=row=>capnCol?parseNum(row[capnCol]||''):0;
+  // Consolidado: sumar los meses cargados en vez de confiar en la columna
+  // "CONSOLIDADO CAP N" del Sheet -- ver comentario en getCapNAgg.
+  const capnCol=isConsolidado?mesesCols:curMes;
+  const getV=row=>isConsolidado?mesesCols.reduce((s,m)=>s+parseNum(row[m]||''),0):(curMes?parseNum(row[curMes]||''):0);
 
   // KPIs del mes/consolidado seleccionado
   let capnIng=0,capnGastos=0,capnRes=0;
@@ -3810,11 +3820,11 @@ function rebuildCapN(){
   }
 
   const mesesCols=d.headers.filter(h=>h&&h!==''&&!/consolidado/i.test(h)&&h!=='Neix Banca Privada');
-  const consolidadoCol=d.headers.find(h=>/consolidado/i.test(h))||null;
   const curMes=ST.capnMes;
   const isConsolidado=curMes==='__consolidado__';
-  const capnCol=isConsolidado?consolidadoCol:curMes;
-  const getCapN=row=>capnCol?parseNum(row[capnCol]||''):0;
+  // Consolidado: sumar los meses cargados en vez de confiar en la columna
+  // "CONSOLIDADO CAP N" del Sheet -- ver comentario en getCapNAgg.
+  const getCapN=row=>isConsolidado?mesesCols.reduce((s,m)=>s+parseNum(row[m]||''),0):(curMes?parseNum(row[curMes]||''):0);
 
   // Datos Banca Privada
   let bpIng=0,bpEgr=0,bpRes=0;
