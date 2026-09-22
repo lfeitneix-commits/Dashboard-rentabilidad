@@ -2431,7 +2431,7 @@ function renderAnalisis(){
   // Gráficos
   const chartsHtml=`
   <div class="chart-grid">
-    <div class="cc"><div class="cc-t">Fijos · Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
+    <div class="cc${ST.role==='lideres'?' wide':''}"><div class="cc-t">Fijos · Variables</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an7"></canvas></div></div>
     ${ST.role!=='lideres'?`<div class="cc"><div class="cc-t">Directos vs. Indirectos</div><div class="cc-s">Estructura de costos · ${label}</div><div style="height:280px"><canvas id="ch-an8"></canvas></div></div>`:''}
     <div class="cc wide"><div class="cc-t">Ingresos vs. Costos</div><div class="cc-s">${isCons?'Evolución mensual':'Por área · '+label}</div><div style="height:280px"><canvas id="ch-an2"></canvas></div></div>
     <div class="cc wide"><div class="cc-t">Desglose por rubros</div><div class="cc-s">Fijos y variables · ${label}</div><div style="height:280px"><canvas id="ch-an3"></canvas></div></div>
