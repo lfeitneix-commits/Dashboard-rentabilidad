@@ -2620,6 +2620,22 @@ function buildInteranualData(){
       });
       return {nombre:nombreProv,en2025:!!p2025,en2026:!!p2026,perMes:pPerMes};
     });
+    // "Sin discriminar / Ajuste" -- no es un proveedor con nombre real (son
+    // gastos sin identificar, reversiones de provisión, etc.), pero sin
+    // mostrarlo el desglose de proveedores no suma el total del rubro. La
+    // hoja lo guarda aparte de la lista de proveedores (ver
+    // parseGastosFijosDetalle), así que se agrega acá a mano.
+    if(c2025?.ajuste||c2026?.ajuste){
+      const ajustePerMes={};
+      meses.forEach(mes=>{
+        const i25=idx2025(mes),i26=idx2026(mes);
+        ajustePerMes[mes]={
+          v2025:c2025?.ajuste&&i25>=0?c2025.ajuste.vals[i25]:0,
+          v2026:c2026?.ajuste&&i26>=0?c2026.ajuste.vals[i26]:0,
+        };
+      });
+      providers.push({nombre:'Sin discriminar / Ajuste',en2025:!!c2025?.ajuste,en2026:!!c2026?.ajuste,perMes:ajustePerMes});
+    }
     return {nombre,en2025:!!c2025,en2026:!!c2026,esFijo,perMes,providers};
   });
   return {meses,rubros,totalesPorMes};
