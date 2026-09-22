@@ -2635,6 +2635,13 @@ const INTERANUAL_TAG_BAJA=`<span style="color:var(--bordeaux);font-size:10px">(n
 // unión 2025+2026 la tabla puede tener muchas filas (proveedores puntuales
 // que no se repitieron), así que igual que en las vistas 2025/2026 conviene
 // poder filtrar por nombre.
+// Celda de un mes puntual: solo el monto 2026, sin el Δ% -- el % mes a mes
+// no es comparable de forma confiable (aguinaldo, estacionalidad, etc.), el
+// que importa es el del período completo (ver deltaCellHTML, columna final).
+function montoCellHTML(v){
+  if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
+  return `<td class="r">${v?fmtD(v):'—'}</td>`;
+}
 function buildInteranualTableRowsHTML(data,q){
   const {meses,rubros,totalesPorMes}=data;
   const query=normSearch(q).trim();
@@ -2647,9 +2654,8 @@ function buildInteranualTableRowsHTML(data,q){
     const providers=(!query||rubroMatches)?r.providers:r.providers.filter(p=>normSearch(p.nombre).includes(query));
     if(query&&!rubroMatches&&!providers.length) return;
     const tag=(!r.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!r.en2026?' '+INTERANUAL_TAG_BAJA:'');
-    // Solo el período completo (suma de los meses ya cargados) -- ya no se
-    // desglosa mes a mes, a pedido: demasiadas columnas y el % de cada mes
-    // suelto no aporta (lo que importa es la tendencia del período).
+    const cells=meses.map(mes=>montoCellHTML(r.perMes[mes].v2026)).join('');
+    // Período completo (suma de los meses ya cargados) -- acá sí va el Δ%.
     const cons25=meses.reduce((s,mes)=>s+r.perMes[mes].v2025,0);
     const cons26=meses.reduce((s,mes)=>s+r.perMes[mes].v2026,0);
     const consCell=deltaCellHTML(cons25,cons26,true);
@@ -2660,21 +2666,22 @@ function buildInteranualTableRowsHTML(data,q){
     if(hasDropdown){
       rowsHtml+=`<tr class="row-parent${open?' open':''}" data-cid="${cid}" onclick="toggleCostosCuenta('${cid}',this,'${key}')">
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${r.nombre}${tag}</div></td>
-        ${consCell}
+        ${cells}${consCell}
       </tr>`;
       providers.forEach(p=>{
         const ptag=(!p.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!p.en2026?' '+INTERANUAL_TAG_BAJA:'');
+        const pcells=meses.map(mes=>montoCellHTML(p.perMes[mes].v2026)).join('');
         const pCons25=meses.reduce((s,mes)=>s+p.perMes[mes].v2025,0);
         const pCons26=meses.reduce((s,mes)=>s+p.perMes[mes].v2026,0);
         rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
           <td class="indent">${p.nombre}${ptag}</td>
-          ${deltaCellHTML(pCons25,pCons26,true)}
+          ${pcells}${deltaCellHTML(pCons25,pCons26,true)}
         </tr>`;
       });
     } else {
       rowsHtml+=`<tr class="row-parent">
         <td><div class="name-wrap"><span class="toggle-icon" style="visibility:hidden">▶</span>${r.nombre}${tag}</div></td>
-        ${consCell}
+        ${cells}${consCell}
       </tr>`;
     }
   });
@@ -2682,13 +2689,14 @@ function buildInteranualTableRowsHTML(data,q){
   // una búsqueda puntual sería engañoso, así que se oculta mientras se
   // busca (mismo criterio que la tabla de Gastos Fijos 2025/2026).
   if(!query){
+    const totalCells=meses.map(mes=>montoCellHTML(totalesPorMes[mes].v2026)).join('');
     const totalCons25=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2025,0);
     const totalCons26=meses.reduce((s,mes)=>s+totalesPorMes[mes].v2026,0);
-    rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
+    rowsHtml+=`<tr class="row-total-bordeaux"><td>TOTAL (rubros Fijos, incluye altas y bajas)</td>${totalCells}${deltaCellHTML(totalCons25,totalCons26,true)}</tr>`;
   }
   if(query&&!rowsHtml) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin resultados</div>';
   const periodo=meses.length?`${meses[0]}-${meses[meses.length-1]}`:'';
-  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th><th class="c">Período (${periodo})<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th></tr></thead>
+  return `<div style="overflow-x:auto"><table><thead><tr><th>Rubro / Proveedor</th>${meses.map(m=>`<th class="c">${m}<div style="font-size:9px;font-weight:400;color:var(--muted)">2026</div></th>`).join('')}<th class="c">Período (${periodo})<div style="font-size:9px;font-weight:400;color:var(--muted)">2026 vs 2025</div></th></tr></thead>
     <tbody>${rowsHtml}</tbody></table></div>`;
 }
 
