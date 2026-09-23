@@ -3183,21 +3183,41 @@ function renderInversionQuant(){
   const tcProm=mesesObra.reduce((s,m)=>s+QUANT_TC_MENSUAL[m],0)/mesesObra.length;
   const obraUsd=QUANT_OBRA_ARS/tcProm;
 
-  const resumenRows=[
-    {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Ago 2026, TC de cada mes de compra'},
-    {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion)'},
-    {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'Por única vez · TC promedio Ene–Jun'},
-    {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'Por única vez'},
-    {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'Acumulado (Marzo–Julio 2026)'},
-    {concepto:'OpenAI – Codex (Suscripciones x 6)',importe:1200.00,periodo:'Recurrente mensual a partir de Agosto'},
-    {concepto:'Placa FPGA',importe:3464.00,periodo:'En Aduana'},
-    {concepto:'Placa FPGA',importe:2345.00,periodo:'En Camino'},
-  ].map(r=>`<tr>
+  // Se separa en dos grupos -- una compra de hardware/obra es plata que ya
+  // salió una vez y no vuelve a salir; un servicio/suscripción es plata que
+  // sigue saliendo todos los meses. Mezclarlos en una sola lista no deja ver
+  // cuál es el compromiso real hacia adelante.
+  const RESUMEN_ITEMS=[
+    {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Ago 2026, TC de cada mes de compra',tipo:'unica'},
+    {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'Por única vez · TC promedio Ene–Jun',tipo:'unica'},
+    {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'Por única vez',tipo:'unica'},
+    {concepto:'Placa FPGA',importe:3464.00,periodo:'En Aduana',tipo:'unica'},
+    {concepto:'Placa FPGA',importe:2345.00,periodo:'En Camino',tipo:'unica'},
+    {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion)',tipo:'recurrente'},
+    {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'Acumulado (Marzo–Julio 2026)',tipo:'recurrente'},
+    {concepto:'OpenAI – Codex (Suscripciones x 6)',importe:1200.00,periodo:'Recurrente mensual a partir de Agosto',tipo:'recurrente'},
+  ];
+  const resumenRowHTML=r=>`<tr>
       <td style="font-size:12px;font-weight:500">${r.concepto}</td>
       <td class="r" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${$c(r.importe)}</td>
       <td class="c" style="font-size:11px;color:var(--muted)">USD</td>
       <td style="font-size:11px;color:var(--muted)">${r.periodo}</td>
-    </tr>`).join('');
+    </tr>`;
+  const unicaItems=RESUMEN_ITEMS.filter(r=>r.tipo==='unica');
+  const recurrenteItems=RESUMEN_ITEMS.filter(r=>r.tipo==='recurrente');
+  const totalUnica=unicaItems.reduce((s,r)=>s+r.importe,0);
+  const totalRecurrente=recurrenteItems.reduce((s,r)=>s+r.importe,0);
+  const resumenGrupoHTML=(titulo,items,total,colorVar)=>`
+      <div style="font-size:11px;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px">${titulo}</div>
+      <div class="tc"><table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:38%"><col style="width:17%"><col style="width:13%"><col style="width:32%"></colgroup>
+      <tbody>${items.map(resumenRowHTML).join('')}
+        <tr style="background:rgba(171,25,48,.06)">
+          <td style="font-weight:700;font-size:11px;color:var(--bordeaux);text-transform:uppercase;letter-spacing:.05em">Total ${titulo.toLowerCase()}</td>
+          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--bordeaux)">${$c(total)}</td>
+          <td></td><td></td>
+        </tr>
+      </tbody></table></div>`;
 
   return`<div class="sec-hd"><div class="sec-title">Inversión Quant</div><div class="sec-sub">Informe de Gastos IT — ${QUANT_META.periodo} · Emitido ${QUANT_META.emision}</div></div>
     <div style="background:var(--crema);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5">${QUANT_META.nota} Todos los montos se muestran en USD, convertidos al tipo de cambio "Dólar al cierre" del mes en que se realizó cada compra.</div>
@@ -3226,13 +3246,17 @@ function renderInversionQuant(){
         </tr>
       </tbody></table></div>
     </div>
+    <div class="tc" style="margin-bottom:24px"><table><tbody>
+      <tr style="background:var(--azul-osc)">
+        <td colspan="3" style="font-weight:700;font-size:12px;color:#fff;text-transform:uppercase;letter-spacing:.05em;padding:10px 14px">Total Infraestructura</td>
+        <td class="r" style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#fff;padding:10px 14px">${$c(QUANT_SERVICIOS.total)}</td>
+      </tr>
+    </tbody></table></div>
 
     <div class="matriz-block">
       <div class="matriz-title">3. Resumen Ejecutivo</div>
-      <div class="tc"><table style="table-layout:fixed;width:100%">
-      <colgroup><col style="width:38%"><col style="width:17%"><col style="width:13%"><col style="width:32%"></colgroup>
-      <thead><tr><th>Concepto</th><th class="c">Importe</th><th class="c">Moneda</th><th>Período</th></tr></thead>
-      <tbody>${resumenRows}</tbody></table></div>
+      ${resumenGrupoHTML('Inversión única',unicaItems,totalUnica,'var(--azul-osc)')}
+      ${resumenGrupoHTML('Costo recurrente',recurrenteItems,totalRecurrente,'var(--verde)')}
     </div>`;
 }
 
