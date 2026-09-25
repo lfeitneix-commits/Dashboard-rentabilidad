@@ -925,14 +925,24 @@ function aplicarProveedoresManuales2026(data){
     if(!cuenta) return;
     // Match por palabras sueltas, no por igualdad exacta -- si la hoja ya
     // le agregó su propia fila (con aclaración entre paréntesis, en otro
-    // orden nombre/apellido, etc.) esto la detecta igual y no la duplica.
-    // `key` es "apellido nombre" en minúsculas sin tildes (ver
-    // PROVEEDOR_MANUAL_2026).
+    // orden nombre/apellido, etc.) esto la detecta igual. `key` es
+    // "apellido nombre" en minúsculas sin tildes (ver PROVEEDOR_MANUAL_2026).
     const keyWords=key.split(' ').filter(Boolean);
-    if(cuenta.providers.some(p=>{
+    const esElla=p=>{
       const pn=normSearch(p.nombre);
       return keyWords.every(w=>pn.includes(w));
-    })) return;
+    };
+    // La hoja puede traerla repetida (dos filas para la misma persona,
+    // cargadas por separado en distintos meses) -- eso no lo evita el
+    // parser, así que se funden acá en una sola fila sumando los montos
+    // antes de decidir si hace falta agregar la sintética.
+    const filasReales=cuenta.providers.filter(esElla);
+    if(filasReales.length>1){
+      const fusionada={nombre:filasReales[0].nombre,vals:data.valCols.map((_,i)=>filasReales.reduce((s,p)=>s+(p.vals[i]||0),0))};
+      cuenta.providers=cuenta.providers.filter(p=>!esElla(p));
+      cuenta.providers.push(fusionada);
+    }
+    if(cuenta.providers.some(esElla)) return;
     cuenta.providers.push({nombre,vals:data.valCols.map(mes=>montos[mes]||0)});
     // Su plata sale del residuo "Sin discriminar / Ajuste" (ahí es donde
     // vive mientras no tenga fila propia en la hoja) -- si no se resta acá
