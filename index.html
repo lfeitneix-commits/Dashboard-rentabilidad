@@ -899,20 +899,23 @@ function parseGastosFijosDetalle(csvText){
 // se desglose en el Sheet, se cargan a mano acá y se insertan como un
 // proveedor más de su cuenta -- así aparecen igual en la vista 2026 como
 // en el análisis interanual, sin duplicar el código de matching en cada
-// lado. No duplican plata: el TOTAL de la cuenta sigue siendo el oficial
-// de la hoja (ya la incluye), esto solo la desglosa por nombre.
+// lado. El TOTAL de la cuenta no cambia (sigue siendo el oficial de la
+// hoja), pero su monto SÍ se resta del ajuste (ver
+// aplicarProveedoresManuales2026): si no se resta, queda contada dos
+// veces en el desglose -- una en su propia fila, otra de nuevo adentro
+// del residuo "Sin discriminar / Ajuste", que ya la incluía.
 // Santangelo Sofia (Cta 4.2.3.38.08 Hon. Profesionales RRHH en el mayor
-// contable) cobra todos los meses pero nunca tuvo línea propia acá. Monto
-// real en ARS del mayor, convertido a USD con el tipo de cambio implícito
-// de otro pago de Honorarios Profesionales del mismo mes (Sumarsi SRL) --
-// la hoja no trae columna de cotización, así que es una estimación, no el
-// número exacto que calcularía el Sheet. Sacar en cuanto tenga su propia
-// fila ahí.
+// contable) cobra todos los meses pero nunca tuvo línea propia acá. Montos
+// tomados de AJUSTES_DETALLE['honorarios profesionales'][año][mes].excluidos
+// (el detalle del mayor contable que la usuaria pasó), ya en USD -- son el
+// monto real, no una estimación. Enero suma dos pagos (el mes + un abono
+// retroactivo de diciembre 2025). Sacar en cuanto tenga su propia fila en
+// la hoja.
 const PROVEEDOR_MANUAL_2026={
   'santangelo sofia':{
     nombre:'Santangelo Sofia',
     rubro:'Honorarios Profesionales',
-    montos:{'Enero':6467.59,'Febrero':0,'Marzo':3027.20,'Abril':3000.30,'Mayo':3546.11,'Junio':3466.39,'Julio':3342.42},
+    montos:{'Enero':9502,'Febrero':0,'Marzo':3027,'Abril':3000,'Mayo':3546,'Junio':3466,'Julio':3342,'Agosto':6655},
   },
 };
 function aplicarProveedoresManuales2026(data){
@@ -922,6 +925,18 @@ function aplicarProveedoresManuales2026(data){
     if(!cuenta) return;
     if(cuenta.providers.some(p=>normSearch(p.nombre)===normSearch(nombre))) return;
     cuenta.providers.push({nombre,vals:data.valCols.map(mes=>montos[mes]||0)});
+    // Su plata sale del residuo "Sin discriminar / Ajuste" (ahí es donde
+    // vive mientras no tenga fila propia en la hoja) -- si no se resta acá
+    // también, queda contada dos veces en la fila de abajo: una en su
+    // propia fila, otra de nuevo adentro del ajuste. El TOTAL de la
+    // cuenta no cambia (sigue siendo el oficial de la hoja), esto solo
+    // corrige el desglose de abajo para que sume ese mismo TOTAL.
+    if(cuenta.ajuste){
+      cuenta.ajuste.vals=cuenta.ajuste.vals.map((v,i)=>{
+        const mes=data.valCols[i],m=montos[mes];
+        return m?v-m:v;
+      });
+    }
   });
   return data;
 }
@@ -2973,17 +2988,16 @@ function openAjusteModal(rubro,year,mes,cellV){
     </tr>`).join('');
   // Los "excluidos" (ej. Santangelo Sofia en Honorarios Profesionales) ya
   // se muestran en la tabla como proveedor con nombre propio (ver
-  // PROVEEDOR_MANUAL_2026) -- acá no van ni siquiera como nota, para no
-  // duplicarla. El total de este popup es la suma de lo que se ve (el
-  // residuo REALMENTE sin identificar), no el monto de la celda de la
-  // tabla -- si hay excluidos, ambos números difieren a propósito.
+  // PROVEEDOR_MANUAL_2026, que además ya resta su monto de la celda de
+  // ajuste en vivo -- aplicarProveedoresManuales2026) -- acá no van ni
+  // siquiera como nota, para no duplicarla.
   const sumItems=det.items.reduce((s,i)=>s+i.monto,0);
-  // El total ARCHIVADO (det.total, incluye a los excluidos) sirve para
-  // detectar si la hoja de Sheets cambió después de armar este detalle --
-  // se compara contra la celda en vivo, no contra "Total" de acá abajo
-  // (que a propósito excluye a los ya identificados).
-  const desajustado=Math.abs((cellV||0)-(det.total||0))>1;
-  const avisoDesajuste=desajustado?`<div style="padding:8px 20px;background:#FFF4E5;color:#8a5a00;font-size:11px">Ojo: la hoja tiene ${fmtD(cellV)} para este mes, pero el detalle cargado es de cuando sumaba ${fmtD(det.total)}. Puede haber cambiado después.</div>`:'';
+  // La celda en vivo (cellV) ya viene sin los excluidos (se le restan al
+  // cargar la hoja), así que tiene que coincidir con sumItems -- si no
+  // coincide, o cambió la hoja después de armar este detalle, o falta
+  // restar a alguien nuevo en PROVEEDOR_MANUAL_2026.
+  const desajustado=Math.abs((cellV||0)-sumItems)>1;
+  const avisoDesajuste=desajustado?`<div style="padding:8px 20px;background:#FFF4E5;color:#8a5a00;font-size:11px">Ojo: la celda de la tabla tiene ${fmtD(cellV)}, pero este detalle solo explica ${fmtD(sumItems)}. La hoja pudo haber cambiado, o falta alguien en PROVEEDOR_MANUAL_2026.</div>`:'';
   const html=`<div id="ajuste-modal-overlay" onclick="if(event.target===this)closeAjusteModal()" style="position:fixed;inset:0;z-index:1000;background:rgba(61,61,61,.55);display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:var(--surface);border-radius:12px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25)">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
