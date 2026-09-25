@@ -2966,21 +2966,32 @@ function ajusteAmountCellHTML(rubro,year,mes,v,cls){
 function openAjusteModal(rubro,year,mes,cellV){
   const det=ajusteDetalle(rubro,year,mes);
   if(!det) return;
-  const rows=det.items.map(it=>`<tr>
+  const rowHTML=(it,muted)=>`<tr${muted?' style="color:var(--muted);font-style:italic"':''}>
       <td>${it.concepto}</td>
       <td class="c" style="white-space:nowrap;font-size:10px;color:var(--muted)">${it.grupo||''}</td>
       <td class="r" style="font-family:'DM Mono',monospace;white-space:nowrap">${it.monto?fmtD(it.monto):'—'}</td>
-    </tr>`).join('');
+    </tr>`;
+  const subtotalHTML=(label,v)=>`<tr>
+      <td colspan="2" style="font-weight:700;font-size:11px">${label}</td>
+      <td class="r" style="font-family:'DM Mono',monospace;font-weight:700;white-space:nowrap">${fmtD(v)}</td>
+    </tr>`;
+  const rows=det.items.map(it=>rowHTML(it,false)).join('');
   const desajustado=Math.abs((cellV||0)-(det.total||0))>1;
   const avisoDesajuste=desajustado?`<div style="padding:8px 20px;background:#FFF4E5;color:#8a5a00;font-size:11px">Ojo: el detalle cargado suma ${fmtD(det.total)}, pero en la tabla este mes figura ${fmtD(cellV)}. La hoja debe haber cambiado después de armar este detalle.</div>`:'';
   // Movimientos que en el mayor contable caen en este residuo pero
   // corresponden a alguien ya identificado (ej. Santangelo Sofia, que ya
   // se muestra aparte como proveedor con nombre propio, ver
-  // PROVEEDOR_MANUAL_2026) -- se sacan de la lista para no confundir "sin
-  // identificar" con "identificado, pero sin fila propia en la hoja", y
-  // se aclaran acá para que el total siga teniendo explicación completa.
+  // PROVEEDOR_MANUAL_2026). Se muestran igual, pero separados y en gris,
+  // para que la cuenta cierre a simple vista (items + excluidos = total)
+  // en vez de quedar como una frase suelta que hay que creer de palabra.
   const excluidos=det.excluidos||[];
-  const notaExcluidos=excluidos.length?`<div style="padding:8px 20px;font-size:11px;color:var(--muted);border-top:1px solid var(--border)">También hay ${fmtD(excluidos.reduce((s,i)=>s+i.monto,0))} de Santangelo Sofia en este residuo (ya se muestra aparte, como proveedor con nombre propio) -- no se lista acá.</div>`:'';
+  const sumItems=det.items.reduce((s,i)=>s+i.monto,0);
+  const sumExcluidos=excluidos.reduce((s,i)=>s+i.monto,0);
+  const bloqueExcluidos=excluidos.length?subtotalHTML('Subtotal sin identificar',sumItems)
+    +`<tr><td colspan="3" style="font-size:10px;color:var(--muted);padding-top:10px">Ya identificados (no son "sin discriminar", pero suman al total de la celda):</td></tr>`
+    +excluidos.map(it=>rowHTML(it,true)).join('')
+    +subtotalHTML('Subtotal ya identificado',sumExcluidos)
+    :'';
   const html=`<div id="ajuste-modal-overlay" onclick="if(event.target===this)closeAjusteModal()" style="position:fixed;inset:0;z-index:1000;background:rgba(61,61,61,.55);display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:var(--surface);border-radius:12px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25)">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
@@ -2994,10 +3005,9 @@ function openAjusteModal(rubro,year,mes,cellV){
       <div style="overflow-y:auto;padding:0 20px">
         <table style="width:100%">
           <thead><tr><th>Concepto</th><th class="c">Tipo</th><th class="r">Monto (USD)</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rows}${bloqueExcluidos}</tbody>
         </table>
       </div>
-      ${notaExcluidos}
       <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;font-size:11px;color:var(--muted)">
         <span>Movimientos del mayor contable que arman este residuo.</span>
         <span style="font-weight:700;color:var(--bordeaux)">Total: ${fmtD(cellV)}</span>
