@@ -932,24 +932,29 @@ function aplicarProveedoresManuales2026(data){
       const pn=normSearch(p.nombre);
       return keyWords.every(w=>pn.includes(w));
     };
-    // La hoja puede traerla repetida (dos filas para la misma persona,
-    // cargadas por separado en distintos meses) -- eso no lo evita el
-    // parser, así que se funden acá en una sola fila sumando los montos
-    // antes de decidir si hace falta agregar la sintética.
+    // La hoja puede traerla repetida (dos o más filas para la misma
+    // persona, cargadas por separado en distintos meses) -- eso no lo
+    // evita el parser, así que se funden acá en una sola fila sumando los
+    // montos. Si no tiene ninguna fila propia, se agrega la sintética con
+    // el monto conocido del mayor contable.
     const filasReales=cuenta.providers.filter(esElla);
-    if(filasReales.length>1){
-      const fusionada={nombre:filasReales[0].nombre,vals:data.valCols.map((_,i)=>filasReales.reduce((s,p)=>s+(p.vals[i]||0),0))};
+    let filaFinal;
+    if(filasReales.length){
+      filaFinal={nombre:filasReales[0].nombre,vals:data.valCols.map((_,i)=>filasReales.reduce((s,p)=>s+(p.vals[i]||0),0))};
       cuenta.providers=cuenta.providers.filter(p=>!esElla(p));
-      cuenta.providers.push(fusionada);
+    } else {
+      filaFinal={nombre,vals:data.valCols.map(mes=>montos[mes]||0)};
     }
-    if(cuenta.providers.some(esElla)) return;
-    cuenta.providers.push({nombre,vals:data.valCols.map(mes=>montos[mes]||0)});
-    // Su plata sale del residuo "Sin discriminar / Ajuste" (ahí es donde
-    // vive mientras no tenga fila propia en la hoja) -- si no se resta acá
-    // también, queda contada dos veces en la fila de abajo: una en su
-    // propia fila, otra de nuevo adentro del ajuste. El TOTAL de la
-    // cuenta no cambia (sigue siendo el oficial de la hoja), esto solo
-    // corrige el desglose de abajo para que sume ese mismo TOTAL.
+    cuenta.providers.push(filaFinal);
+    // Su plata vive en el residuo "Sin discriminar / Ajuste" (la hoja
+    // todavía no la separa del todo, tenga o no alguna fila con su
+    // nombre) -- se resta SIEMPRE del ajuste con el monto conocido y
+    // verificado (montos[mes], del mayor contable), sin importar si la
+    // fila de arriba salió de la hoja o de acá. Si no se resta, queda
+    // contada dos veces en el desglose: una en su propia fila, otra de
+    // nuevo adentro del ajuste. El TOTAL de la cuenta no cambia (sigue
+    // siendo el oficial de la hoja), esto solo corrige el desglose de
+    // abajo para que sume ese mismo TOTAL.
     if(cuenta.ajuste){
       cuenta.ajuste.vals=cuenta.ajuste.vals.map((v,i)=>{
         const mes=data.valCols[i],m=montos[mes];
