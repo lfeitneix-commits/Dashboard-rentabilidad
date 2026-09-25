@@ -920,10 +920,19 @@ const PROVEEDOR_MANUAL_2026={
 };
 function aplicarProveedoresManuales2026(data){
   if(!data) return data;
-  Object.values(PROVEEDOR_MANUAL_2026).forEach(({nombre,rubro,montos})=>{
+  Object.entries(PROVEEDOR_MANUAL_2026).forEach(([key,{nombre,rubro,montos}])=>{
     const cuenta=data.cuentas.find(c=>normSearch(c.nombre)===normSearch(rubro));
     if(!cuenta) return;
-    if(cuenta.providers.some(p=>normSearch(p.nombre)===normSearch(nombre))) return;
+    // Match por palabras sueltas, no por igualdad exacta -- si la hoja ya
+    // le agregó su propia fila (con aclaración entre paréntesis, en otro
+    // orden nombre/apellido, etc.) esto la detecta igual y no la duplica.
+    // `key` es "apellido nombre" en minúsculas sin tildes (ver
+    // PROVEEDOR_MANUAL_2026).
+    const keyWords=key.split(' ').filter(Boolean);
+    if(cuenta.providers.some(p=>{
+      const pn=normSearch(p.nombre);
+      return keyWords.every(w=>pn.includes(w));
+    })) return;
     cuenta.providers.push({nombre,vals:data.valCols.map(mes=>montos[mes]||0)});
     // Su plata sale del residuo "Sin discriminar / Ajuste" (ahí es donde
     // vive mientras no tenga fila propia en la hoja) -- si no se resta acá
