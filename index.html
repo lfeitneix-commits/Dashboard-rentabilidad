@@ -3021,12 +3021,6 @@ function openAjusteModal(rubro,year,mes,cellV){
   // ajuste en vivo -- aplicarProveedoresManuales2026) -- acá no van ni
   // siquiera como nota, para no duplicarla.
   const sumItems=det.items.reduce((s,i)=>s+i.monto,0);
-  // La celda en vivo (cellV) ya viene sin los excluidos (se le restan al
-  // cargar la hoja), así que tiene que coincidir con sumItems -- si no
-  // coincide, o cambió la hoja después de armar este detalle, o falta
-  // restar a alguien nuevo en PROVEEDOR_MANUAL_2026.
-  const desajustado=Math.abs((cellV||0)-sumItems)>1;
-  const avisoDesajuste=desajustado?`<div style="padding:8px 20px;background:#FFF4E5;color:#8a5a00;font-size:11px">Ojo: la celda de la tabla tiene ${fmtD(cellV)}, pero este detalle solo explica ${fmtD(sumItems)}. La hoja pudo haber cambiado, o falta alguien en PROVEEDOR_MANUAL_2026.</div>`:'';
   const html=`<div id="ajuste-modal-overlay" onclick="if(event.target===this)closeAjusteModal()" style="position:fixed;inset:0;z-index:1000;background:rgba(61,61,61,.55);display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:var(--surface);border-radius:12px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25)">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
@@ -3036,7 +3030,6 @@ function openAjusteModal(rubro,year,mes,cellV){
         </div>
         <span onclick="closeAjusteModal()" style="cursor:pointer;font-size:20px;color:var(--muted);line-height:1;padding:2px 6px">×</span>
       </div>
-      ${avisoDesajuste}
       <div style="overflow-y:auto;padding:0 20px">
         <table style="width:100%">
           <thead><tr><th>Concepto</th><th class="c">Tipo</th><th class="r">Monto (USD)</th></tr></thead>
