@@ -2985,15 +2985,36 @@ function buildGastosAreaTableHTML(){
   const d=mesF==='__consolidado__'?getConsolidadoDetalle():ST.mesData[mesF];
   if(!d) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin datos</div>';
   const rowTotal=row=>AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+  // Nota de una fila hija (ej. "Sueldos y CS Back") -- en Consolidado, la
+  // nota de la hoja (si la tiene) puede cambiar mes a mes (ej. "Viajes",
+  // donde cada mes es un viaje distinto); mismo criterio que el resto de
+  // la app (getConsNote en buildDetalleTable): si es la misma en todos los
+  // meses que la tienen se muestra, si cambia no se muestra nada.
+  const notaDe=childName=>{
+    if(mesF!=='__consolidado__'){
+      const row=ST.mesData[mesF]?.annotated.find(r=>r._nom&&r._nom.trim()===childName);
+      return row?(row._allNotes||row._note||'').trim():'';
+    }
+    const notas=new Set();
+    ST.meses.forEach(m=>{
+      const row=ST.mesData[m]?.annotated.find(r=>r._nom&&r._nom.trim()===childName);
+      const n=row&&(row._allNotes||row._note||'').trim();
+      if(n) notas.add(n);
+    });
+    return notas.size===1?[...notas][0]:'';
+  };
   const totalesPorStaff=STAFF_AREAS.map(()=>0);
   const bodyRows=Object.keys(STAFF_SUFIJO_HIJO).map(rubroNombre=>{
     const mapa=STAFF_SUFIJO_HIJO[rubroNombre];
+    const notasRubro=[];
     const vals=STAFF_AREAS.map((sa,i)=>{
       const childName=mapa[sa];
       if(!childName) return null;
       const childRow=d.annotated.find(r=>r._nom&&r._nom.trim()===childName);
       const v=childRow?rowTotal(childRow):0;
       totalesPorStaff[i]+=v;
+      const nota=notaDe(childName);
+      if(nota) notasRubro.push(`${sa}: ${nota}`);
       return v;
     });
     const tot=vals.reduce((s,v)=>s+(v||0),0);
@@ -3001,13 +3022,14 @@ function buildGastosAreaTableHTML(){
       <td>${STAFF_RUBRO_LABEL[rubroNombre]}</td>
       ${vals.map(v=>v==null?`<td class="r" style="color:var(--muted)">—</td>`:`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
+      <td class="note-cell">${notasRubro.join(' · ')}</td>
     </tr>`;
   }).join('');
   const granTotal=totalesPorStaff.reduce((s,v)=>s+v,0);
   return `<div style="overflow-x:auto"><table>
-    <thead><tr><th>Rubro</th>${STAFF_AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th></tr></thead>
-    <tbody>${bodyRows||`<tr><td colspan="${STAFF_AREAS.length+2}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
-      <tr class="row-total-bordeaux"><td>TOTAL Gastos Indirectos</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td></tr>
+    <thead><tr><th>Rubro</th>${STAFF_AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th><th style="min-width:160px">Notas</th></tr></thead>
+    <tbody>${bodyRows||`<tr><td colspan="${STAFF_AREAS.length+3}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
+      <tr class="row-total-bordeaux"><td>TOTAL Gastos Indirectos</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td><td></td></tr>
     </tbody></table></div>`;
 }
 
