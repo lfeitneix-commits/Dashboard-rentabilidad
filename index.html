@@ -3000,12 +3000,24 @@ function buildGastosAreaTableHTML(){
     }
     return null;
   };
-  // Nota de una fila hija (ej. "Sueldos y CS Back") -- en Consolidado, la
-  // nota de la hoja (si la tiene) puede cambiar mes a mes (ej. "Viajes",
-  // donde cada mes es un viaje distinto); mismo criterio que el resto de
-  // la app (getConsNote en buildDetalleTable): si es la misma en todos los
-  // meses que la tienen se muestra, si cambia no se muestra nada.
-  const notaDe=childName=>{
+  // Nota de una fila hija (ej. "Serv. Contratados Back") -- primero se
+  // busca en "Aclaración de cuentas" (ST.aclaracionCuentas: qué proveedores
+  // componen esa cuenta, dato fijo, no depende del mes). Sueldos y CS y
+  // Gastos de Hardware no tienen aclaración cargada para las áreas de
+  // staff todavía, así que ahí se usa la nota de la hoja de ese mes en
+  // vez de dejarlo en blanco. En Consolidado esa nota puede cambiar mes a
+  // mes (ej. "Viajes", un viaje distinto cada vez); mismo criterio que
+  // getConsNote en buildDetalleTable: si es la misma en todos los meses
+  // que la tienen se muestra, si cambia no se muestra nada.
+  const notaAclaracion=childName=>{
+    const lista=Array.isArray(childName)?childName:[childName];
+    for(const n of lista){
+      const det=ST.aclaracionCuentas?.get(n);
+      if(det&&det!=='-') return det;
+    }
+    return '';
+  };
+  const notaHoja=childName=>{
     if(mesF!=='__consolidado__'){
       const row=findRow(ST.mesData[mesF]?.annotated||[],childName);
       return row?(row._allNotes||row._note||'').trim():'';
@@ -3018,6 +3030,7 @@ function buildGastosAreaTableHTML(){
     });
     return notas.size===1?[...notas][0]:'';
   };
+  const notaDe=childName=>notaAclaracion(childName)||notaHoja(childName);
   const totalesPorStaff=STAFF_AREAS.map(()=>0);
   const bodyRows=Object.keys(STAFF_SUFIJO_HIJO).map(rubroNombre=>{
     const mapa=STAFF_SUFIJO_HIJO[rubroNombre];
