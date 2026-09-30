@@ -2939,52 +2939,75 @@ function filterRubrosRanking(){
   if(wrap) wrap.innerHTML=buildRubrosTableHTML(sel?sel.value:'',ordSel?ordSel.value:'monto');
 }
 
-// ── GASTOS POR ÁREA — mismos rubros de "Gastos directos" que ya vienen
-// desglosados por área en la hoja mensual (filas padre con hijos por área,
-// ver PARENT_CHILDREN: Sueldos y CS, Suscripciones, Servicios Contratados,
-// etc.), en una tabla aparte con una columna por área en vez de tener que
-// expandir cuenta por cuenta en "EERR Neix". Los indirectos no se
-// reparten por área en la hoja (para eso está la Matriz de gastos, que
-// reparte % no montos), así que acá solo van los directos.
+// ── GASTOS POR ÁREA DE STAFF — rubros de "Gastos Indirectos" (Sueldos y
+// CS, Suscripciones, Servicios Contratados, etc.) desglosados por área de
+// staff (Back Office, IT, Administración, RRHH, MKTG, Performance), no por
+// área de negocio. Cada rubro "... Indirectos/Indirectas" tiene filas hijas
+// por área de staff (ver PARENT_CHILDREN) -- el monto de cada celda es el
+// total de esa fila hija (sumada entre las 4 áreas de negocio, que para
+// estas filas son solo el reparto de la Matriz, no lo relevante acá).
+// El sufijo de cada área varía por rubro (Adm/Admin, MKT/MKTG, y
+// Performance solo existe para Sueldos y CS) -- de ahí el mapeo explícito
+// en vez de armar el nombre con un patrón fijo.
+const STAFF_AREAS=['Back Office','IT','Administración','RRHH','MKTG','Performance'];
+const STAFF_SUFIJO_HIJO={
+  'Sueldos y CS Indirectos':{'Back Office':'Sueldos y CS Back','IT':'Sueldos y CS IT','Administración':'Sueldos y CS Adm','RRHH':'Sueldos y CS RRHH','MKTG':'Sueldos y CS MKT','Performance':'Sueldos y CS Performance'},
+  'Suscripciones Indirectas':{'Back Office':'Suscripciones Back','IT':'Suscripciones IT','Administración':'Suscripciones Adm','RRHH':'Suscripciones RRHH','MKTG':'Suscripciones MKTG'},
+  'Gastos de Hardware Indirectos':{'Back Office':'Gtos Hardw y Comp Back','IT':'Gtos Hardw y Comp IT','Administración':'Gtos Hardw y Comp Adm','RRHH':'Gtos Hardw y Comp RRHH','MKTG':'Gtos Hardw y Comp MKTG'},
+  'Servicios Contratados Indirectos':{'Back Office':'Serv. Contratados Back','IT':'Serv. Contratados IT','Administración':'Serv. Contratados Adm','RRHH':'Serv. Contratados RRHH','MKTG':'Serv. Contratados MKTG'},
+  'Gastos de Representación Indirectos':{'Back Office':'Gastos Representacion Back','IT':'Gastos Representacion IT','Administración':'Gastos Representacion Admin','RRHH':'Gastos Representacion RRHH','MKTG':'Gastos Representacion MKTG'},
+  'Viaticos y Movilidad':{'Back Office':'Viaticos y Mov. Back','IT':'Viaticos y Mov. IT','Administración':'Viaticos y Mov. Adm','RRHH':'Viaticos y Mov. RRHH','MKTG':'Viaticos y Mov. MKTG'},
+};
+const STAFF_RUBRO_LABEL={
+  'Sueldos y CS Indirectos':'Sueldos y CS',
+  'Suscripciones Indirectas':'Suscripciones',
+  'Gastos de Hardware Indirectos':'Gastos de Hardware',
+  'Servicios Contratados Indirectos':'Servicios Contratados',
+  'Gastos de Representación Indirectos':'Gastos de Representación',
+  'Viaticos y Movilidad':'Viáticos y Movilidad',
+};
 function renderGastosArea(){
   document.getElementById('topbar-title').textContent='Centro de costos';
   const mes=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
   const label=ST.consolidado?'Consolidado':mes;
-  return`<div class="sec-hd"><div class="sec-title">Gastos por Área</div><div class="sec-sub">${label} · Gastos directos por rubro, cada área · USD</div></div>
+  return`<div class="sec-hd"><div class="sec-title">Gastos por Área</div><div class="sec-sub">${label} · Gastos indirectos por rubro, cada área de staff · USD</div></div>
     <div class="tc">
       <div class="tc-hd">Rubros<div class="tc-hd-r"><span>USD</span></div></div>
       <div id="gastos-area-wrap">${buildGastosAreaTableHTML()}</div>
     </div>`;
 }
 function buildGastosAreaTableHTML(){
+  // Los líderes de área no ven gastos indirectos en ningún otro lado de
+  // la app (la asignación por área de negocio no está definida para
+  // ellos) -- mismo criterio acá.
+  if(ST.role==='lideres') return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Esta vista no está disponible para tu rol.</div>';
   const mesF=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
   const d=mesF==='__consolidado__'?getConsolidadoDetalle():ST.mesData[mesF];
   if(!d) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin datos</div>';
-  // Filas padre de rubro (ej. "Sueldos y CS Directos", marcadas _parent
-  // por PARENT_CHILDREN/annotateRows) -- no sus hijos por área (esos ya
-  // están sumados en la fila del rubro) ni la sección "GASTOS DIRECTOS"
-  // en sí. No se filtra por _kind porque una hoja sin columna de N° de
-  // cuenta tagea todo como 'subaccount' salvo las secciones.
-  const rows=d.annotated.filter(r=>r._parent&&r._tipo==='dir');
-  const totalesPorArea=AREAS.map(()=>0);
-  const bodyRows=rows.map(row=>{
-    const vals=AREAS.map((a,i)=>{
-      const v=getAreaVal(row,a);
-      totalesPorArea[i]+=v;
+  const rowTotal=row=>AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+  const totalesPorStaff=STAFF_AREAS.map(()=>0);
+  const bodyRows=Object.keys(STAFF_SUFIJO_HIJO).map(rubroNombre=>{
+    const mapa=STAFF_SUFIJO_HIJO[rubroNombre];
+    const vals=STAFF_AREAS.map((sa,i)=>{
+      const childName=mapa[sa];
+      if(!childName) return null;
+      const childRow=d.annotated.find(r=>r._nom&&r._nom.trim()===childName);
+      const v=childRow?rowTotal(childRow):0;
+      totalesPorStaff[i]+=v;
       return v;
     });
-    const tot=vals.reduce((s,v)=>s+v,0);
+    const tot=vals.reduce((s,v)=>s+(v||0),0);
     return `<tr>
-      <td>${row._nom}</td>
-      ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+      <td>${STAFF_RUBRO_LABEL[rubroNombre]}</td>
+      ${vals.map(v=>v==null?`<td class="r" style="color:var(--muted)">—</td>`:`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
     </tr>`;
   }).join('');
-  const granTotal=totalesPorArea.reduce((s,v)=>s+v,0);
+  const granTotal=totalesPorStaff.reduce((s,v)=>s+v,0);
   return `<div style="overflow-x:auto"><table>
-    <thead><tr><th>Rubro</th>${AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th></tr></thead>
-    <tbody>${bodyRows||`<tr><td colspan="${AREAS.length+2}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
-      <tr class="row-total-bordeaux"><td>TOTAL Gastos Directos</td>${totalesPorArea.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td></tr>
+    <thead><tr><th>Rubro</th>${STAFF_AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th></tr></thead>
+    <tbody>${bodyRows||`<tr><td colspan="${STAFF_AREAS.length+2}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
+      <tr class="row-total-bordeaux"><td>TOTAL Gastos Indirectos</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td></tr>
     </tbody></table></div>`;
 }
 
