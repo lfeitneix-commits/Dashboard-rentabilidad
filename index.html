@@ -164,6 +164,9 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .dist-badge{display:inline;color:var(--bordeaux);font-size:10px;cursor:help;margin-left:3px;position:relative;vertical-align:middle}
 .dist-badge::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--grafito);color:#fff;padding:5px 9px;border-radius:5px;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:400;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50;font-style:normal}
 .dist-badge:hover::after{opacity:1}
+.monto-nota{cursor:help;position:relative;border-bottom:1px dotted var(--muted)}
+.monto-nota::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);right:0;background:var(--grafito);color:#fff;padding:8px 10px;border-radius:6px;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:400;font-style:normal;text-align:left;white-space:normal;width:260px;line-height:1.4;pointer-events:none;opacity:0;transition:opacity .15s;z-index:60}
+.monto-nota:hover::after{opacity:1}
 
 .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:500;background:var(--crema);color:var(--muted);border:1px solid var(--border)}
 .chip{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
@@ -3031,33 +3034,40 @@ function buildGastosAreaTableHTML(){
     return notas.size===1?[...notas][0]:'';
   };
   const notaDe=childName=>notaAclaracion(childName)||notaHoja(childName);
+  const escAttr=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  // Celda de monto: si hay nota para esa área, el número queda subrayado
+  // punteado y la nota aparece al pasar el mouse por arriba (mismo
+  // mecanismo que .dist-badge, adaptado para texto largo que necesita
+  // ajustarse en varias líneas en vez de una tira sin cortes).
+  const montoCellConNota=(v,nota)=>{
+    if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
+    const disp=v?fmtD(v):'—';
+    if(!v||!nota) return `<td class="r">${disp}</td>`;
+    return `<td class="r"><span class="monto-nota" data-tip="${escAttr(nota)}">${disp}</span></td>`;
+  };
   const totalesPorStaff=STAFF_AREAS.map(()=>0);
   const bodyRows=Object.keys(STAFF_SUFIJO_HIJO).map(rubroNombre=>{
     const mapa=STAFF_SUFIJO_HIJO[rubroNombre];
-    const notasRubro=[];
-    const vals=STAFF_AREAS.map((sa,i)=>{
+    const celdas=STAFF_AREAS.map((sa,i)=>{
       const childName=mapa[sa];
-      if(!childName) return null;
+      if(!childName) return {v:null,nota:''};
       const childRow=findRow(d.annotated,childName);
       const v=childRow?rowTotal(childRow):0;
       totalesPorStaff[i]+=v;
-      const nota=notaDe(childName);
-      if(nota) notasRubro.push(`${sa}: ${nota}`);
-      return v;
+      return {v,nota:notaDe(childName)};
     });
-    const tot=vals.reduce((s,v)=>s+(v||0),0);
+    const tot=celdas.reduce((s,c)=>s+(c.v||0),0);
     return `<tr>
       <td>${STAFF_RUBRO_LABEL[rubroNombre]}</td>
-      ${vals.map(v=>v==null?`<td class="r" style="color:var(--muted)">—</td>`:`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+      ${celdas.map(c=>montoCellConNota(c.v,c.nota)).join('')}
       <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
-      <td class="note-cell">${notasRubro.join(' · ')}</td>
     </tr>`;
   }).join('');
   const granTotal=totalesPorStaff.reduce((s,v)=>s+v,0);
   return `<div style="overflow-x:auto"><table>
-    <thead><tr><th>Rubro</th>${STAFF_AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th><th style="min-width:160px">Notas</th></tr></thead>
-    <tbody>${bodyRows||`<tr><td colspan="${STAFF_AREAS.length+3}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
-      <tr class="row-total-bordeaux"><td>TOTAL Gastos Indirectos</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td><td></td></tr>
+    <thead><tr><th>Rubro</th>${STAFF_AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th></tr></thead>
+    <tbody>${bodyRows||`<tr><td colspan="${STAFF_AREAS.length+2}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
+      <tr class="row-total-bordeaux"><td>TOTAL Gastos Indirectos</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td></tr>
     </tbody></table></div>`;
 }
 
