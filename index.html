@@ -2954,7 +2954,11 @@ const STAFF_SUFIJO_HIJO={
   'Sueldos y CS Indirectos':{'Back Office':'Sueldos y CS Back','IT':'Sueldos y CS IT','Administración':'Sueldos y CS Adm','RRHH':'Sueldos y CS RRHH','MKTG':'Sueldos y CS MKT','Performance':'Sueldos y CS Performance'},
   'Suscripciones Indirectas':{'Back Office':'Suscripciones Back','IT':'Suscripciones IT','Administración':'Suscripciones Adm','RRHH':'Suscripciones RRHH','MKTG':'Suscripciones MKTG'},
   'Gastos de Hardware Indirectos':{'Back Office':'Gtos Hardw y Comp Back','IT':'Gtos Hardw y Comp IT','Administración':'Gtos Hardw y Comp Adm','RRHH':'Gtos Hardw y Comp RRHH','MKTG':'Gtos Hardw y Comp MKTG'},
-  'Servicios Contratados Indirectos':{'Back Office':'Serv. Contratados Back','IT':'Serv. Contratados IT','Administración':'Serv. Contratados Adm','RRHH':'Serv. Contratados RRHH','MKTG':'Serv. Contratados MKTG'},
+  // "Serv. Contratados BC" y "Serv. Contratados Back" son la misma área
+  // (Back Office) con dos nombres -- el de la hoja cambió en algún
+  // momento y quedaron ambos en PARENT_CHILDREN para no romper meses
+  // viejos, así que acá se prueban los dos.
+  'Servicios Contratados Indirectos':{'Back Office':['Serv. Contratados Back','Serv. Contratados BC'],'IT':'Serv. Contratados IT','Administración':'Serv. Contratados Adm','RRHH':'Serv. Contratados RRHH','MKTG':'Serv. Contratados MKTG'},
   'Gastos de Representación Indirectos':{'Back Office':'Gastos Representacion Back','IT':'Gastos Representacion IT','Administración':'Gastos Representacion Admin','RRHH':'Gastos Representacion RRHH','MKTG':'Gastos Representacion MKTG'},
   'Viaticos y Movilidad':{'Back Office':'Viaticos y Mov. Back','IT':'Viaticos y Mov. IT','Administración':'Viaticos y Mov. Adm','RRHH':'Viaticos y Mov. RRHH','MKTG':'Viaticos y Mov. MKTG'},
 };
@@ -2985,6 +2989,18 @@ function buildGastosAreaTableHTML(){
   const d=mesF==='__consolidado__'?getConsolidadoDetalle():ST.mesData[mesF];
   if(!d) return '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">Sin datos</div>';
   const rowTotal=row=>AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+  // Algunas áreas tienen más de un nombre posible para la misma fila hija
+  // (ej. "Serv. Contratados Back" vs "Serv. Contratados BC" -- la hoja
+  // cambió el nombre en algún momento y quedaron los dos en
+  // PARENT_CHILDREN) -- se prueba cada candidato en orden.
+  const findRow=(annotated,nombres)=>{
+    const lista=Array.isArray(nombres)?nombres:[nombres];
+    for(const n of lista){
+      const row=annotated.find(r=>r._nom&&r._nom.trim()===n);
+      if(row) return row;
+    }
+    return null;
+  };
   // Nota de una fila hija (ej. "Sueldos y CS Back") -- en Consolidado, la
   // nota de la hoja (si la tiene) puede cambiar mes a mes (ej. "Viajes",
   // donde cada mes es un viaje distinto); mismo criterio que el resto de
@@ -2992,12 +3008,12 @@ function buildGastosAreaTableHTML(){
   // meses que la tienen se muestra, si cambia no se muestra nada.
   const notaDe=childName=>{
     if(mesF!=='__consolidado__'){
-      const row=ST.mesData[mesF]?.annotated.find(r=>r._nom&&r._nom.trim()===childName);
+      const row=findRow(ST.mesData[mesF]?.annotated||[],childName);
       return row?(row._allNotes||row._note||'').trim():'';
     }
     const notas=new Set();
     ST.meses.forEach(m=>{
-      const row=ST.mesData[m]?.annotated.find(r=>r._nom&&r._nom.trim()===childName);
+      const row=findRow(ST.mesData[m]?.annotated||[],childName);
       const n=row&&(row._allNotes||row._note||'').trim();
       if(n) notas.add(n);
     });
@@ -3010,7 +3026,7 @@ function buildGastosAreaTableHTML(){
     const vals=STAFF_AREAS.map((sa,i)=>{
       const childName=mapa[sa];
       if(!childName) return null;
-      const childRow=d.annotated.find(r=>r._nom&&r._nom.trim()===childName);
+      const childRow=findRow(d.annotated,childName);
       const v=childRow?rowTotal(childRow):0;
       totalesPorStaff[i]+=v;
       const nota=notaDe(childName);
