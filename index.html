@@ -2954,11 +2954,10 @@ const STAFF_SUFIJO_HIJO={
   'Sueldos y CS Indirectos':{'Back Office':'Sueldos y CS Back','IT':'Sueldos y CS IT','Administración':'Sueldos y CS Adm','RRHH':'Sueldos y CS RRHH','MKTG':'Sueldos y CS MKT','Performance':'Sueldos y CS Performance'},
   'Suscripciones Indirectas':{'Back Office':'Suscripciones Back','IT':'Suscripciones IT','Administración':'Suscripciones Adm','RRHH':'Suscripciones RRHH','MKTG':'Suscripciones MKTG'},
   'Gastos de Hardware Indirectos':{'Back Office':'Gtos Hardw y Comp Back','IT':'Gtos Hardw y Comp IT','Administración':'Gtos Hardw y Comp Adm','RRHH':'Gtos Hardw y Comp RRHH','MKTG':'Gtos Hardw y Comp MKTG'},
-  // "Serv. Contratados BC" y "Serv. Contratados Back" son la misma área
-  // (Back Office) con dos nombres -- el de la hoja cambió en algún
-  // momento y quedaron ambos en PARENT_CHILDREN para no romper meses
-  // viejos, así que acá se prueban los dos.
-  'Servicios Contratados Indirectos':{'Back Office':['Serv. Contratados Back','Serv. Contratados BC'],'IT':'Serv. Contratados IT','Administración':'Serv. Contratados Adm','RRHH':'Serv. Contratados RRHH','MKTG':'Serv. Contratados MKTG'},
+  // OJO: "Serv. Contratados BC" es Banca Corporativa (área de NEGOCIO),
+  // no Back Office -- no es parte del desglose por área de staff, por
+  // eso no está en este mapeo (queda afuera de esta tabla a propósito).
+  'Servicios Contratados Indirectos':{'Back Office':'Serv. Contratados Back','IT':'Serv. Contratados IT','Administración':'Serv. Contratados Adm','RRHH':'Serv. Contratados RRHH','MKTG':'Serv. Contratados MKTG'},
   'Gastos de Representación Indirectos':{'Back Office':'Gastos Representacion Back','IT':'Gastos Representacion IT','Administración':'Gastos Representacion Admin','RRHH':'Gastos Representacion RRHH','MKTG':'Gastos Representacion MKTG'},
   'Viaticos y Movilidad':{'Back Office':'Viaticos y Mov. Back','IT':'Viaticos y Mov. IT','Administración':'Viaticos y Mov. Adm','RRHH':'Viaticos y Mov. RRHH','MKTG':'Viaticos y Mov. MKTG'},
 };
