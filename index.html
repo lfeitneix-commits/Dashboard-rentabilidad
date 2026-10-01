@@ -1864,6 +1864,19 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     return{theadHTML:'',tbodyHTML:''};
   }
   const rows=d.annotated;
+  // Cuentas que agrupa el desplegable "Impuestos" (ver IMPUESTOS_SECID
+  // más abajo) -- identificadas por NOMBRE, no por posición. La hoja
+  // tiene otros rubros de Gastos Indirectos en el medio con el mismo
+  // _kind que estas cuentas y sin ningún marcador de sección entre
+  // medio, así que agrupar "todo lo que sea cuenta yendo para atrás
+  // desde Impuestos" terminaba arrastrando rubros que no son de
+  // impuestos (ver PR #189, revertido en #190).
+  const IMPUESTOS_SECID='imp-grp';
+  const IMPUESTOS_ITEM_NAMES=new Set(['Ingresos brutos','Impuestos Ley 25413','IIGG','IVA No Computable','Imp. Bs. Part. Accionaria','Impuesto a los Sellos','Impuestos Municipales, Tasas','Otros impuestos'].map(normSearch));
+  const impuestosGroupRows=new Set();
+  rows.forEach(r=>{
+    if((r._kind==='account'||r._kind==='subaccount')&&IMPUESTOS_ITEM_NAMES.has(normSearch(r._nom))) impuestosGroupRows.add(r);
+  });
   const showAreas=areaF&&areaF!=='Todas las áreas'?[areaF]:AREAS;
   const notesCol=d.notesCol;
   const isConsolidado=mesF==='__consolidado__';
@@ -2012,9 +2025,16 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const tot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(r,a):s,0);
     const label=r._nom||'';
     if(style==='section'){
-      return`<tr class="row-section">
+      // "Impuestos" se queda en su lugar (acá, junto a Resultado), pero
+      // con el mismo toggle que una subsección (ST.expandedSubs) -- al
+      // abrirlo muestra las cuentas marcadas en impuestosGroupRows, en
+      // el lugar donde ya estaban (debajo de Gastos Indirectos), sin
+      // reordenar nada.
+      const isImpuestos=/^Impuestos$/i.test(r._nom);
+      const impOpen=isImpuestos&&ST.expandedSubs.has(IMPUESTOS_SECID);
+      return`<tr class="row-section${impOpen?' sec-open':''}"${isImpuestos?` onclick="toggleSubsection('${IMPUESTOS_SECID}',this)" style="cursor:pointer"`:''}>
         ${showNumCol?'<td></td>':''}
-        <td>${r._nom}</td>
+        <td>${isImpuestos?'<span class="sec-toggle">▶</span>':''}${r._nom}${isImpuestos?`<span class="dist-badge" data-tip="Ver distribución en Matriz de gastos">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
         <td class="r" style="border-left:1px solid var(--border)">${fmtGasto(tot)}</td>
         ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
@@ -2168,7 +2188,20 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
       </tr>`;
     } else {
-      html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
+      // Cuentas de impuestos: ocultas por defecto, se muestran con el
+      // toggle de la fila "Impuestos" (ver footerRows más abajo) --
+      // mismo mecanismo que una subsección (toggleSubsection), por eso
+      // la clase es "sub-child-..." y no "sec-child-...": así el toggle
+      // de la sección que las contiene (Gastos Indirectos) las salta al
+      // abrirse, en vez de mostrarlas de una.
+      const isImpuestosItem=impuestosGroupRows.has(row);
+      const impVisible=!isImpuestosItem||ST.expandedSubs.has(IMPUESTOS_SECID);
+      const rowVisible=parentVisible&&impVisible;
+      const impClass=isImpuestosItem?` sub-child-${IMPUESTOS_SECID}`:'';
+      const stylePieces=[];
+      if(!rowVisible) stylePieces.push('display:none');
+      if(isMuted) stylePieces.push('color:#9A8E7D','font-style:italic');
+      html+=`<tr class="row-parent ${secClass} ${subClass}${impClass}"${stylePieces.length?` style="${stylePieces.join(';')}"`:''}>
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
