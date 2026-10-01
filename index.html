@@ -3067,7 +3067,7 @@ function buildGastosAreaTableHTML(){
   return `<div style="overflow-x:auto"><table>
     <thead><tr><th>Rubro</th>${STAFF_AREAS.map(a=>`<th class="r">${a}</th>`).join('')}<th class="r">Total</th></tr></thead>
     <tbody>${bodyRows||`<tr><td colspan="${STAFF_AREAS.length+2}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`}
-      <tr class="row-total-bordeaux"><td>TOTAL Gastos Indirectos</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td></tr>
+      <tr class="row-total-bordeaux"><td>TOTAL GASTOS</td>${totalesPorStaff.map(v=>`<td class="r">${fmtD(v)}</td>`).join('')}<td class="r">${fmtD(granTotal)}</td></tr>
     </tbody></table></div>`;
 }
 
