@@ -2034,7 +2034,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       const impOpen=isImpuestos&&ST.expandedSubs.has(IMPUESTOS_SECID);
       return`<tr class="row-section${impOpen?' sec-open':''}"${isImpuestos?` onclick="toggleSubsection('${IMPUESTOS_SECID}',this)" style="cursor:pointer"`:''}>
         ${showNumCol?'<td></td>':''}
-        <td>${isImpuestos?'<span class="sec-toggle">▶</span>':''}${r._nom}${isImpuestos?`<span class="dist-badge" data-tip="Ver distribución en Matriz de gastos">✦</span>`:''}</td>
+        <td>${isImpuestos?'<span class="sec-toggle">▶</span>':''}${r._nom}</td>
         ${vals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
         <td class="r" style="border-left:1px solid var(--border)">${fmtGasto(tot)}</td>
         ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
