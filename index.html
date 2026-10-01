@@ -1864,6 +1864,26 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     return{theadHTML:'',tbodyHTML:''};
   }
   const rows=d.annotated;
+  // Las cuentas de impuestos (Ingresos brutos, IIGG, IVA no computable,
+  // etc.) van antes de la fila "Impuestos" (el total, que se renderiza
+  // aparte más abajo como fila de pie), pero no pegadas -- en el medio
+  // están "GASTOS TOTALES" y "RESULTADO antes de impuestos" (ambas
+  // _kind:'skip'). Se marcan acá para poder ocultarlas/mostrarlas con el
+  // mismo toggle que el resto de las secciones (ver IMPUESTOS_SECID más
+  // abajo), sin moverlas de lugar -- "Impuestos" se queda donde está,
+  // cerca de Resultado, no sube arriba de sus ítems como los demás
+  // rubros desplegables.
+  const IMPUESTOS_SECID='imp-grp';
+  const impuestosIdx=rows.findIndex(r=>r._kind==='skip'&&/^Impuestos$/i.test(r._nom));
+  const impuestosGroupRows=new Set();
+  if(impuestosIdx>0){
+    for(let ii=impuestosIdx-1;ii>=0;ii--){
+      const rr=rows[ii];
+      if(rr._kind==='account'||rr._kind==='subaccount'){ impuestosGroupRows.add(rr); continue; }
+      if(rr._kind==='skip') continue; // GASTOS TOTALES / RESULTADO antes -- no cortan el grupo
+      break; // section/subsection/subtotal_dir: ahí termina
+    }
+  }
   const showAreas=areaF&&areaF!=='Todas las áreas'?[areaF]:AREAS;
   const notesCol=d.notesCol;
   const isConsolidado=mesF==='__consolidado__';
@@ -2012,9 +2032,15 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const tot=AREAS.reduce((s,a)=>showAreas.includes(a)?s+getAreaVal(r,a):s,0);
     const label=r._nom||'';
     if(style==='section'){
-      return`<tr class="row-section">
+      // "Impuestos" se queda en su lugar (acá, junto a Resultado), pero
+      // con el mismo toggle que el resto de las secciones -- al abrirlo
+      // muestra las cuentas (Ingresos brutos, IIGG, etc.) que se marcaron
+      // más arriba como impuestosGroupRows, en el lugar donde ya estaban.
+      const isImpuestos=/^Impuestos$/i.test(r._nom);
+      const impOpen=isImpuestos&&ST.expandedSubs.has(IMPUESTOS_SECID);
+      return`<tr class="row-section${impOpen?' sec-open':''}"${isImpuestos?` onclick="toggleSubsection('${IMPUESTOS_SECID}',this)" style="cursor:pointer"`:''}>
         ${showNumCol?'<td></td>':''}
-        <td>${r._nom}</td>
+        <td>${isImpuestos?'<span class="sec-toggle">▶</span>':''}${r._nom}${isImpuestos?`<span class="dist-badge" data-tip="Ver distribución en Matriz de gastos">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
         <td class="r" style="border-left:1px solid var(--border)">${fmtGasto(tot)}</td>
         ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
@@ -2168,7 +2194,22 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
       </tr>`;
     } else {
-      html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
+      // Ítems de Impuestos (Ingresos brutos, IIGG, etc.): ocultos por
+      // defecto, se muestran con el toggle de la fila "Impuestos" de más
+      // abajo (ver IMPUESTOS_SECID) -- sin esto quedan sueltos y siempre
+      // visibles, como se veía antes de este fix.
+      // Mismo mecanismo que una subsección (ver toggleSubsection): la
+      // clase "sub-child-..." hace que el toggle de la sección que las
+      // contiene (Gastos indirectos) las salte al abrirse (no se
+      // muestran hasta que se abre el grupo de Impuestos en particular).
+      const isImpuestosItem=impuestosGroupRows.has(row);
+      const impVisible=!isImpuestosItem||ST.expandedSubs.has(IMPUESTOS_SECID);
+      const rowVisible=parentVisible&&impVisible;
+      const impClass=isImpuestosItem?` sub-child-${IMPUESTOS_SECID}`:'';
+      const stylePieces=[];
+      if(!rowVisible) stylePieces.push('display:none');
+      if(isMuted) stylePieces.push('color:#9A8E7D','font-style:italic');
+      html+=`<tr class="row-parent ${secClass} ${subClass}${impClass}"${stylePieces.length?` style="${stylePieces.join(';')}"`:''}>
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
