@@ -2064,6 +2064,28 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     </tr>`;
   }
 
+  // Cuenta de impuestos (Ingresos brutos, IIGG, etc.), renderizada como
+  // hija de la fila "Impuestos" (ver footerRows) -- oculta por defecto,
+  // visible si se abrió el desplegable (mismo ST.expandedSubs que
+  // toggleSubsection).
+  function renderImpuestosChild(row){
+    const vals=showAreas.map(a=>getAreaVal(row,a));
+    const tot=vals.reduce((s,v)=>s+v,0);
+    const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
+    const notaMostrar=notaLiderSegura(row,rows,isConsolidado,mesF);
+    const impOpen=ST.expandedSubs.has(IMPUESTOS_SECID);
+    const stylePieces=[];
+    if(!impOpen) stylePieces.push('display:none');
+    if(isMuted) stylePieces.push('color:#9A8E7D','font-style:italic');
+    return`<tr class="row-child sub-child-${IMPUESTOS_SECID}"${stylePieces.length?` style="${stylePieces.join(';')}"`:''}>
+      ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
+      <td class="indent">${row._nom}</td>
+      ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
+      <td class="r">${tot?fmtD(tot):'—'}</td>
+      ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
+    </tr>`;
+  }
+
   // Para un líder de área todavía no se muestran los indirectos (la
   // asignación por área no está definida) -- se ocultan sin importar qué
   // tipo esté elegido en el filtro.
@@ -2168,6 +2190,13 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom)&&!(ST.area==='FAs'&&MZA_SPLIT_PARENTS.has(row._nom)))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
     const notaMostrar=notaLiderSegura(row,rows,isConsolidado,mesF);
 
+    // Cuentas de impuestos: no se renderizan acá (en su posición natural,
+    // arriba, pegadas a Gastos Indirectos) -- se renderizan junto a la
+    // fila "Impuestos" más abajo (ver footerRows), como hijas de ese
+    // desplegable. Buscando por nombre sí se muestran acá (comportamiento
+    // normal de cualquier cuenta en modo búsqueda).
+    if(!searchMode&&impuestosGroupRows.has(row)) return;
+
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
       html+=`<tr class="row-parent ${secClass} ${subClass}${parentOpen?' open':''}"${hiddenStyle} data-pid="${row._parentId}" onclick="toggleParent('${row._parentId}',this)" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
@@ -2188,20 +2217,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
       </tr>`;
     } else {
-      // Cuentas de impuestos: ocultas por defecto, se muestran con el
-      // toggle de la fila "Impuestos" (ver footerRows más abajo) --
-      // mismo mecanismo que una subsección (toggleSubsection), por eso
-      // la clase es "sub-child-..." y no "sec-child-...": así el toggle
-      // de la sección que las contiene (Gastos Indirectos) las salta al
-      // abrirse, en vez de mostrarlas de una.
-      const isImpuestosItem=impuestosGroupRows.has(row);
-      const impVisible=!isImpuestosItem||ST.expandedSubs.has(IMPUESTOS_SECID);
-      const rowVisible=parentVisible&&impVisible;
-      const impClass=isImpuestosItem?` sub-child-${IMPUESTOS_SECID}`:'';
-      const stylePieces=[];
-      if(!rowVisible) stylePieces.push('display:none');
-      if(isMuted) stylePieces.push('color:#9A8E7D','font-style:italic');
-      html+=`<tr class="row-parent ${secClass} ${subClass}${impClass}"${stylePieces.length?` style="${stylePieces.join(';')}"`:''}>
+      html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
@@ -2228,6 +2244,9 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     footerRows.forEach(({row:r,style})=>{
       if(!r) return;
       html+=renderFooterRow(r,style);
+      if(r===d.impuestosRow){
+        rows.filter(row=>impuestosGroupRows.has(row)).forEach(row=>{html+=renderImpuestosChild(row);});
+      }
     });
   }
 
