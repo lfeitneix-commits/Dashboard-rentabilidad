@@ -2780,7 +2780,7 @@ function buildInteranualTableRowsHTML(data,q){
   // gráfico de variación, así que tampoco tiene sentido en la tabla.
   rubros.filter(r=>r.esFijo).forEach((r,ci)=>{
     const rubroMatches=query&&normSearch(r.nombre).includes(query);
-    const providers=(!query||rubroMatches)?r.providers:r.providers.filter(p=>normSearch(p.nombre).includes(query));
+    const providers=(!query||rubroMatches)?r.providers:r.providers.filter(p=>nombreMatchesQuery(p.nombre,query));
     if(query&&!rubroMatches&&!providers.length) return;
     const tag=(!r.en2025?' '+INTERANUAL_TAG_NUEVO:'')+(!r.en2026?' '+INTERANUAL_TAG_BAJA:'');
     const cells=meses.map(mes=>montoCellHTML(r.perMes[mes].v2026)).join('');
@@ -3177,6 +3177,12 @@ const DISPLAY_ALIAS_PROVEEDOR={
 function displayNombre(nombre){
   return DISPLAY_ALIAS_PROVEEDOR[normSearch(nombre)]||nombre;
 }
+// El buscador tiene que encontrar también por el alias (ej. "nosis"),
+// no solo por el nombre real -- si no, agregar la aclaración sin esto
+// hacía que buscarla por el apodo no trajera nada.
+function nombreMatchesQuery(nombre,query){
+  return normSearch(nombre).includes(query)||normSearch(displayNombre(nombre)).includes(query);
+}
 
 // ── Popup "¿Qué hay dentro de Sin discriminar / Ajuste?" ──
 // Si hay detalle cargado (AJUSTES_DETALLE) para ese rubro/año/mes, el monto
@@ -3272,7 +3278,7 @@ function buildGfdTableHTML(q){
   let rowsHtml='';
   cuentas.forEach((c,ci)=>{
     const cuentaMatches=query&&normSearch(c.nombre).includes(query);
-    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>normSearch(p.nombre).includes(query));
+    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>nombreMatchesQuery(p.nombre,query));
     if(query&&!cuentaMatches&&!providers.length) return;
     const cid='cf-'+ci;
     const key=normSearch(c.nombre).replace(/'/g,"\\'");
@@ -4735,7 +4741,7 @@ function exportGastosFijosDetalle(){
   const data=[['Cuenta / Proveedor',...cols]];
   cuentas.forEach(c=>{
     const cuentaMatches=query&&normSearch(c.nombre).includes(query);
-    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>normSearch(p.nombre).includes(query));
+    const providers=(!query||cuentaMatches)?c.providers:c.providers.filter(p=>nombreMatchesQuery(p.nombre,query));
     if(query&&!cuentaMatches&&!providers.length) return;
     const totalVals=pick(c.total?c.total.vals:valCols.map(()=>0));
     data.push([c.nombre,...totalVals]);
