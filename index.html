@@ -2804,7 +2804,7 @@ function buildInteranualTableRowsHTML(data,q){
         const pCons25=meses.reduce((s,mes)=>s+p.perMes[mes].v2025,0);
         const pCons26=meses.reduce((s,mes)=>s+p.perMes[mes].v2026,0);
         rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
-          <td class="indent">${p.nombre}${ptag}</td>
+          <td class="indent">${displayNombre(p.nombre)}${ptag}</td>
           ${pcells}${deltaCellHTML(pCons25,pCons26,true)}
         </tr>`;
       });
@@ -3168,6 +3168,16 @@ function changeGfdView(v){
 const DIACRITICS_RE=new RegExp('[̀-ͯ]','g');
 const normSearch=s=>String(s||'').toLowerCase().normalize('NFD').replace(DIACRITICS_RE,'');
 
+// Aclaración al lado del nombre de un proveedor, solo para mostrar -- no
+// cambia el nombre real (normSearch(_nom) sigue igual), así que no rompe
+// el matching 2025 vs 2026 del análisis interanual.
+const DISPLAY_ALIAS_PROVEEDOR={
+  'lab. de inv. y d.':'Lab. de Inv. y D. (NOSIS)',
+};
+function displayNombre(nombre){
+  return DISPLAY_ALIAS_PROVEEDOR[normSearch(nombre)]||nombre;
+}
+
 // ── Popup "¿Qué hay dentro de Sin discriminar / Ajuste?" ──
 // Si hay detalle cargado (AJUSTES_DETALLE) para ese rubro/año/mes, el monto
 // se muestra clickeable y abre un popup con los movimientos del mayor
@@ -3282,7 +3292,7 @@ function buildGfdTableHTML(q){
     }
     providers.forEach(p=>{
       rowsHtml+=`<tr class="row-child${open?'':' hidden'}" data-parentid="${cid}">
-        <td class="indent">${p.nombre}</td>
+        <td class="indent">${displayNombre(p.nombre)}</td>
         ${pick(p.vals).map(v=>`<td class="${alignCls}">${v?fmtD(v):'—'}</td>`).join('')}
       </tr>`;
     });
@@ -4729,7 +4739,7 @@ function exportGastosFijosDetalle(){
     if(query&&!cuentaMatches&&!providers.length) return;
     const totalVals=pick(c.total?c.total.vals:valCols.map(()=>0));
     data.push([c.nombre,...totalVals]);
-    providers.forEach(p=>data.push(['  '+p.nombre,...pick(p.vals)]));
+    providers.forEach(p=>data.push(['  '+displayNombre(p.nombre),...pick(p.vals)]));
     if(c.ajuste&&(!query||cuentaMatches)) data.push(['  '+c.ajuste.label,...pick(c.ajuste.vals)]);
   });
   if(!query&&grandTotal) data.push([grandTotal.label,...pick(grandTotal.vals)]);
