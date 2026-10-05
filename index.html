@@ -1927,14 +1927,18 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   const notaJsEsc=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n]+/g,' ');
   // La columna "Notas" mostraba el texto completo en cada fila -- en
   // Consolidado eso ocupa demasiado espacio (filas enteras de texto en
-  // itálica). Ahora se trunca a un renglón y el texto completo se ve en
-  // un popup al hacer click (mismo estilo que el modal de Ajuste, ver
-  // openAjusteModal) -- a diferencia de un tooltip al hover, funciona
-  // también en touch/celular.
+  // itálica). Ahora, si la nota no entra en un renglón, se trunca y el
+  // texto completo se ve en un popup al hacer click (mismo estilo que el
+  // modal de Ajuste, ver openAjusteModal) -- a diferencia de un tooltip
+  // al hover, funciona también en touch/celular. Si la nota ya entra
+  // completa (ej. "Cena clientes Mora"), se muestra tal cual, sin popup
+  // -- no hay nada más para ver con el click.
+  const NOTA_MAX=26;
   const notaCellHTML=nota=>{
     nota=(nota||'').trim();
     if(!nota) return `<td class="note-cell"></td>`;
-    const corto=nota.length>26?nota.slice(0,26).trimEnd()+'…':nota;
+    if(nota.length<=NOTA_MAX) return `<td class="note-cell">${nota}</td>`;
+    const corto=nota.slice(0,NOTA_MAX).trimEnd()+'…';
     const arg=escAttrNota(notaJsEsc(nota));
     return `<td class="note-cell"><span class="ajuste-link" onclick="event.stopPropagation();openNotaModal('${arg}')">${corto}</span></td>`;
   };
