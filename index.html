@@ -164,9 +164,6 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .dist-badge{display:inline;color:var(--bordeaux);font-size:10px;cursor:help;margin-left:3px;position:relative;vertical-align:middle}
 .dist-badge::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--grafito);color:#fff;padding:5px 9px;border-radius:5px;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:400;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50;font-style:normal}
 .dist-badge:hover::after{opacity:1}
-.monto-nota{cursor:help;position:relative;border-bottom:1px dotted var(--muted)}
-.monto-nota::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);right:0;background:var(--grafito);color:#fff;padding:8px 10px;border-radius:6px;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:400;font-style:normal;text-align:left;white-space:normal;width:260px;line-height:1.4;pointer-events:none;opacity:0;transition:opacity .15s;z-index:60}
-.monto-nota:hover::after{opacity:1}
 
 .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:500;background:var(--crema);color:var(--muted);border:1px solid var(--border)}
 .chip{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
@@ -3116,15 +3113,17 @@ function buildGastosAreaTableHTML(){
   };
   const notaDe=childName=>notaAclaracion(childName)||notaHoja(childName);
   const escAttr=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const notaJsEsc=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n]+/g,' ');
   // Celda de monto: si hay nota para esa área, el número queda subrayado
-  // punteado y la nota aparece al pasar el mouse por arriba (mismo
-  // mecanismo que .dist-badge, adaptado para texto largo que necesita
-  // ajustarse en varias líneas en vez de una tira sin cortes).
+  // punteado y abre un popup con la nota completa al hacer click (mismo
+  // mecanismo que la columna "Notas" de EERR Neix -- un tooltip al hover
+  // no se ve en touch/celular).
   const montoCellConNota=(v,nota)=>{
     if(v==null) return `<td class="r" style="color:var(--muted)">—</td>`;
     const disp=v?fmtD(v):'—';
     if(!v||!nota) return `<td class="r">${disp}</td>`;
-    return `<td class="r"><span class="monto-nota" data-tip="${escAttr(nota)}">${disp}</span></td>`;
+    const arg=escAttr(notaJsEsc(nota));
+    return `<td class="r"><span class="ajuste-link" onclick="event.stopPropagation();openNotaModal('${arg}')">${disp}</span></td>`;
   };
   const totalesPorStaff=STAFF_AREAS.map(()=>0);
   const bodyRows=Object.keys(STAFF_SUFIJO_HIJO).map(rubroNombre=>{
