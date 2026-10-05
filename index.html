@@ -1932,12 +1932,16 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
   // modal de Ajuste, ver openAjusteModal) -- a diferencia de un tooltip
   // al hover, funciona también en touch/celular. Si la nota ya entra
   // completa (ej. "Cena clientes Mora"), se muestra tal cual, sin popup
-  // -- no hay nada más para ver con el click.
+  // -- no hay nada más para ver con el click. Si trunca pero solo tapa
+  // un puñado de letras (ej. deja afuera solo la "F" de "YPF"), tampoco
+  // vale la pena el popup para eso -- NOTA_SLACK deja pasar entera
+  // cualquier nota que exceda el máximo por poco.
   const NOTA_MAX=26;
+  const NOTA_SLACK=8;
   const notaCellHTML=nota=>{
     nota=(nota||'').trim();
     if(!nota) return `<td class="note-cell"></td>`;
-    if(nota.length<=NOTA_MAX) return `<td class="note-cell">${nota}</td>`;
+    if(nota.length<=NOTA_MAX+NOTA_SLACK) return `<td class="note-cell">${nota}</td>`;
     const corto=nota.slice(0,NOTA_MAX).trimEnd()+'…';
     const arg=escAttrNota(notaJsEsc(nota));
     return `<td class="note-cell"><span class="ajuste-link" onclick="event.stopPropagation();openNotaModal('${arg}')">${corto}</span></td>`;
