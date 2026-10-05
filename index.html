@@ -1912,6 +1912,17 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const n=getNote(row);
     return n||'Ver distribución en Matriz de gastos';
   };
+  const escAttrNota=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  // La columna "Notas" mostraba el texto completo en cada fila -- en
+  // Consolidado eso ocupa demasiado espacio (filas enteras de texto en
+  // itálica). Ahora se trunca y el texto completo aparece al pasar el
+  // mouse (mismo mecanismo que montoCellConNota en Áreas de Staff).
+  const notaCellHTML=nota=>{
+    nota=(nota||'').trim();
+    if(!nota) return `<td class="note-cell"></td>`;
+    const corto=nota.length>26?nota.slice(0,26).trimEnd()+'…':nota;
+    return `<td class="note-cell"><span class="monto-nota" data-tip="${escAttrNota(nota)}">${corto}</span></td>`;
+  };
 
   // Pre-process: reorder rows so subsection headers appear BEFORE their items
   // Current CSV order: items → subsection closing row
@@ -2037,7 +2048,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td>${isImpuestos?'<span class="sec-toggle">▶</span>':''}${r._nom}</td>
         ${vals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
         <td class="r" style="border-left:1px solid var(--border)">${fmtGasto(tot)}</td>
-        ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
+        ${notesCol?notaCellHTML(getConsNote(r)):''}
       </tr>`;
     }
     let trStyle,labelStyle,valStyle;
@@ -2060,7 +2071,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       <td style="${labelStyle}">${label}</td>
       ${vals.map(v=>`<td class="r" style="${valStyle(v)}">${fmtVal(v)}</td>`).join('')}
       <td class="r" style="${valStyle(tot)};border-left:1px solid var(--border)">${fmtVal(tot)}</td>
-      ${notesCol?`<td class="note-cell">${getConsNote(r)}</td>`:''}
+      ${notesCol?notaCellHTML(getConsNote(r)):''}
     </tr>`;
   }
 
@@ -2082,7 +2093,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
       <td class="indent">${row._nom}</td>
       ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
       <td class="r">${tot?fmtD(tot):'—'}</td>
-      ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
+      ${notesCol?notaCellHTML(notaMostrar):''}
     </tr>`;
   }
 
@@ -2115,7 +2126,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
           <td style="font-weight:700">${row._seclabel}</td>
           ${sVals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
           <td class="r">${sTot?fmtD(sTot):'—'}</td>
-          ${notesCol&&!(ST.role==='lideres'&&ST.area!=='Mesa')?`<td class="note-cell">${getConsNote(row)}</td>`:notesCol?'<td class="note-cell"></td>':''}
+          ${notesCol&&!(ST.role==='lideres'&&ST.area!=='Mesa')?notaCellHTML(getConsNote(row)):notesCol?'<td class="note-cell"></td>':''}
         </tr>`;
       } else {
         const secIsOpen=ST.expandedSecs.has(currentSecId);
@@ -2124,7 +2135,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
           <td><span class="sec-toggle">▶</span>${row._seclabel}</td>
           ${sVals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
           <td class="r">${fmtGasto(sTot)}</td>
-          ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
+          ${notesCol?notaCellHTML(isConsolidado?getConsNote(row):row._note):''}
         </tr>`;
       }
       return;
@@ -2156,7 +2167,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td>${row._noToggle?'':'<span class="subsec-toggle">▶</span>'}${row._seclabel}${isImpuestos?`<span class="dist-badge" data-tip="Ver distribución en Matriz de gastos">✦</span>`:''}</td>
         ${sVals.map(v=>`<td class="r">${fmtGasto(v)}</td>`).join('')}
         <td class="r">${fmtGasto(sTot)}</td>
-        ${notesCol?`<td class="note-cell">${isConsolidado?getConsNote(row):row._note||''}</td>`:''}
+        ${notesCol?notaCellHTML(isConsolidado?getConsNote(row):row._note):''}
       </tr>`;
       return;
     }
@@ -2204,7 +2215,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</div></td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r" style="font-weight:600">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
+        ${notesCol?notaCellHTML(notaMostrar):''}
       </tr>`;
     } else if(row._child){
       const childVisible=ST.expandedRows.has(row._parentId);
@@ -2214,7 +2225,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td class="indent">${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
+        ${notesCol?notaCellHTML(notaMostrar):''}
       </tr>`;
     } else {
       html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
@@ -2222,7 +2233,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
         <td class="r">${tot?fmtD(tot):'—'}</td>
-        ${notesCol?`<td class="note-cell">${notaMostrar}</td>`:''}
+        ${notesCol?notaCellHTML(notaMostrar):''}
       </tr>`;
     }
   });
