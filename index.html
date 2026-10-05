@@ -1913,15 +1913,19 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     return n||'Ver distribución en Matriz de gastos';
   };
   const escAttrNota=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const notaJsEsc=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n]+/g,' ');
   // La columna "Notas" mostraba el texto completo en cada fila -- en
   // Consolidado eso ocupa demasiado espacio (filas enteras de texto en
-  // itálica). Ahora se trunca y el texto completo aparece al pasar el
-  // mouse (mismo mecanismo que montoCellConNota en Áreas de Staff).
+  // itálica). Ahora se trunca a un renglón y el texto completo se ve en
+  // un popup al hacer click (mismo estilo que el modal de Ajuste, ver
+  // openAjusteModal) -- a diferencia de un tooltip al hover, funciona
+  // también en touch/celular.
   const notaCellHTML=nota=>{
     nota=(nota||'').trim();
     if(!nota) return `<td class="note-cell"></td>`;
     const corto=nota.length>26?nota.slice(0,26).trimEnd()+'…':nota;
-    return `<td class="note-cell"><span class="monto-nota" data-tip="${escAttrNota(nota)}">${corto}</span></td>`;
+    const arg=escAttrNota(notaJsEsc(nota));
+    return `<td class="note-cell"><span class="ajuste-link" onclick="event.stopPropagation();openNotaModal('${arg}')">${corto}</span></td>`;
   };
 
   // Pre-process: reorder rows so subsection headers appear BEFORE their items
@@ -3260,7 +3264,28 @@ function openAjusteModal(rubro,year,mes,cellV){
 function closeAjusteModal(){
   document.getElementById('ajuste-modal-overlay')?.remove();
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAjusteModal();});
+
+// ── Popup con el texto completo de una nota de cuenta (columna "Notas") ──
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function openNotaModal(nota){
+  const html=`<div id="nota-modal-overlay" onclick="if(event.target===this)closeNotaModal()" style="position:fixed;inset:0;z-index:1000;background:rgba(61,61,61,.55);display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);border-radius:12px;max-width:440px;width:100%;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25)">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div style="font-size:13px;font-weight:700;color:var(--grafito)">Nota</div>
+        <span onclick="closeNotaModal()" style="cursor:pointer;font-size:20px;color:var(--muted);line-height:1;padding:2px 6px">×</span>
+      </div>
+      <div style="overflow-y:auto;padding:16px 20px;font-size:13px;color:var(--grafito);line-height:1.5">${escHtml(nota)}</div>
+    </div>
+  </div>`;
+  closeNotaModal();
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function closeNotaModal(){
+  document.getElementById('nota-modal-overlay')?.remove();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAjusteModal();closeNotaModal();}});
 
 // En Consolidado se muestran todos los meses de la hoja (+ Total Semestre).
 // Con un mes puntual seleccionado, se muestra solo la columna de ese mes.
