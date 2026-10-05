@@ -1167,23 +1167,37 @@ function notaLiderSeguraUnMes(row,rows,mes){
 // En Consolidado se juntan las notas "seguras" de todos los meses (mismo
 // cálculo que se vería entrando a cada mes -- incluye Viajes separado por
 // persona/viaje y Eventos empresariales sumado), sin decir de qué mes es
-// cada una y sin repetir dos veces el mismo texto. Las cuentas "ya
-// descontadas de la facturación de la mesa" traen un monto distinto cada
-// mes en el texto -- se normalizan a un texto fijo antes de deduplicar,
-// si no cada mes cuenta como "distinto" y se listan todos por separado.
+// cada una. La nota suele ser una lista de ítems separados por coma (ej.
+// "Cuota X, Cuota Y") y la lista cambia de mes a mes (alguien se suma o
+// se va) -- juntar antes el TEXTO ENTERO de cada mes hacía que un mismo
+// ítem apareciera repetido una vez por cada combinación de mes donde
+// estuvo. Ahora se deduplica por ítem (separando por coma), comparando
+// sin may/min ni acentos (normSearch) para que variantes de tipeo del
+// mismo ítem (ej. "Agustín"/"Agustin") no cuenten como dos cosas
+// distintas. Las cuentas "ya descontadas de la facturación de la mesa"
+// traen un monto distinto cada mes en el texto -- se normalizan a un
+// texto fijo antes de deduplicar, si no cada mes cuenta como "distinto".
 function notaLiderSegura(row,rows,isConsolidado,mes){
   if(!isConsolidado) return notaLiderSeguraUnMes(row,rows,mes);
-  const textos=new Set();
+  const vistos=new Map();
   for(const m of ST.meses){
     const md=ST.mesData[m];
     if(!md) continue;
     const rowMes=md.annotated.find(r=>r._nom===row._nom);
     if(!rowMes) continue;
-    let n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
-    if(n&&/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(n)) n='(gasto ya descontado de la facturación de la mesa)';
-    if(n) textos.add(n);
+    const n=notaLiderSeguraUnMes(rowMes,md.annotated,m);
+    if(!n) continue;
+    if(/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(n)){
+      const fijo='(gasto ya descontado de la facturación de la mesa)';
+      vistos.set(normSearch(fijo),fijo);
+      continue;
+    }
+    n.split(',').map(s=>s.trim()).filter(Boolean).forEach(item=>{
+      const key=normSearch(item);
+      if(!vistos.has(key)) vistos.set(key,item);
+    });
   }
-  return [...textos].join(' | ');
+  return [...vistos.values()].join(', ');
 }
 
 // ── BUILD AGG ───────────────────────────────────────────────────
