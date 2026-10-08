@@ -107,7 +107,7 @@ def usd2(n):
     return f"{sign}{integer.replace(',', '.')},{dec}"
 
 
-def build(data, mes_label, out_path):
+def build(data, mes_label, out_path, bullets_extra=None):
     story = []
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle('H2White', fontName='DMSans-Bold', fontSize=11.5, textColor=colors.white))
@@ -400,10 +400,12 @@ def build(data, mes_label, out_path):
     ]))
     story.append(kpis)
 
-    # ── Análisis del mes: placeholder mecánico -- Claude revisa y ajusta a
-    # mano antes de publicar (ver docstring del módulo). Señala lo mínimo
-    # verificable automáticamente: facturación negativa, mayor rubro que
-    # subió, y áreas con ratio Gastos/Facturación por encima de 100%. ──
+    # ── Análisis del mes: arranca con lo mínimo verificable automáticamente
+    # (facturación negativa, mayor rubro que subió) y, si se pasaron
+    # --bullet por CLI, los suma en vez del placeholder genérico -- ver
+    # docstring del módulo y el README de este directorio para el criterio
+    # de cuándo conviene escribir uno a mano (el "por qué", no repetir
+    # números que ya están en las tablas). ──
     section_title("ANÁLISIS DEL MES")
     bullets = []
     if fact_act <= 0:
@@ -417,7 +419,10 @@ def build(data, mes_label, out_path):
             f"{top['nombre']} fue el rubro que más subió ({'+' if top['deltaPct'] >= 0 else ''}{top['deltaPct']:.1f}%, "
             f"de {num(top['anterior'])} a {num(top['actual'])})."
         )
-    bullets.append("[Completar a mano: por qué pasó lo de arriba, y cualquier otra cosa llamativa de este mes.]")
+    if bullets_extra:
+        bullets.extend(bullets_extra)
+    else:
+        bullets.append("[Completar a mano: por qué pasó lo de arriba, y cualquier otra cosa llamativa de este mes.]")
     for b in bullets:
         story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
         story.append(Spacer(1, 4))
@@ -440,13 +445,13 @@ def build(data, mes_label, out_path):
         data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                    [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
 
-    # ── Proveedores recurrentes con mayor pago ──
+    # ── Proveedores con mayor variación (no los de mayor monto -- ver nota
+    # en extract_data.js sobre el filtro anterior>0 && actual>0) ──
     if data['proveedores']:
-        section_title("PROVEEDORES RECURRENTES CON MAYOR PAGO")
+        section_title("PROVEEDORES CON MAYOR VARIACIÓN")
         rows = []
         for p in data['proveedores'][:5]:
-            cell = var_cell(0.0) if p['anterior'] == 0 else var_cell((p['actual'] - p['anterior']) / p['anterior'] * 100)
-            rows.append([p['nombre'], num(p['anterior']), num(p['actual']), cell])
+            rows.append([p['nombre'], num(p['anterior']), num(p['actual']), var_cell(p['deltaPct'])])
         data_table(["Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                    [65 * mm, 26 * mm, 26 * mm, CONTENT_W - 65 * mm - 52 * mm], var_colidx=3)
 
@@ -541,13 +546,6 @@ def build(data, mes_label, out_path):
         plain_table(["Área", "Empleados", "Facturación / empleado", "Costo / empleado"], rows,
                     [col_a, col_rest, col_rest, col_rest])
 
-        rows = [[a['area'], num(a['operaciones']) if a['operaciones'] else '—',
-                 usd2(a['costoBackOffice'] / a['operaciones']) if a['operaciones'] and a['costoBackOffice'] is not None else '—']
-                for a in ue['porArea']]
-        col_op, col_costo = 55 * mm, 70 * mm
-        plain_table(["Área", "Operaciones / mes (prom.)", "Costo Back Office / operación"], rows,
-                    [CONTENT_W - col_op - col_costo, col_op, col_costo])
-
     # ── Excepciones / no recurrentes: gastos puntuales identificados por
     # palabra clave en la nota de la cuenta (ver EXCEPCION_KEYWORDS en
     # extract_data.js). Vacío si no hubo ninguno en los meses cargados. ──
@@ -591,11 +589,14 @@ if __name__ == '__main__':
     ap.add_argument('--out', default='reporte.pdf')
     ap.add_argument('--mes-label', default=None, help='Ej. "Agosto 2026" -- si no se pasa, se arma de mesActual + --anio')
     ap.add_argument('--anio', default=None)
+    ap.add_argument('--bullet', action='append', default=[],
+                     help='Línea de "Análisis del mes" escrita a mano (repetible, 1-3 veces). '
+                          'Si no se pasa ninguna, queda el placeholder "[Completar a mano: ...]".')
     args = ap.parse_args()
 
     with open(args.data, encoding='utf-8') as f:
         data = json.load(f)
 
     mes_label = args.mes_label or (f"{data['mesActual']} {args.anio}" if args.anio else data['mesActual'])
-    build(data, mes_label, args.out)
+    build(data, mes_label, args.out, bullets_extra=args.bullet)
     print(f"OK: {args.out}")

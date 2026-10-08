@@ -83,7 +83,9 @@ const APP = context.__APP__;
   const meses = ST.meses;
   const mesActual = meses[meses.length - 1];
   const mesAnterior = meses.length > 1 ? meses[meses.length - 2] : null;
-  const mesesTrend = meses.slice(-6);
+  // Todos los meses cargados -- el Sheet tiene una hoja por mes del año en
+  // curso (Enero..mesActual), así que esto ya es "desde principio de año".
+  const mesesTrend = meses;
 
   const kpiFor = (mes) => {
     const d = ST.mesData[mes];
@@ -123,8 +125,12 @@ const APP = context.__APP__;
       .sort((a, b) => b.deltaPct - a.deltaPct);
   }
 
-  // Proveedores (Gastos Fijos Detalle): todos, con su monto del mes actual y
-  // anterior -- build_report.py decide cuántos mostrar y cómo ordenarlos.
+  // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --
+  // ordenado por |variación %|, no por monto absoluto, para que salten a la
+  // vista los cambios bruscos aunque el proveedor no sea de los más caros.
+  // Se filtra a pares con monto > 0 en AMBOS meses (mismo criterio que
+  // rubrosVariacion): evita el artefacto de "+infinito%" de un proveedor
+  // que apareció de la nada o uno que bajó a cero.
   let proveedores = [];
   const gfd = ST.gastosFijosDetalle;
   if (gfd && mesAnterior) {
@@ -136,14 +142,18 @@ const APP = context.__APP__;
           proveedores.push({ nombre: p.nombre, cuenta: cuenta.nombre, anterior: p.vals[idxAnterior], actual: p.vals[idxActual] });
         });
       });
-      proveedores.sort((a, b) => b.actual - a.actual);
+      proveedores = proveedores
+        .filter(p => p.anterior > 0 && p.actual > 0)
+        .map(p => ({ ...p, deltaPct: (p.actual - p.anterior) / p.anterior * 100 }))
+        .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
     }
   }
 
-  // Unit economics (cruza "CÁLCULOS AUX" de la Matriz -- comitentes,
-  // empleados, operaciones promedio por área -- con Gastos Totales y
-  // Sueldos y CS Back del mes más reciente). No reimplementa nada que no
-  // esté ya en el sheet: solo arma los cocientes.
+  // Unit economics (cruza "CÁLCULOS AUX" de la Matriz -- comitentes y
+  // empleados promedio por área -- con Gastos Totales del mes más
+  // reciente). No reimplementa nada que no esté ya en el sheet: solo arma
+  // los cocientes. No incluye operaciones/comitente: el dato de
+  // "Operaciones promedio" de Mesa en la Matriz no es confiable todavía.
   const parseNum = APP.parseNum;
   function matrizAuxRow(labelSubstr) {
     if (!ST.matrizData) return null;
@@ -164,21 +174,17 @@ const APP = context.__APP__;
     const comitentesRow = matrizAuxRow('comitentes totales');
     const empleadosRow = matrizAuxRow('empleados');
     const factPromRow = matrizAuxRow('facturación promedio');
-    const operacionesRow = matrizAuxRow('operaciones promedio');
     const d = ST.mesData[mesActual];
-    if (d && comitentesRow && empleadosRow && factPromRow && operacionesRow) {
+    if (d && comitentesRow && empleadosRow && factPromRow) {
       const gastosTotales = d.gastosTotalesRow;
-      const sueldosBackRow = (d.annotated || []).find(r => r._nom && r._nom.trim() === 'Sueldos y CS Back');
       unitEconomics = {
         mes: mesActual,
         porArea: AREAS_.map(a => ({
           area: a,
           comitentes: matrizAuxVal(comitentesRow, a),
           empleados: matrizAuxVal(empleadosRow, a),
-          operaciones: matrizAuxVal(operacionesRow, a),
           facturacionPromedio: matrizAuxVal(factPromRow, a),
           gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
-          costoBackOffice: sueldosBackRow ? getAreaVal(sueldosBackRow, a) : null,
         })),
       };
     }
