@@ -63,7 +63,7 @@ let code = extractScript(indexPath);
 // en el mismo scope léxico, para poder usarlos después desde Node.
 code += `
 this.__APP__ = {
-  ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy,
+  ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy, parseNum,
 };`;
 const context = vm.createContext(sandbox);
 vm.runInContext(code, context, { filename: 'index.html#script' });
@@ -140,6 +140,70 @@ const APP = context.__APP__;
     }
   }
 
+  // Unit economics (cruza "CÁLCULOS AUX" de la Matriz -- comitentes,
+  // empleados, operaciones promedio por área -- con Gastos Totales y
+  // Sueldos y CS Back del mes más reciente). No reimplementa nada que no
+  // esté ya en el sheet: solo arma los cocientes.
+  const parseNum = APP.parseNum;
+  function matrizAuxRow(labelSubstr) {
+    if (!ST.matrizData) return null;
+    const needle = labelSubstr.toLowerCase();
+    return ST.matrizData.find(r => {
+      const nom = String(Object.values(r)[0] || Object.values(r)[1] || '').trim().toLowerCase();
+      return nom.startsWith(needle);
+    }) || null;
+  }
+  function matrizAuxVal(row, area) {
+    if (!row) return 0;
+    const col = area === 'FAs' ? 'FAs + Mza' : area;
+    const key = Object.keys(row).find(k => k.trim() === col) || col;
+    return parseNum(row[key]);
+  }
+  let unitEconomics = null;
+  {
+    const comitentesRow = matrizAuxRow('comitentes totales');
+    const empleadosRow = matrizAuxRow('empleados');
+    const factPromRow = matrizAuxRow('facturación promedio');
+    const operacionesRow = matrizAuxRow('operaciones promedio');
+    const d = ST.mesData[mesActual];
+    if (d && comitentesRow && empleadosRow && factPromRow && operacionesRow) {
+      const gastosTotales = d.gastosTotalesRow;
+      const sueldosBackRow = (d.annotated || []).find(r => r._nom && r._nom.trim() === 'Sueldos y CS Back');
+      unitEconomics = {
+        mes: mesActual,
+        porArea: AREAS_.map(a => ({
+          area: a,
+          comitentes: matrizAuxVal(comitentesRow, a),
+          empleados: matrizAuxVal(empleadosRow, a),
+          operaciones: matrizAuxVal(operacionesRow, a),
+          facturacionPromedio: matrizAuxVal(factPromRow, a),
+          gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
+          costoBackOffice: sueldosBackRow ? getAreaVal(sueldosBackRow, a) : null,
+        })),
+      };
+    }
+  }
+
+  // Excepciones / no recurrentes: la hoja no tiene un flag propio, se infiere
+  // de la nota de la cuenta. Lista a mano (ver README de este directorio) --
+  // agregar acá cualquier palabra/frase nueva que corresponda a un gasto
+  // puntual (viajes, trámites puntuales, obras), no estructural.
+  const EXCEPCION_KEYWORDS = [/ushuaia/i, /banco santa fe/i, /obra.*mant.*oficina/i, /mant.*oficina.*obra/i];
+  const excepciones = [];
+  ST.meses.forEach(m => {
+    const d = ST.mesData[m];
+    if (!d) return;
+    d.annotated.forEach(row => {
+      if (row._kind !== 'account' && row._kind !== 'subaccount') return;
+      const nota = (row._allNotes || row._note || '').trim();
+      if (!nota) return;
+      if (!EXCEPCION_KEYWORDS.some(re => re.test(nota))) return;
+      const monto = AREAS_.reduce((s, a) => s + getAreaVal(row, a), 0);
+      if (!monto) return;
+      excepciones.push({ mes: m, cuenta: row._nom, nota, monto });
+    });
+  });
+
   const out = {
     mesActual,
     mesAnterior,
@@ -153,6 +217,8 @@ const APP = context.__APP__;
     ingresosPorAreaActual: ingresosPorArea(mesActual),
     rubrosVariacion,
     proveedores,
+    unitEconomics,
+    excepciones,
   };
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
   console.error(`OK. Mes actual: ${mesActual}${mesAnterior ? ', anterior: ' + mesAnterior : ' (sin mes anterior -- es el primero cargado)'}. Guardado en ${outPath}`);

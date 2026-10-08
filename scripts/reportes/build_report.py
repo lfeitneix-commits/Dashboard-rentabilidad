@@ -97,6 +97,16 @@ def num(n):
     return f"{sign}{abs(n):,.0f}".replace(',', '.')
 
 
+def usd2(n):
+    # Igual que fmtD() del dashboard: 2 decimales, separador de miles "."
+    # y de decimales ",", para montos "por unidad" (facturación/comitente,
+    # costo/empleado, etc.) donde redondear a entero pierde demasiado.
+    sign = '-' if n < 0 else ''
+    s = f"{abs(n):,.2f}"
+    integer, dec = s.split('.')
+    return f"{sign}{integer.replace(',', '.')},{dec}"
+
+
 def build(data, mes_label, out_path):
     story = []
     styles = getSampleStyleSheet()
@@ -503,6 +513,72 @@ def build(data, mes_label, out_path):
         ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(ratios_row)
+
+    # ── Unit economics: cruza "CÁLCULOS AUX" de la Matriz (comitentes,
+    # empleados, operaciones promedio por área) con Gastos Totales y Sueldos
+    # y CS Back del mes actual. Si el Sheet no tiene esos datos todavía
+    # (hoja Matriz sin la sección CÁLCULOS AUX), extract_data.js manda
+    # unitEconomics=null y esta sección se omite en vez de romper. ──
+    ue = data.get('unitEconomics')
+    if ue:
+        section_title("UNIT ECONOMICS")
+        story.append(Paragraph(f"Datos de {ue['mes']}", styles['NotaChica']))
+        story.append(Spacer(1, 4))
+        col_a = 48 * mm
+        col_rest = (CONTENT_W - col_a) / 3
+
+        rows = [[a['area'], num(a['comitentes']) if a['comitentes'] else '—',
+                 usd2(a['facturacionPromedio'] / a['comitentes']) if a['comitentes'] else '—',
+                 usd2(a['gastoTotal'] / a['comitentes']) if a['comitentes'] else '—']
+                for a in ue['porArea']]
+        plain_table(["Área", "Comitentes", "Facturación / comitente", "Costo / comitente"], rows,
+                    [col_a, col_rest, col_rest, col_rest])
+
+        rows = [[a['area'], num(a['empleados']) if a['empleados'] else '—',
+                 usd2(a['facturacionPromedio'] / a['empleados']) if a['empleados'] else '—',
+                 usd2(a['gastoTotal'] / a['empleados']) if a['empleados'] else '—']
+                for a in ue['porArea']]
+        plain_table(["Área", "Empleados", "Facturación / empleado", "Costo / empleado"], rows,
+                    [col_a, col_rest, col_rest, col_rest])
+
+        rows = [[a['area'], num(a['operaciones']) if a['operaciones'] else '—',
+                 usd2(a['costoBackOffice'] / a['operaciones']) if a['operaciones'] and a['costoBackOffice'] is not None else '—']
+                for a in ue['porArea']]
+        col_op, col_costo = 55 * mm, 70 * mm
+        plain_table(["Área", "Operaciones / mes (prom.)", "Costo Back Office / operación"], rows,
+                    [CONTENT_W - col_op - col_costo, col_op, col_costo])
+
+    # ── Excepciones / no recurrentes: gastos puntuales identificados por
+    # palabra clave en la nota de la cuenta (ver EXCEPCION_KEYWORDS en
+    # extract_data.js). Vacío si no hubo ninguno en los meses cargados. ──
+    excepciones = data.get('excepciones') or []
+    if excepciones:
+        section_title("EXCEPCIONES / NO RECURRENTES")
+        nota_style = ParagraphStyle('ExcNota', fontName='DMSans', fontSize=8.5, textColor=MUTED, leading=11)
+        col_mes, col_cuenta, col_monto = 20 * mm, 38 * mm, 26 * mm
+        col_nota = CONTENT_W - col_mes - col_cuenta - col_monto
+        rows = [[e['mes'], e['cuenta'], Paragraph(e['nota'], nota_style), usd(e['monto'])] for e in excepciones]
+        total = sum(e['monto'] for e in excepciones)
+        table_data = [["Mes", "Cuenta", "Nota", "Monto"]] + rows + [['', '', 'Total', usd(total)]]
+        t = Table(table_data, colWidths=[col_mes, col_cuenta, col_nota, col_monto])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'DMSans'),
+            ('FONTNAME', (-1, 1), (-1, -1), 'DMMono-Medium'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EDEAE4')),
+            ('FONTNAME', (0, 0), (-1, 0), 'DMSans-Bold'),
+            ('FONTNAME', (-1, -1), (-1, -1), 'DMSans-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9.5),
+            ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, CREMA]),
+            ('TOPPADDING', (0, 0), (-1, -1), 5.5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5.5),
+            ('LINEABOVE', (0, -1), (-1, -1), 0.6, BORDER),
+            ('LINEBELOW', (0, -1), (-1, -1), 0.6, BORDER),
+            ('BOX', (0, 0), (-1, -1), 0.6, BORDER),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 4))
 
     doc = SimpleDocTemplate(out_path, pagesize=letter, topMargin=HEADER_H + 11 * mm, bottomMargin=17 * mm,
                              leftMargin=MARGIN, rightMargin=MARGIN)
