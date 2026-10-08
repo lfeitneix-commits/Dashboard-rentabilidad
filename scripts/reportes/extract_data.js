@@ -129,8 +129,11 @@ const APP = context.__APP__;
   // ordenado por |variación %|, no por monto absoluto, para que salten a la
   // vista los cambios bruscos aunque el proveedor no sea de los más caros.
   // Se filtra a pares con monto > 0 en AMBOS meses (mismo criterio que
-  // rubrosVariacion): evita el artefacto de "+infinito%" de un proveedor
-  // que apareció de la nada o uno que bajó a cero.
+  // rubrosVariacion, evita el artefacto de "+infinito%" de un proveedor que
+  // apareció de la nada o uno que bajó a cero) y, además, a montos de este
+  // mes > USD 500 -- por debajo de eso el % puede ser enorme (ej. Slack de
+  // 9 a 24) sin que importe en términos absolutos.
+  const PROVEEDOR_MONTO_MIN = 500;
   let proveedores = [];
   const gfd = ST.gastosFijosDetalle;
   if (gfd && mesAnterior) {
@@ -143,7 +146,7 @@ const APP = context.__APP__;
         });
       });
       proveedores = proveedores
-        .filter(p => p.anterior > 0 && p.actual > 0)
+        .filter(p => p.anterior > 0 && p.actual > 0 && p.actual > PROVEEDOR_MONTO_MIN)
         .map(p => ({ ...p, deltaPct: (p.actual - p.anterior) / p.anterior * 100 }))
         .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
     }
