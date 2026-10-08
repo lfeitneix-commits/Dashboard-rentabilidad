@@ -401,18 +401,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
     story.append(kpis)
 
     # ── Análisis del mes: arranca con lo mínimo verificable automáticamente
-    # (facturación negativa, mayor rubro que subió) y, si se pasaron
-    # --bullet por CLI, los suma en vez del placeholder genérico -- ver
-    # docstring del módulo y el README de este directorio para el criterio
-    # de cuándo conviene escribir uno a mano (el "por qué", no repetir
-    # números que ya están en las tablas). ──
-    section_title("ANÁLISIS DEL MES")
+    # (mayor rubro que subió) y, si se pasaron --bullet por CLI, los suma en
+    # vez del placeholder genérico -- ver docstring del módulo y el README
+    # de este directorio para el criterio de cuándo conviene escribir uno a
+    # mano (el "por qué", no repetir números que ya están en las tablas;
+    # si citás un monto puntual, sumale el promedio histórico para que se
+    # note si es un valor atípico de este mes o no). ──
+    section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
     bullets = []
-    if fact_act <= 0:
-        bullets.append(
-            f"La Facturación Bruta total dio {usd(fact_act)} este mes. Revisar en el Sheet si algún área cargó un "
-            f"monto negativo inusual antes de dar el mes por cerrado (ver tabla de Facturación por área)."
-        )
     if data['rubrosVariacion']:
         top = data['rubrosVariacion'][0]
         bullets.append(

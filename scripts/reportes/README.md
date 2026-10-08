@@ -23,14 +23,19 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
 
 ## Antes de publicarlo
 
-1. Mirá la sección "ANÁLISIS DEL MES": arranca con 1-2 bullets generados
-   solos (el mayor rubro que subió, y un aviso si la facturación total dio
-   negativa). Si no le pasaste `--bullet`, el PDF sale con un placeholder
-   `[Completar a mano: ...]` -- antes de publicar, volvé a correr
-   `build_report.py` con 1-3 `--bullet` que expliquen el *por qué* de lo más
-   llamativo del mes (revisando la nota de la fila en el Sheet, el
-   desglose de un rubro, lo que haga falta). No alcanza con repetir los
-   números que ya están en las tablas.
+1. Mirá la sección "ANÁLISIS DEL MES · {mes}" (el título lleva el mes que
+   pasaste en `--mes-label`): arranca con 1 bullet generado solo (el mayor
+   rubro que subió). Si no le pasaste `--bullet`, el PDF sale con un
+   placeholder `[Completar a mano: ...]` -- antes de publicar, volvé a
+   correr `build_report.py` con 1-3 `--bullet` que expliquen el *por qué*
+   de lo más llamativo del mes (revisando la nota de la fila en el Sheet,
+   el desglose de un rubro, lo que haga falta). No alcanza con repetir los
+   números que ya están en las tablas. Si citás un monto puntual (ej. "el
+   rubro X subió a $Y"), sumale el promedio de ese mismo concepto en todos
+   los meses cargados -- sin esa referencia no se puede distinguir un
+   valor atípico de uno normal (ver el caso real de Agosto 2026 en el
+   historial de git: "IVA No Computable" parecía un salto, pero estaba en
+   línea con el promedio -- Julio había sido el mes atípico, no Agosto).
 2. Revisá "Proveedores con mayor variación": la lista sale ordenada por
    |variación %| (no por monto), filtrada a pares con monto > 0 en ambos
    meses. Si hay algo raro (un proveedor que debería estar y no está, un
