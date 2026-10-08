@@ -47,6 +47,11 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    "Operaciones promedio" de Mesa en la hoja Matriz no es confiable
    todavía. Si en algún momento se corrige, se puede volver a sumar (ver
    el historial de este archivo para la versión que la tenía).
+5. "Excepciones / no recurrentes" solo mira el mes que se está
+   reportando, no el historial completo -- el reporte de Agosto no repite
+   un viaje que ya salió en el de Junio o Julio. Si no hubo ninguna
+   excepción ese mes, la sección directamente no aparece en el PDF (no es
+   un bug).
 
 ## Subirlo al dashboard
 

@@ -193,25 +193,27 @@ const APP = context.__APP__;
     }
   }
 
-  // Excepciones / no recurrentes: la hoja no tiene un flag propio, se infiere
-  // de la nota de la cuenta. Lista a mano (ver README de este directorio) --
-  // agregar acá cualquier palabra/frase nueva que corresponda a un gasto
-  // puntual (viajes, trámites puntuales, obras), no estructural.
+  // Excepciones / no recurrentes DEL MES ACTUAL -- la hoja no tiene un flag
+  // propio, se infiere de la nota de la cuenta. Solo el mes que se está
+  // reportando, no el historial completo (el reporte de Agosto no debería
+  // mostrar un viaje de Junio que ya salió en el reporte de Junio). Lista
+  // de palabras clave a mano (ver README de este directorio) -- agregar
+  // acá cualquier frase nueva que corresponda a un gasto puntual (viajes,
+  // trámites puntuales, obras), no estructural.
   const EXCEPCION_KEYWORDS = [/ushuaia/i, /banco santa fe/i, /obra.*mant.*oficina/i, /mant.*oficina.*obra/i];
   const excepciones = [];
-  ST.meses.forEach(m => {
-    const d = ST.mesData[m];
-    if (!d) return;
-    d.annotated.forEach(row => {
+  {
+    const d = ST.mesData[mesActual];
+    (d ? d.annotated : []).forEach(row => {
       if (row._kind !== 'account' && row._kind !== 'subaccount') return;
       const nota = (row._allNotes || row._note || '').trim();
       if (!nota) return;
       if (!EXCEPCION_KEYWORDS.some(re => re.test(nota))) return;
       const monto = AREAS_.reduce((s, a) => s + getAreaVal(row, a), 0);
       if (!monto) return;
-      excepciones.push({ mes: m, cuenta: row._nom, nota, monto });
+      excepciones.push({ mes: mesActual, cuenta: row._nom, nota, monto });
     });
-  });
+  }
 
   const out = {
     mesActual,
