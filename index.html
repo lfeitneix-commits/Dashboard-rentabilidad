@@ -2985,8 +2985,9 @@ function renderCostos(){
   </div>`;
 
   return`<div class="sec-hd"><div class="sec-title">Análisis de Costos</div><div class="sec-sub">${label} · USD</div></div>
-  <div class="chart-grid" style="grid-template-columns:1fr;margin-bottom:20px">
+  <div class="chart-grid" style="margin-bottom:20px">
     <div class="cc"><div class="cc-t">Estructura de gastos por mes</div><div class="cc-s">Fijos · Comisiones Productores · Variables · Impuestos</div><div style="height:280px"><canvas id="ch-cf4"></canvas></div></div>
+    <div class="cc"><div class="cc-t">% de Gastos Totales por área</div><div class="cc-s">Fila GASTOS TOTALES del sheet (sin Impuestos) · ${label}</div><div style="height:280px"><canvas id="ch-gastos-area"></canvas></div></div>
   </div>
   ${tablaRanking}
   ${renderGastosFijosDetalleTable()}`;
@@ -3935,6 +3936,22 @@ function drawCharts(tab){
           plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:14,usePointStyle:true}},
             tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${$c(c.raw,true)}`}}},
           scales:{x:{grid:{display:false},stacked:true},y:{grid:{color:'#E8E6E3'},stacked:true,ticks:{callback:v=>$c(v,true),font:{family:'DM Mono',size:10}}}}}}));
+    }
+    // % de GASTOS TOTALES por área -- se lee directo de esa fila del sheet
+    // (no la recalculamos), tanto por mes como en Consolidado.
+    dc('ch-gastos-area');const gaEl=document.getElementById('ch-gastos-area');
+    if(gaEl){
+      const mesGA=ST.consolidado?'__consolidado__':(ST.currentMes||ST.meses[0]);
+      const gtRow=ST.consolidado?getConsolidadoDetalle()?.gastosTotalesRow:ST.mesData[mesGA]?.gastosTotalesRow;
+      if(gtRow){
+        const valsGA=AREAS.map(a=>getAreaVal(gtRow,a));
+        const totalGA=valsGA.reduce((s,v)=>s+v,0);
+        rc('ch-gastos-area',new Chart(gaEl,{type:'doughnut',
+          data:{labels:AREAS,datasets:[{data:valsGA,backgroundColor:AREAS.map(a=>AREA_COLOR[a]),borderWidth:0,hoverOffset:4}]},
+          options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+            plugins:{legend:{position:'bottom',labels:{font:{family:'DM Sans',size:11},padding:14,usePointStyle:true}},
+              tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw)} (${totalGA?(c.raw/totalGA*100).toFixed(1):0}%)`}}}}}));
+      }
     }
     if(ST.gfdView==='interanual') drawInteranualCharts();
   }
