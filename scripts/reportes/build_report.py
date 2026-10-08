@@ -569,18 +569,21 @@ def build(data, mes_label, out_path, bullets_extra=None):
 
     # ── Excepciones / no recurrentes: gastos puntuales identificados por
     # palabra clave en la nota de la cuenta (ver EXCEPCION_KEYWORDS en
-    # extract_data.js). Vacío si no hubo ninguno en los meses cargados. ──
+    # extract_data.js). Solo del mes actual -- extract_data.js ya filtra,
+    # por eso no hace falta columna de mes acá. Vacío si no hubo ninguno. ──
     excepciones = data.get('excepciones') or []
     if excepciones:
         with keep_together():
             section_title("EXCEPCIONES / NO RECURRENTES")
+            story.append(Paragraph(f"Datos de {excepciones[0]['mes']}", styles['NotaChica']))
+            story.append(Spacer(1, 4))
             nota_style = ParagraphStyle('ExcNota', fontName='DMSans', fontSize=8.5, textColor=MUTED, leading=11)
-            col_mes, col_cuenta, col_monto = 20 * mm, 38 * mm, 26 * mm
-            col_nota = CONTENT_W - col_mes - col_cuenta - col_monto
-            rows = [[e['mes'], e['cuenta'], Paragraph(e['nota'], nota_style), usd(e['monto'])] for e in excepciones]
+            col_cuenta, col_monto = 45 * mm, 28 * mm
+            col_nota = CONTENT_W - col_cuenta - col_monto
+            rows = [[e['cuenta'], Paragraph(e['nota'], nota_style), usd(e['monto'])] for e in excepciones]
             total = sum(e['monto'] for e in excepciones)
-            table_data = [["Mes", "Cuenta", "Nota", "Monto"]] + rows + [['', '', 'Total', usd(total)]]
-            t = Table(table_data, colWidths=[col_mes, col_cuenta, col_nota, col_monto])
+            table_data = [["Cuenta", "Nota", "Monto"]] + rows + [['', 'Total', usd(total)]]
+            t = Table(table_data, colWidths=[col_cuenta, col_nota, col_monto])
             t.setStyle(TableStyle([
                 ('FONTNAME', (0, 0), (-1, -1), 'DMSans'),
                 ('FONTNAME', (-1, 1), (-1, -1), 'DMMono-Medium'),
