@@ -29,11 +29,12 @@ merece una línea propia en "Análisis del mes" en vez de pasar de largo.
 import argparse
 import json
 import os
+from contextlib import contextmanager
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.graphics import renderPDF
@@ -97,7 +98,17 @@ def num(n):
     return f"{sign}{abs(n):,.0f}".replace(',', '.')
 
 
-def build(data, mes_label, out_path):
+def usd2(n):
+    # Igual que fmtD() del dashboard: 2 decimales, separador de miles "."
+    # y de decimales ",", para montos "por unidad" (facturación/comitente,
+    # costo/empleado, etc.) donde redondear a entero pierde demasiado.
+    sign = '-' if n < 0 else ''
+    s = f"{abs(n):,.2f}"
+    integer, dec = s.split('.')
+    return f"{sign}{integer.replace(',', '.')},{dec}"
+
+
+def build(data, mes_label, out_path, bullets_extra=None):
     story = []
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle('H2White', fontName='DMSans-Bold', fontSize=11.5, textColor=colors.white))
@@ -182,6 +193,21 @@ def build(data, mes_label, out_path):
 
     def na_cell():
         return Paragraph(f'<font color="{MUTED_HEX}">N/D</font>', styles['VarCell']), MUTED_TINT
+
+    @contextmanager
+    def keep_together():
+        # Agrupa todo lo que se agregue a `story` dentro del `with` en un
+        # solo flowable -- evita que un salto de página corte una tabla (o
+        # el título de una sección) por la mitad. Si el bloque es más alto
+        # que una página entera reportlab lo deja pasar igual (no hay forma
+        # de evitar eso sin partirlo), pero ninguna tabla de este reporte
+        # llega a esa altura.
+        start = len(story)
+        yield
+        block = story[start:]
+        del story[start:]
+        if block:
+            story.append(KeepTogether(block))
 
     def section_title(title):
         story.append(Spacer(1, 16))
@@ -390,122 +416,193 @@ def build(data, mes_label, out_path):
     ]))
     story.append(kpis)
 
-    # ── Análisis del mes: placeholder mecánico -- Claude revisa y ajusta a
-    # mano antes de publicar (ver docstring del módulo). Señala lo mínimo
-    # verificable automáticamente: facturación negativa, mayor rubro que
-    # subió, y áreas con ratio Gastos/Facturación por encima de 100%. ──
-    section_title("ANÁLISIS DEL MES")
-    bullets = []
-    if fact_act <= 0:
-        bullets.append(
-            f"La Facturación Bruta total dio {usd(fact_act)} este mes. Revisar en el Sheet si algún área cargó un "
-            f"monto negativo inusual antes de dar el mes por cerrado (ver tabla de Facturación por área)."
-        )
-    if data['rubrosVariacion']:
-        top = data['rubrosVariacion'][0]
-        bullets.append(
-            f"{top['nombre']} fue el rubro que más subió ({'+' if top['deltaPct'] >= 0 else ''}{top['deltaPct']:.1f}%, "
-            f"de {num(top['anterior'])} a {num(top['actual'])})."
-        )
-    bullets.append("[Completar a mano: por qué pasó lo de arriba, y cualquier otra cosa llamativa de este mes.]")
-    for b in bullets:
-        story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
-        story.append(Spacer(1, 4))
+    # ── Análisis del mes: arranca con lo mínimo verificable automáticamente
+    # (mayor rubro que subió) y, si se pasaron --bullet por CLI, los suma en
+    # vez del placeholder genérico -- ver docstring del módulo y el README
+    # de este directorio para el criterio de cuándo conviene escribir uno a
+    # mano (el "por qué", no repetir números que ya están en las tablas;
+    # si citás un monto puntual, sumale el promedio histórico para que se
+    # note si es un valor atípico de este mes o no). ──
+    with keep_together():
+        section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
+        bullets = []
+        if data['rubrosVariacion']:
+            top = data['rubrosVariacion'][0]
+            bullets.append(
+                f"{top['nombre']} fue el rubro que más subió ({'+' if top['deltaPct'] >= 0 else ''}{top['deltaPct']:.1f}%, "
+                f"de {num(top['anterior'])} a {num(top['actual'])})."
+            )
+        if bullets_extra:
+            bullets.extend(bullets_extra)
+        else:
+            bullets.append("[Completar a mano: por qué pasó lo de arriba, y cualquier otra cosa llamativa de este mes.]")
+        for b in bullets:
+            story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
+            story.append(Spacer(1, 4))
 
-    # ── Evolución (hasta 6 meses) ──
+    # ── Evolución (año en curso) ──
     if len(data['kpiTrend']) > 1:
-        section_title("EVOLUCIÓN ÚLTIMOS MESES")
-        meses_trend = [m['mes'][:3] for m in data['kpiTrend']]
-        series = [
-            ("Facturación", GRAFITO, [m['ingresos'] for m in data['kpiTrend']]),
-            ("Gastos", BORDEAUX, [m['egresos'] for m in data['kpiTrend']]),
-            ("Resultado", VERDE, [m['resultado'] for m in data['kpiTrend']]),
-        ]
-        trend_chart(meses_trend, series)
+        with keep_together():
+            section_title("EVOLUCIÓN ÚLTIMOS MESES")
+            meses_trend = [m['mes'][:3] for m in data['kpiTrend']]
+            series = [
+                ("Facturación", GRAFITO, [m['ingresos'] for m in data['kpiTrend']]),
+                ("Gastos", BORDEAUX, [m['egresos'] for m in data['kpiTrend']]),
+                ("Resultado", VERDE, [m['resultado'] for m in data['kpiTrend']]),
+            ]
+            trend_chart(meses_trend, series)
 
     # ── Top rubros que más subieron ──
     if data['rubrosVariacion']:
-        section_title("TOP RUBROS QUE MÁS SUBIERON")
-        rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in data['rubrosVariacion'][:3]]
-        data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
-                   [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
+        with keep_together():
+            section_title("TOP RUBROS QUE MÁS SUBIERON")
+            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in data['rubrosVariacion'][:3]]
+            data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
+                       [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
 
-    # ── Proveedores recurrentes con mayor pago ──
+    # ── Proveedores con mayor variación (no los de mayor monto -- ver nota
+    # en extract_data.js sobre el filtro anterior>0 && actual>0) ──
     if data['proveedores']:
-        section_title("PROVEEDORES RECURRENTES CON MAYOR PAGO")
-        rows = []
-        for p in data['proveedores'][:5]:
-            cell = var_cell(0.0) if p['anterior'] == 0 else var_cell((p['actual'] - p['anterior']) / p['anterior'] * 100)
-            rows.append([p['nombre'], num(p['anterior']), num(p['actual']), cell])
-        data_table(["Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
-                   [65 * mm, 26 * mm, 26 * mm, CONTENT_W - 65 * mm - 52 * mm], var_colidx=3)
+        with keep_together():
+            section_title("PROVEEDORES CON MAYOR VARIACIÓN")
+            rows = []
+            for p in data['proveedores'][:5]:
+                rows.append([p['nombre'], num(p['anterior']), num(p['actual']), var_cell(p['deltaPct'])])
+            data_table(["Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
+                       [65 * mm, 26 * mm, 26 * mm, CONTENT_W - 65 * mm - 52 * mm], var_colidx=3)
 
     # ── Facturación por área: siempre tabla con signo (nunca %, por si
     # alguna área da negativa -- ver docstring). ──
-    section_title("FACTURACIÓN POR ÁREA")
     ing_area = data['ingresosPorAreaActual']
-    rows = [[a, usd(ing_area[a])] for a in AREAS]
-    plain_table(["Área", "Facturación"], rows, [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
-                signed_vals=[ing_area[a] for a in AREAS])
+    with keep_together():
+        section_title("FACTURACIÓN POR ÁREA")
+        rows = [[a, usd(ing_area[a])] for a in AREAS]
+        plain_table(["Área", "Facturación"], rows, [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
+                    signed_vals=[ing_area[a] for a in AREAS])
 
     # ── Gastos totales + Impuestos por área: barra de % si todas > 0 ──
     gt_area = data['gastosTotalesActual'] or {}
     imp_area = data['impuestosActual'] or {}
     gastos_area_abs = {a: (gt_area.get(a, 0) or 0) + (imp_area.get(a, 0) or 0) for a in AREAS}
     total_gastos_area = sum(gastos_area_abs.values())
-    section_title("GASTOS TOTALES + IMPUESTOS POR ÁREA")
-    if total_gastos_area > 0 and all(v >= 0 for v in gastos_area_abs.values()):
-        area_bar_chart([(a, gastos_area_abs[a], gastos_area_abs[a] / total_gastos_area * 100) for a in AREAS])
-    else:
-        plain_table(["Área", "Gastos + Impuestos"], [[a, usd(gastos_area_abs[a])] for a in AREAS],
-                    [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
-                    signed_vals=[gastos_area_abs[a] for a in AREAS])
+    with keep_together():
+        section_title("GASTOS TOTALES + IMPUESTOS POR ÁREA")
+        if total_gastos_area > 0 and all(v >= 0 for v in gastos_area_abs.values()):
+            area_bar_chart([(a, gastos_area_abs[a], gastos_area_abs[a] / total_gastos_area * 100) for a in AREAS])
+        else:
+            plain_table(["Área", "Gastos + Impuestos"], [[a, usd(gastos_area_abs[a])] for a in AREAS],
+                        [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
+                        signed_vals=[gastos_area_abs[a] for a in AREAS])
 
     # ── Ratios por área ──
-    section_title("RATIOS POR ÁREA · GASTOS / FACTURACIÓN")
-    rows = []
-    hubo_na = False
-    for a in AREAS:
-        fact = ing_area[a]
-        gasto = gastos_area_abs[a]
-        if fact <= 0:
-            cell = na_cell()
-            hubo_na = True
-        else:
-            cell = ratio_cell(gasto / fact * 100)
-        rows.append([a, usd(fact), usd(gasto), cell])
-    data_table(["Área", "Facturación", "Gastos + Impuestos", "Gastos / Facturación"], rows,
-               [40 * mm, 38 * mm, 42 * mm, CONTENT_W - 40 * mm - 38 * mm - 42 * mm], var_colidx=3)
-    if hubo_na:
-        story.append(Paragraph(
-            "N/D: esa área tuvo facturación bruta <= 0 este mes (ver tabla de Facturación por área).",
-            styles['NotaChica'],
-        ))
+    with keep_together():
+        section_title("RATIOS POR ÁREA · GASTOS / FACTURACIÓN")
+        rows = []
+        hubo_na = False
+        for a in AREAS:
+            fact = ing_area[a]
+            gasto = gastos_area_abs[a]
+            if fact <= 0:
+                cell = na_cell()
+                hubo_na = True
+            else:
+                cell = ratio_cell(gasto / fact * 100)
+            rows.append([a, usd(fact), usd(gasto), cell])
+        data_table(["Área", "Facturación", "Gastos + Impuestos", "Gastos / Facturación"], rows,
+                   [40 * mm, 38 * mm, 42 * mm, CONTENT_W - 40 * mm - 38 * mm - 42 * mm], var_colidx=3)
+        if hubo_na:
+            story.append(Paragraph(
+                "N/D: esa área tuvo facturación bruta <= 0 este mes (ver tabla de Facturación por área).",
+                styles['NotaChica'],
+            ))
 
     # ── Ratios generales ──
-    story.append(Spacer(1, 2))
-    if fact_act > 0:
-        margen_pct = result_act / fact_act * 100
-        gf_pct = gastos_act / fact_act * 100
-        ratios_row = Table(
-            [[ratio_card("Margen neto (Resultado / Facturación)", margen_pct, good_below=100),
-              ratio_card("Gastos totales / Facturación", gf_pct, good_below=55)]],
-            colWidths=[CONTENT_W / 2] * 2,
-        )
-    else:
-        nota = "Facturación total negativa o cero este mes: el % no es interpretable"
-        ratios_row = Table(
-            [[na_card("Margen neto (Resultado / Facturación)", nota),
-              na_card("Gastos totales / Facturación", nota)]],
-            colWidths=[CONTENT_W / 2] * 2,
-        )
-    ratios_row.setStyle(TableStyle([
-        ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-    story.append(ratios_row)
+    with keep_together():
+        story.append(Spacer(1, 2))
+        if fact_act > 0:
+            margen_pct = result_act / fact_act * 100
+            gf_pct = gastos_act / fact_act * 100
+            ratios_row = Table(
+                [[ratio_card("Margen neto (Resultado / Facturación)", margen_pct, good_below=100),
+                  ratio_card("Gastos totales / Facturación", gf_pct, good_below=55)]],
+                colWidths=[CONTENT_W / 2] * 2,
+            )
+        else:
+            nota = "Facturación total negativa o cero este mes: el % no es interpretable"
+            ratios_row = Table(
+                [[na_card("Margen neto (Resultado / Facturación)", nota),
+                  na_card("Gastos totales / Facturación", nota)]],
+                colWidths=[CONTENT_W / 2] * 2,
+            )
+        ratios_row.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        story.append(ratios_row)
+
+    # ── Unit economics: cruza "CÁLCULOS AUX" de la Matriz (comitentes,
+    # empleados, operaciones promedio por área) con Gastos Totales y Sueldos
+    # y CS Back del mes actual. Si el Sheet no tiene esos datos todavía
+    # (hoja Matriz sin la sección CÁLCULOS AUX), extract_data.js manda
+    # unitEconomics=null y esta sección se omite en vez de romper. ──
+    ue = data.get('unitEconomics')
+    if ue:
+        col_a = 48 * mm
+        col_rest = (CONTENT_W - col_a) / 3
+        with keep_together():
+            section_title("UNIT ECONOMICS")
+            story.append(Paragraph(f"Datos de {ue['mes']}", styles['NotaChica']))
+            story.append(Spacer(1, 4))
+            rows = [[a['area'], num(a['comitentes']) if a['comitentes'] else '—',
+                     usd2(a['facturacionPromedio'] / a['comitentes']) if a['comitentes'] else '—',
+                     usd2(a['gastoTotal'] / a['comitentes']) if a['comitentes'] else '—']
+                    for a in ue['porArea']]
+            plain_table(["Área", "Comitentes", "Facturación / comitente", "Costo / comitente"], rows,
+                        [col_a, col_rest, col_rest, col_rest])
+
+        with keep_together():
+            rows = [[a['area'], num(a['empleados']) if a['empleados'] else '—',
+                     usd2(a['facturacionPromedio'] / a['empleados']) if a['empleados'] else '—',
+                     usd2(a['gastoTotal'] / a['empleados']) if a['empleados'] else '—']
+                    for a in ue['porArea']]
+            plain_table(["Área", "Empleados", "Facturación / empleado", "Costo / empleado"], rows,
+                        [col_a, col_rest, col_rest, col_rest])
+
+    # ── Excepciones / no recurrentes: gastos puntuales identificados por
+    # palabra clave en la nota de la cuenta (ver EXCEPCION_KEYWORDS en
+    # extract_data.js). Vacío si no hubo ninguno en los meses cargados. ──
+    excepciones = data.get('excepciones') or []
+    if excepciones:
+        with keep_together():
+            section_title("EXCEPCIONES / NO RECURRENTES")
+            nota_style = ParagraphStyle('ExcNota', fontName='DMSans', fontSize=8.5, textColor=MUTED, leading=11)
+            col_mes, col_cuenta, col_monto = 20 * mm, 38 * mm, 26 * mm
+            col_nota = CONTENT_W - col_mes - col_cuenta - col_monto
+            rows = [[e['mes'], e['cuenta'], Paragraph(e['nota'], nota_style), usd(e['monto'])] for e in excepciones]
+            total = sum(e['monto'] for e in excepciones)
+            table_data = [["Mes", "Cuenta", "Nota", "Monto"]] + rows + [['', '', 'Total', usd(total)]]
+            t = Table(table_data, colWidths=[col_mes, col_cuenta, col_nota, col_monto])
+            t.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'DMSans'),
+                ('FONTNAME', (-1, 1), (-1, -1), 'DMMono-Medium'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EDEAE4')),
+                ('FONTNAME', (0, 0), (-1, 0), 'DMSans-Bold'),
+                ('FONTNAME', (-1, -1), (-1, -1), 'DMSans-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9.5),
+                ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, CREMA]),
+                ('TOPPADDING', (0, 0), (-1, -1), 5.5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5.5),
+                ('LINEABOVE', (0, -1), (-1, -1), 0.6, BORDER),
+                ('LINEBELOW', (0, -1), (-1, -1), 0.6, BORDER),
+                ('BOX', (0, 0), (-1, -1), 0.6, BORDER),
+            ]))
+            story.append(t)
+            story.append(Spacer(1, 4))
 
     doc = SimpleDocTemplate(out_path, pagesize=letter, topMargin=HEADER_H + 11 * mm, bottomMargin=17 * mm,
-                             leftMargin=MARGIN, rightMargin=MARGIN)
+                             leftMargin=MARGIN, rightMargin=MARGIN,
+                             title=f"Reporte Mensual NEIX · {mes_label}", author="NEIX")
     doc.build(story, onFirstPage=draw_header, onLaterPages=draw_header)
 
 
@@ -515,11 +612,14 @@ if __name__ == '__main__':
     ap.add_argument('--out', default='reporte.pdf')
     ap.add_argument('--mes-label', default=None, help='Ej. "Agosto 2026" -- si no se pasa, se arma de mesActual + --anio')
     ap.add_argument('--anio', default=None)
+    ap.add_argument('--bullet', action='append', default=[],
+                     help='Línea de "Análisis del mes" escrita a mano (repetible, 1-3 veces). '
+                          'Si no se pasa ninguna, queda el placeholder "[Completar a mano: ...]".')
     args = ap.parse_args()
 
     with open(args.data, encoding='utf-8') as f:
         data = json.load(f)
 
     mes_label = args.mes_label or (f"{data['mesActual']} {args.anio}" if args.anio else data['mesActual'])
-    build(data, mes_label, args.out)
+    build(data, mes_label, args.out, bullets_extra=args.bullet)
     print(f"OK: {args.out}")

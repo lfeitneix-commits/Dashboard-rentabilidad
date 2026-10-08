@@ -63,7 +63,7 @@ let code = extractScript(indexPath);
 // en el mismo scope léxico, para poder usarlos después desde Node.
 code += `
 this.__APP__ = {
-  ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy,
+  ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy, parseNum,
 };`;
 const context = vm.createContext(sandbox);
 vm.runInContext(code, context, { filename: 'index.html#script' });
@@ -83,7 +83,9 @@ const APP = context.__APP__;
   const meses = ST.meses;
   const mesActual = meses[meses.length - 1];
   const mesAnterior = meses.length > 1 ? meses[meses.length - 2] : null;
-  const mesesTrend = meses.slice(-6);
+  // Todos los meses cargados -- el Sheet tiene una hoja por mes del año en
+  // curso (Enero..mesActual), así que esto ya es "desde principio de año".
+  const mesesTrend = meses;
 
   const kpiFor = (mes) => {
     const d = ST.mesData[mes];
@@ -123,8 +125,15 @@ const APP = context.__APP__;
       .sort((a, b) => b.deltaPct - a.deltaPct);
   }
 
-  // Proveedores (Gastos Fijos Detalle): todos, con su monto del mes actual y
-  // anterior -- build_report.py decide cuántos mostrar y cómo ordenarlos.
+  // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --
+  // ordenado por |variación %|, no por monto absoluto, para que salten a la
+  // vista los cambios bruscos aunque el proveedor no sea de los más caros.
+  // Se filtra a pares con monto > 0 en AMBOS meses (mismo criterio que
+  // rubrosVariacion, evita el artefacto de "+infinito%" de un proveedor que
+  // apareció de la nada o uno que bajó a cero) y, además, a montos de este
+  // mes > USD 500 -- por debajo de eso el % puede ser enorme (ej. Slack de
+  // 9 a 24) sin que importe en términos absolutos.
+  const PROVEEDOR_MONTO_MIN = 500;
   let proveedores = [];
   const gfd = ST.gastosFijosDetalle;
   if (gfd && mesAnterior) {
@@ -136,9 +145,73 @@ const APP = context.__APP__;
           proveedores.push({ nombre: p.nombre, cuenta: cuenta.nombre, anterior: p.vals[idxAnterior], actual: p.vals[idxActual] });
         });
       });
-      proveedores.sort((a, b) => b.actual - a.actual);
+      proveedores = proveedores
+        .filter(p => p.anterior > 0 && p.actual > 0 && p.actual > PROVEEDOR_MONTO_MIN)
+        .map(p => ({ ...p, deltaPct: (p.actual - p.anterior) / p.anterior * 100 }))
+        .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
     }
   }
+
+  // Unit economics (cruza "CÁLCULOS AUX" de la Matriz -- comitentes y
+  // empleados promedio por área -- con Gastos Totales del mes más
+  // reciente). No reimplementa nada que no esté ya en el sheet: solo arma
+  // los cocientes. No incluye operaciones/comitente: el dato de
+  // "Operaciones promedio" de Mesa en la Matriz no es confiable todavía.
+  const parseNum = APP.parseNum;
+  function matrizAuxRow(labelSubstr) {
+    if (!ST.matrizData) return null;
+    const needle = labelSubstr.toLowerCase();
+    return ST.matrizData.find(r => {
+      const nom = String(Object.values(r)[0] || Object.values(r)[1] || '').trim().toLowerCase();
+      return nom.startsWith(needle);
+    }) || null;
+  }
+  function matrizAuxVal(row, area) {
+    if (!row) return 0;
+    const col = area === 'FAs' ? 'FAs + Mza' : area;
+    const key = Object.keys(row).find(k => k.trim() === col) || col;
+    return parseNum(row[key]);
+  }
+  let unitEconomics = null;
+  {
+    const comitentesRow = matrizAuxRow('comitentes totales');
+    const empleadosRow = matrizAuxRow('empleados');
+    const factPromRow = matrizAuxRow('facturación promedio');
+    const d = ST.mesData[mesActual];
+    if (d && comitentesRow && empleadosRow && factPromRow) {
+      const gastosTotales = d.gastosTotalesRow;
+      unitEconomics = {
+        mes: mesActual,
+        porArea: AREAS_.map(a => ({
+          area: a,
+          comitentes: matrizAuxVal(comitentesRow, a),
+          empleados: matrizAuxVal(empleadosRow, a),
+          facturacionPromedio: matrizAuxVal(factPromRow, a),
+          gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
+        })),
+      };
+    }
+  }
+
+  // Excepciones / no recurrentes: la hoja no tiene un flag propio, se infiere
+  // de la nota de la cuenta. Lista a mano (ver README de este directorio) --
+  // agregar acá cualquier palabra/frase nueva que corresponda a un gasto
+  // puntual (viajes, trámites puntuales, obras), no estructural.
+  const EXCEPCION_KEYWORDS = [/ushuaia/i, /banco santa fe/i, /obra.*mant.*oficina/i, /mant.*oficina.*obra/i];
+  const excepciones = [];
+  ST.meses.forEach(m => {
+    const d = ST.mesData[m];
+    if (!d) return;
+    d.annotated.forEach(row => {
+      if (row._kind !== 'account' && row._kind !== 'subaccount') return;
+      const nota = (row._allNotes || row._note || '').trim();
+      if (!nota) return;
+      if (!EXCEPCION_KEYWORDS.some(re => re.test(nota))) return;
+      const monto = AREAS_.reduce((s, a) => s + getAreaVal(row, a), 0);
+      if (!monto) return;
+      excepciones.push({ mes: m, cuenta: row._nom, nota, monto });
+    });
+  });
 
   const out = {
     mesActual,
@@ -153,6 +226,8 @@ const APP = context.__APP__;
     ingresosPorAreaActual: ingresosPorArea(mesActual),
     rubrosVariacion,
     proveedores,
+    unitEconomics,
+    excepciones,
   };
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
   console.error(`OK. Mes actual: ${mesActual}${mesAnterior ? ', anterior: ' + mesAnterior : ' (sin mes anterior -- es el primero cargado)'}. Guardado en ${outPath}`);
