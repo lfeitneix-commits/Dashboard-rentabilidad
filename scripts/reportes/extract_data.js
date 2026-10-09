@@ -120,6 +120,11 @@ const APP = context.__APP__;
     if (!d) return null;
     return Object.fromEntries(AREAS_.map(a => [a, d.agg[a].ingresos]));
   };
+  const resultadoPorArea = (mes) => {
+    const d = ST.mesData[mes];
+    if (!d) return null;
+    return Object.fromEntries(AREAS_.map(a => [a, d.agg[a].resultado]));
+  };
 
   // Notas manuales para explicar variaciones puntuales de una cuenta,
   // proveedor o rubro en un mes específico -- a mano, mismo criterio que
@@ -333,6 +338,7 @@ const APP = context.__APP__;
     gastosTotalesAnterior: mesAnterior ? areaVals(mesAnterior, 'gastosTotalesRow') : null,
     impuestosActual: areaVals(mesActual, 'impuestosRow'),
     ingresosPorAreaActual: ingresosPorArea(mesActual),
+    resultadoPorAreaActual: resultadoPorArea(mesActual),
     directosIndirectosActual,
     dolarMEP,
     rubrosVariacion,

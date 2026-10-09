@@ -107,6 +107,19 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    fila "DÓLAR AL ...", que el loader del dashboard corta a propósito
    (todo lo que sigue a "GASTOS TOTALES" en la hoja es contable/de caja,
    no entra a `ST.mesData`).
+10. "Resultado acumulado {primer mes} - {mes actual}" (debajo de las 3 KPI
+    cards) suma el mismo "resultado" por mes que ya arma `kpiTrend` para
+    el gráfico de Evolución -- no reimplementa el cálculo. Se omite en el
+    primer mes del año (ahí sería el mismo número que el KPI "Resultado").
+11. "Margen por área" (Resultado/Facturación) es la contracara de "Ratios
+    por área" (Gastos/Facturación): una mira costo, la otra rentabilidad.
+    Usa `margen_cell`, no `ratio_cell` -- son conceptualmente distintos:
+    en un ratio de costo "bueno" es estar por debajo de un umbral, en un
+    margen "bueno" es ser positivo sin importar cuánto. Reusar
+    `ratio_cell` acá (o en el card de "Margen neto" de la compañía, que
+    tenía este mismo bug con `good_below=100` antes de esta corrección)
+    pinta de verde una pérdida grande con tal de que el % no pase ese
+    umbral -- no hagas eso de nuevo.
 
 ## Subirlo al dashboard
 

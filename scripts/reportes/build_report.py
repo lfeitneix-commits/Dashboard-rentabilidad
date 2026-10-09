@@ -208,6 +208,17 @@ def build(data, mes_label, out_path, bullets_extra=None):
         tint = VERDE_TINT if good else BORDEAUX_TINT
         return Paragraph(f'<font color="{color_hex}">{pct:.1f}%</font>', styles['VarCell']), tint
 
+    def margen_cell(pct):
+        # Para un margen (a diferencia de un ratio de costo), "bueno" es
+        # positivo -- no "por debajo de un umbral" como en ratio_cell, que
+        # mostraría verde a una pérdida grande con tal de que no pase cierto
+        # número.
+        good = pct >= 0
+        color_hex = VERDE_HEX if good else BORDEAUX_HEX
+        tint = VERDE_TINT if good else BORDEAUX_TINT
+        sign = '+' if pct >= 0 else ''
+        return Paragraph(f'<font color="{color_hex}">{sign}{pct:.1f}%</font>', styles['VarCell']), tint
+
     def na_cell():
         return Paragraph(f'<font color="{MUTED_HEX}">N/D</font>', styles['VarCell']), MUTED_TINT
 
@@ -353,6 +364,40 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ]))
         return cell
 
+    def margen_card(label, pct):
+        # No reutiliza ratio_card: ratio_cell es "bueno si está por debajo
+        # de un umbral" (sirve para costo), pero un margen es al revés --
+        # "bueno" es positivo, sin importar qué tan alto.
+        para, _tint = margen_cell(pct)
+        para.style = ParagraphStyle('mc', parent=styles['VarCell'], fontSize=15)
+        cell = Table([[Paragraph(label.upper(), styles['KpiLabel'])], [para]], colWidths=[87 * mm])
+        cell.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, GRAFITO),
+            ('TOPPADDING', (0, 0), (0, 0), 11),
+            ('BOTTOMPADDING', (-1, -1), (-1, -1), 11),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+        ]))
+        return cell
+
+    def accum_card(label, value):
+        color = VERDE if value >= 0 else BORDEAUX
+        cell = Table(
+            [[Paragraph(label.upper(), styles['KpiLabel'])],
+             [Paragraph(usd(value), ParagraphStyle('AccumValue', fontName='DMMono-Medium', fontSize=16, textColor=color, alignment=TA_CENTER))]],
+            colWidths=[CONTENT_W],
+        )
+        cell.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, color),
+            ('TOPPADDING', (0, 0), (0, 0), 10),
+            ('BOTTOMPADDING', (0, 1), (0, 1), 10),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+        ]))
+        return cell
+
     def area_bar_chart(area_data):
         bar_w = CONTENT_W
         bar_h = 9 * mm
@@ -445,6 +490,18 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(kpis)
+
+    # ── Resultado acumulado del año en curso -- suma de los mismos
+    # "resultado" por mes que ya arma kpiTrend para el gráfico de
+    # Evolución (no una cuenta nueva). Se omite en el primer mes del año:
+    # ahí "acumulado" sería el mismo número que el KPI "Resultado" de
+    # arriba, no aporta nada. ──
+    if len(data['kpiTrend']) > 1:
+        resultado_acum = sum(m['resultado'] for m in data['kpiTrend'])
+        primer_mes = data['kpiTrend'][0]['mes']
+        with keep_together():
+            story.append(Spacer(1, 6))
+            story.append(accum_card(f"Resultado acumulado {primer_mes} - {data['mesActual']}", resultado_acum))
 
     # ── Análisis del mes: arranca con lo mínimo verificable automáticamente
     # (mayor rubro que subió) y, si se pasaron --bullet por CLI, los suma en
@@ -618,6 +675,33 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 styles['NotaChica'],
             ))
 
+    # ── Margen por área: "Ratios por área" mira costo (cuánto se gasta
+    # por cada $ facturado); esto mira rentabilidad (cuánto queda). Mismo
+    # Resultado por área que ya usa el KPI "Resultado" de arriba (suma por
+    # área, no una resta re-derivada acá). ──
+    resultado_area = data.get('resultadoPorAreaActual') or {}
+    if resultado_area:
+        with keep_together():
+            section_title("MARGEN POR ÁREA · RESULTADO / FACTURACIÓN")
+            rows = []
+            hubo_na_margen = False
+            for a in AREAS:
+                fact = ing_area[a]
+                result = resultado_area.get(a, 0)
+                if fact <= 0:
+                    cell = na_cell()
+                    hubo_na_margen = True
+                else:
+                    cell = margen_cell(result / fact * 100)
+                rows.append([a, usd(fact), usd(result), cell])
+            data_table(["Área", "Facturación", "Resultado", "Margen"], rows,
+                       [40 * mm, 42 * mm, 42 * mm, CONTENT_W - 40 * mm - 42 * mm - 42 * mm], var_colidx=3)
+            if hubo_na_margen:
+                story.append(Paragraph(
+                    "N/D: esa área tuvo facturación bruta <= 0 este mes (ver tabla de Facturación por área).",
+                    styles['NotaChica'],
+                ))
+
     # ── Ratios generales ──
     with keep_together():
         story.append(Spacer(1, 2))
@@ -625,7 +709,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             margen_pct = result_act / fact_act * 100
             gf_pct = gastos_act / fact_act * 100
             ratios_row = Table(
-                [[ratio_card("Margen neto (Resultado / Facturación)", margen_pct, good_below=100),
+                [[margen_card("Margen neto (Resultado / Facturación)", margen_pct),
                   ratio_card("Gastos totales / Facturación", gf_pct, good_below=55)]],
                 colWidths=[CONTENT_W / 2] * 2,
             )
