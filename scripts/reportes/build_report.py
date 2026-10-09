@@ -584,6 +584,28 @@ def build(data, mes_label, out_path, bullets_extra=None):
             data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
 
+    # ── Mismo top, aperturado por área (rubrosVariacionPorArea en
+    # extract_data.js) -- "Clasificación de gastos" (la fuente de la tabla
+    # de arriba) es un total de toda la empresa, así que esto sale de la
+    # otra fuente que sí tiene columna por área. Una mini-tabla por área
+    # (top 5 cada una, mismo criterio deltaPct > 0 que la tabla general) --
+    # se salta el área si no tuvo ningún rubro que subiera. ──
+    rubros_por_area = data.get('rubrosVariacionPorArea') or {}
+    area_blocks = []
+    for area in AREAS:
+        suben_area = [r for r in rubros_por_area.get(area, []) if r['deltaPct'] > 0][:5]
+        if suben_area:
+            area_blocks.append((area, suben_area))
+    for i, (area, suben_area) in enumerate(area_blocks):
+        with keep_together():
+            if i == 0:
+                section_title("TOP RUBROS QUE MÁS SUBIERON · POR ÁREA")
+            story.append(Paragraph(area, ParagraphStyle(f'areaRubroLabel{area}', fontName='DMSans-Bold', fontSize=9.5, textColor=AREA_COLOR[area])))
+            story.append(Spacer(1, 2))
+            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in suben_area]
+            data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
+                       [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
+
     # ── Cuentas/proveedores con mayor variación (no los de mayor monto --
     # ver nota en extract_data.js sobre el filtro anterior>0 && actual>0).
     # "Cuenta / Proveedor" porque Gastos Fijos Detalle no siempre tiene un
