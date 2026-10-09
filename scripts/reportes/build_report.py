@@ -8,9 +8,12 @@ Uso:
 Decisiones de diseño que valen la pena recordar (se pisaron una vez en el
 primer reporte real, el de Agosto 2026, cuando la Facturación de Mesa dio
 negativa ese mes):
-  - Un % de variación solo es confiable si la base (mes anterior) es > 0.
-    Si no, se muestra el delta en $ (var_cell_delta), nunca un % que puede
-    salir con el signo invertido por dividir por un número negativo.
+  - Las 3 KPI cards (Facturación Bruta, Gastos Totales, Resultado) muestran
+    la variación como % usando el valor ABSOLUTO del mes anterior como
+    base (pct_or_delta) -- así el signo del % siempre coincide con si
+    mejoró o empeoró, sin importar si la base era negativa o el valor
+    cruzó el cero. Solo se muestra el delta en $ (var_cell_delta) cuando
+    la base es exactamente 0 (división por cero de verdad).
   - Un ratio Gastos/Facturación por área es N/D si la facturación de esa
     área es <= 0 ese mes (dividir por negativo invierte el sentido).
   - Los dos ratios generales (Margen neto, Gastos/Facturación) son N/D si
@@ -174,10 +177,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
         return Paragraph(html, styles['VarCell']), tint
 
     def var_cell_delta(delta):
-        # Delta en USD (nunca %) -- para cuando un % directamente no es
-        # interpretable: la base era <= 0, o el valor cambió de signo (ver
-        # pct_or_delta). "USD" explícito para que no se confunda con un %
-        # o un monto en otra unidad.
+        # Delta en USD (nunca %) -- solo para cuando el % es indefinido de
+        # verdad (base = 0, división por cero; ver pct_or_delta). "USD"
+        # explícito para que no se confunda con un % o un monto en otra
+        # unidad.
         if delta == 0:
             icon, color_hex, tint = asset('tri_flat_muted.png'), MUTED_HEX, MUTED_TINT
             txt = 'USD 0'
@@ -191,16 +194,19 @@ def build(data, mes_label, out_path, bullets_extra=None):
         return Paragraph(html, styles['VarCell']), tint
 
     def pct_or_delta(actual, anterior):
-        # Un % de variación solo es interpretable si NO cruza el cero: si
-        # el valor cambia de signo (ej. Facturación de +1.073.707 a
-        # -702.967 = "-165,5%", que se lee como una caída descomunal en
-        # vez de "se volvió negativo") o si la base ya era <= 0 (divide por
-        # un número no positivo e invierte el sentido del %). En esos casos
-        # se muestra el delta en USD en vez de un % -- ver docstring del
-        # módulo.
-        if anterior > 0 and actual > 0:
-            return var_cell((actual - anterior) / anterior * 100)
-        return var_cell_delta(actual - anterior)
+        # % de variación sobre el valor ABSOLUTO de la base, no la base con
+        # signo -- así el signo del % siempre coincide con el del delta
+        # (mejoró = +, empeoró = -), sin importar si la base era negativa o
+        # si el valor cruzó el cero. Con la fórmula estándar (delta/base),
+        # una base negativa invierte el signo: de -213.675 a -1.608.860
+        # (un resultado bastante peor) daba "+653,8%", que se lee como una
+        # mejora. Con la base en valor absoluto da "-653,8%": coincide con
+        # que el resultado empeoró. Solo si la base es 0 el % es
+        # indefinido de verdad (división por cero) y se muestra el delta
+        # en USD.
+        if anterior == 0:
+            return var_cell_delta(actual - anterior)
+        return var_cell((actual - anterior) / abs(anterior) * 100)
 
     def ratio_cell(pct, good_below=50.0):
         good = pct <= good_below
@@ -846,9 +852,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
         if dolar:
             bullets_meta.append(f"Tipo de cambio (MEP) usado para convertir a USD este mes: {usd2(dolar)}.")
         bullets_meta.append(
-            "Un % de variación no se muestra (se reemplaza por el delta en USD) cuando la base del mes anterior "
-            "es <= 0, o cuando el valor cambia de signo entre un mes y el otro -- en ninguno de los dos casos un % "
-            "es interpretable de forma directa."
+            "Las variaciones de Facturación Bruta, Gastos Totales y Resultado (arriba de todo) usan el valor "
+            "absoluto del mes anterior como base del %, para que el signo siempre coincida con si mejoró o "
+            "empeoró, incluso si la base era negativa o el valor cruzó el cero. Solo se reemplaza por el delta "
+            "en USD cuando la base del mes anterior es exactamente 0 (división por cero)."
         )
         bullets_meta.append(
             "\"Gastos / Facturación\" por área mezcla costo directo del área con el prorrateo de gastos "
