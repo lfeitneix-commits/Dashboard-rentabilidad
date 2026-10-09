@@ -416,7 +416,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(d)
         story.append(Spacer(1, 4))
 
-    def trend_chart(meses, series):
+    def trend_chart(meses, series, fmt_axis=None):
+        # fmt_axis: formateador del eje Y -- por default compacta a "k"
+        # (pensado para montos grandes, Facturación/Gastos/Resultado). Para
+        # series de montos chicos (ej. Unit Economics, $ por comitente) esa
+        # compactación hace que varias líneas de grilla redondeen al mismo
+        # "1k" -- pasar un formateador en USD sin compactar en ese caso.
+        if fmt_axis is None:
+            fmt_axis = lambda v: f"{v/1000:,.0f}k".replace(',', '.')
         chart_w = CONTENT_W
         chart_h = 52 * mm
         pad_l, pad_r, pad_t, pad_b = 16 * mm, 4 * mm, 4 * mm, 8 * mm
@@ -431,7 +438,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             y = pad_b + plot_h * frac
             val = vmin + (vmax - vmin) * frac
             d.add(Line(pad_l, y, pad_l + plot_w, y, strokeColor=BORDER, strokeWidth=0.5))
-            d.add(String(pad_l - 3, y - 2.5, f"{val/1000:,.0f}k".replace(',', '.'), fontName='DMMono', fontSize=6.5, fillColor=MUTED, textAnchor='end'))
+            d.add(String(pad_l - 3, y - 2.5, fmt_axis(val), fontName='DMMono', fontSize=6.5, fillColor=MUTED, textAnchor='end'))
         if vmin < 0 < vmax:
             y0 = pad_b + (0 - vmin) / (vmax - vmin) * plot_h
             d.add(Line(pad_l, y0, pad_l + plot_w, y0, strokeColor=MUTED, strokeWidth=0.75, strokeDashArray=[2, 2]))
@@ -470,6 +477,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # ============================================================
     kpi_act, kpi_ant = data['kpiActual'], data['kpiAnterior']
     fact_act, gastos_act, result_act = kpi_act['ingresos'], kpi_act['egresos'], kpi_act['resultado']
+    # Rubros que efectivamente subieron (deltaPct > 0), tope 10 -- usado acá
+    # y en "Análisis del mes" para que ambos miren la misma lista; si se
+    # completara con bajas solo para llegar a 10 contradiría el título de
+    # la sección de abajo.
+    rubros_suben = [r for r in data['rubrosVariacion'] if r['deltaPct'] > 0][:10]
 
     if kpi_ant:
         fact_ant, gastos_ant, result_ant = kpi_ant['ingresos'], kpi_ant['egresos'], kpi_ant['resultado']
@@ -528,7 +540,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
         # tenga un "por qué" cargado (ver NOTAS_CUENTAS en extract_data.js)
         # y no se haya mencionado ya arriba -- esto es lo que hace que el
         # análisis explique, no solo liste números.
-        for item in data['rubrosVariacion'][:3] + data['proveedores'][:5]:
+        for item in rubros_suben + data['proveedores'][:5]:
             nota = item.get('notaManual')
             if not nota or item['nombre'] in ya_mencionado:
                 continue
@@ -558,11 +570,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
             ]
             trend_chart(meses_trend, series)
 
-    # ── Top rubros que más subieron ──
-    if data['rubrosVariacion']:
+    # ── Top rubros que más subieron (rubros_suben calculado arriba) ──
+    if rubros_suben:
         with keep_together():
             section_title("TOP RUBROS QUE MÁS SUBIERON")
-            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in data['rubrosVariacion'][:3]]
+            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in rubros_suben]
             data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
 
@@ -757,6 +769,36 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     for a in ue['porArea']]
             plain_table(["Área", "Empleados", "Facturación / empleado", "Costo total / empleado"], rows,
                         [col_a, col_rest, col_rest, col_rest])
+
+    # ── Evolución Unit Economics: mismo criterio que "Evolución últimos
+    # meses" (Facturación/Gastos/Resultado), pero por área y por comitente
+    # -- para ver si el costo o la facturación por cliente vienen subiendo
+    # o bajando, no solo la foto del mes. Comitentes es fijo (Matriz), así
+    # que la serie es simplemente facturación/costo de cada mes dividido
+    # por ese número constante. ──
+    ue_trend = data.get('unitEconomicsTrend') or []
+    if ue and len(ue_trend) > 1:
+        meses_ue = [m['mes'][:3] for m in ue_trend]
+
+        def serie_por_area(campo):
+            series = []
+            for a in AREAS:
+                vals = []
+                for m in ue_trend:
+                    area_data = next((x for x in m['porArea'] if x['area'] == a), None)
+                    comit = area_data['comitentes'] if area_data else 0
+                    vals.append(area_data[campo] / comit if area_data and comit else 0)
+                series.append((a, AREA_COLOR[a], vals))
+            return series
+
+        fmt_axis_usd2 = lambda v: usd2(v)
+        with keep_together():
+            section_title("EVOLUCIÓN UNIT ECONOMICS · COSTO TOTAL / COMITENTE")
+            trend_chart(meses_ue, serie_por_area('gastoTotal'), fmt_axis=fmt_axis_usd2)
+
+        with keep_together():
+            section_title("EVOLUCIÓN UNIT ECONOMICS · FACTURACIÓN / COMITENTE")
+            trend_chart(meses_ue, serie_por_area('facturacionMes'), fmt_axis=fmt_axis_usd2)
 
     # ── Excepciones / no recurrentes: gastos puntuales identificados por
     # palabra clave en la nota de la cuenta (ver EXCEPCION_KEYWORDS en

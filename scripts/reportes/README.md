@@ -128,6 +128,28 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     tenía este mismo bug con `good_below=100` antes de esta corrección)
     pinta de verde una pérdida grande con tal de que el % no pase ese
     umbral -- no hagas eso de nuevo.
+12. "Top rubros que más subieron" filtra a `deltaPct > 0` antes de tomar
+    los primeros 10 -- no es un `[:10]` plano sobre la lista ordenada por
+    variación. Un mes con menos de 10 rubros que efectivamente subieron
+    (ej. Agosto 2026 con 9) muestra menos de 10 filas; eso es correcto,
+    no un bug -- lo contrario (completar el cupo con rubros que bajaron,
+    bajo un título que dice "que más subieron") fue el bug real al pasar
+    de top 3 a top 10. `rubros_suben` se calcula una sola vez cerca del
+    inicio de `build()` y se reusa tanto acá como en el escaneo de notas
+    automáticas de "Análisis del mes".
+13. "Evolución Unit Economics" (dos gráficos, debajo de las tablas de
+    Unit Economics): igual que "Evolución últimos meses" pero para
+    Costo total/comitente y Facturación/comitente, una línea por área,
+    con los mismos colores de `AREA_COLOR`. Sale de `unitEconomicsTrend`
+    (un `unitEconomicsFor(mes)` por cada mes de `mesesTrend`, en
+    `extract_data.js`) dividido por el comitente fijo de cada área. Usa
+    `trend_chart(..., fmt_axis=...)` con un formateador propio (`usd2`,
+    sin compactar a "k") en vez del default -- los montos por comitente
+    son mucho más chicos que Facturación/Gastos/Resultado totales, y el
+    formateador por defecto (compacta a miles) repetía la misma etiqueta
+    ("1k", "1k", "0k") en el eje. Si se agrega un gráfico de otra métrica
+    a escala chica, pasarle también un `fmt_axis` en vez de dejar el
+    default.
 
 ## Subirlo al dashboard
 
