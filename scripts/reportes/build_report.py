@@ -620,7 +620,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # "Costo" sí son de mesActual -- por eso en un mes con facturación
     # negativa (ej. Mesa en Agosto), "Facturación / comitente" también da
     # negativa (correcto: antes usaba un promedio histórico fijo que no
-    # reflejaba lo que pasó ese mes puntual). ──
+    # reflejaba lo que pasó ese mes puntual). La "Facturación" de FAs acá es
+    # neta de Comisiones Productores (lo que se queda FAs, no lo que
+    # factura bruto el productor externo) -- no toca el resto del reporte,
+    # donde "Facturación por área" sigue siendo la bruta del Sheet. ──
     ue = data.get('unitEconomics')
     if ue:
         col_a = 48 * mm
@@ -629,7 +632,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             section_title("UNIT ECONOMICS")
             story.append(Paragraph(
                 f"Comitentes y Empleados: Matriz (fijo, no cambia mes a mes) "
-                f"&nbsp;·&nbsp; Facturación y Costo: datos de {ue['mes']}",
+                f"&nbsp;·&nbsp; Facturación (FAs neta de Comisiones Productores) y Costo: datos de {ue['mes']}",
                 styles['NotaChica'],
             ))
             story.append(Spacer(1, 4))
