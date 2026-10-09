@@ -57,21 +57,22 @@ pdfmetrics.registerFont(TTFont('DMMono', asset('fonts', 'DMMono-Regular.ttf')))
 pdfmetrics.registerFont(TTFont('DMMono-Medium', asset('fonts', 'DMMono-Medium.ttf')))
 pdfmetrics.registerFontFamily('DMSans', normal='DMSans', bold='DMSans-Bold')
 
-GRAFITO_HEX, BORDEAUX_HEX, VERDE_HEX, MUTED_HEX = '#3D3D3D', '#AB1930', '#004836', '#9A8E7D'
+GRAFITO_HEX, BORDEAUX_HEX, VERDE_HEX, MUTED_HEX, AZUL_HEX = '#3D3D3D', '#AB1930', '#004836', '#9A8E7D', '#003F61'
 GRAFITO = colors.HexColor(GRAFITO_HEX)
 BORDEAUX = colors.HexColor(BORDEAUX_HEX)
 VERDE = colors.HexColor(VERDE_HEX)
 MUTED = colors.HexColor(MUTED_HEX)
+AZUL = colors.HexColor(AZUL_HEX)
 CREMA = colors.HexColor('#F7F5F3')
 BORDER = colors.HexColor('#E8E6E3')
 VERDE_TINT = colors.HexColor('#E6EEEA')
 BORDEAUX_TINT = colors.HexColor('#F6E3E6')
 MUTED_TINT = colors.HexColor('#F0EDE8')
 AREA_COLOR = {
-    'Mesa': colors.HexColor('#003F61'),
-    'FAs': colors.HexColor('#9A8E7D'),
-    'Banca Corporativa': colors.HexColor('#AB1930'),
-    'Banca Privada': colors.HexColor('#004836'),
+    'Mesa': AZUL,
+    'FAs': MUTED,
+    'Banca Corporativa': BORDEAUX,
+    'Banca Privada': VERDE,
 }
 AREAS = ['Mesa', 'FAs', 'Banca Corporativa', 'Banca Privada']
 
@@ -446,7 +447,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             section_title("EVOLUCIÓN ÚLTIMOS MESES")
             meses_trend = [m['mes'][:3] for m in data['kpiTrend']]
             series = [
-                ("Facturación", GRAFITO, [m['ingresos'] for m in data['kpiTrend']]),
+                ("Facturación", AZUL, [m['ingresos'] for m in data['kpiTrend']]),
                 ("Gastos", BORDEAUX, [m['egresos'] for m in data['kpiTrend']]),
                 ("Resultado", VERDE, [m['resultado'] for m in data['kpiTrend']]),
             ]
