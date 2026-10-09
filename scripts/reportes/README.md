@@ -93,10 +93,18 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    común (Indirectos, repartido según la Matriz) -- en áreas chicas (BC,
    BP) el prorrateo puede ser la mayor parte del ratio "Gastos /
    Facturación" de la sección siguiente, y sin este desglose no se nota.
-   Si el "Directos" de un área da negativo, el % de esa fila sale "N/D"
-   en vez de un número sin sentido (puede pasar >100%, o invertirse el
-   signo) -- para Mesa hay una causa estructural conocida (ver nota en el
-   PDF); para cualquier otra área, es una señal de revisar el Sheet.
+   "Directos" es la fila "GASTOS DIRECTOS" del Sheet (un gasto real) --
+   **no** `d.subtotalRow` ("SUBTOTAL DIRECTOS"), que es Facturación Bruta
+   MENOS Gastos Directos (contribución marginal, no un costo). Usar esa
+   otra fila fue un bug real de la primera versión de esta sección: daba
+   negativo en Mesa porque su facturación fue negativa ese mes, no por
+   ningún gasto, y la "explicación" que el reporte mostraba entonces
+   (sobre el descuento de costos de mercado de la facturación) estaba mal
+   enfocada -- verificá cualquier cambio futuro acá contra las 4 áreas
+   (fact - GASTOS_DIRECTOS == SUBTOTAL_DIRECTOS, con datos reales) antes
+   de confiar en qué fila es cuál. Con la fila correcta, "Directos" no
+   debería dar negativo nunca -- si pasa, es señal de revisar el Sheet
+   (ya no hay un caso "esperado" para ninguna área, ni para Mesa).
 8. "Cuentas / Proveedores con mayor variación" (antes solo "Proveedores"):
    Gastos Fijos Detalle no siempre tiene un proveedor con nombre propio
    en cada fila -- a veces es una cuenta genérica (ej. "Gtos Mant de
