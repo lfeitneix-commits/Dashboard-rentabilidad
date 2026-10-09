@@ -269,17 +269,24 @@ const APP = context.__APP__;
   // de "Ratios por área" mezcla costo propio del área (directos) con el
   // prorrateo de la estructura común (indirectos, repartido según la
   // Matriz), y esa mezcla puede ser la mayor parte del ratio en áreas
-  // chicas (BC, BP). d.subtotalRow/d.indirectosRow ya existen en ST (son
-  // las mismas filas "SUBTOTAL DIRECTOS"/"GASTOS INDIRECTOS" que usa el
-  // dashboard), así que esto no reimplementa nada. OJO: Mesa descuenta sus
-  // costos de mercado directo de la facturación bruta (ver nota de esa
-  // fila en el Sheet) -- su SUBTOTAL DIRECTOS puede dar negativo ese mes
-  // por eso, no es un error de esta extracción.
+  // chicas (BC, BP).
+  //
+  // OJO -- esto NO es d.subtotalRow ("SUBTOTAL DIRECTOS"): esa fila es
+  // Facturación Bruta MENOS Gastos Directos (o sea, contribución
+  // marginal, no un costo), verificado numéricamente contra las 4 áreas
+  // de Agosto. Usarla acá como si fuera "el gasto directo" daba negativo
+  // en Mesa (porque su facturación fue negativa ese mes, no por ningún
+  // costo) y confundía más de lo que explicaba. El costo directo real es
+  // la fila "GASTOS DIRECTOS" (el encabezado de esa sección, _kind
+  // 'section' en d.annotated) -- eso sí es un monto de gasto, no un
+  // margen, y no debería dar negativo salvo un dato realmente atípico.
   const directosIndirectosPorArea = (mes) => {
     const d = ST.mesData[mes];
-    if (!d || !d.subtotalRow || !d.indirectosRow) return null;
+    if (!d || !d.indirectosRow) return null;
+    const gastosDirectosRow = (d.annotated || []).find(r => r._nom && /^GASTOS\s+DIRECTOS$/i.test(r._nom.trim()));
+    if (!gastosDirectosRow) return null;
     return Object.fromEntries(AREAS_.map(a => [a, {
-      directos: getAreaVal(d.subtotalRow, a),
+      directos: getAreaVal(gastosDirectosRow, a),
       indirectos: getAreaVal(d.indirectosRow, a),
     }]));
   };

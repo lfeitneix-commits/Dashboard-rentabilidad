@@ -605,10 +605,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
                         signed_vals=[gastos_area_abs[a] for a in AREAS])
 
     # ── Directos vs Indirectos: el ratio de "Ratios por área" mezcla costo
-    # propio del área (Directos) con el prorrateo de la estructura común
-    # (Indirectos, repartido según la Matriz) -- en áreas chicas eso puede
-    # ser la mayor parte del ratio. subtotalRow/indirectosRow son las
-    # mismas filas que ya usa el dashboard, no una reimplementación. ──
+    # propio del área (Directos, fila "GASTOS DIRECTOS" del Sheet) con el
+    # prorrateo de la estructura común (Indirectos, repartido según la
+    # Matriz) -- en áreas chicas eso puede ser la mayor parte del ratio.
+    # "Directos" acá es un gasto real (no una contribución/margen), así que
+    # no debería dar negativo -- si pasa, es una señal real de revisar el
+    # Sheet para cualquier área, no un caso esperado como en otras partes
+    # del reporte (ver docstring del módulo sobre la facturación de Mesa). ──
     di_area = data.get('directosIndirectosActual')
     if di_area:
         with keep_together():
@@ -619,10 +622,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 dd = di_area.get(a, {})
                 directos, indirectos = dd.get('directos', 0), dd.get('indirectos', 0)
                 total = directos + indirectos
-                # % solo si ambos componentes son >= 0 -- con un Directos
-                # negativo (Mesa, o excepcionalmente otra área) el % puede
-                # dar > 100% o cualquier otro valor sin sentido (ver nota
-                # de más abajo), no solo "raro de leer".
                 pct_txt = f"{indirectos / total * 100:.1f}%" if (total > 0 and directos >= 0) else "N/D"
                 if directos < 0:
                     areas_directos_neg.append(a)
@@ -636,20 +635,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 "Privada, el prorrateo puede explicar la mayor parte del ratio.",
                 styles['NotaChica'],
             ))
-            if 'Mesa' in areas_directos_neg:
+            if areas_directos_neg:
                 story.append(Spacer(1, 2))
                 story.append(Paragraph(
-                    "Mesa: \"Directos\" da negativo porque esa fila ya incluye los costos de mercado que se "
-                    "descuentan directo de la Facturación Bruta (ver nota de esa fila en el Sheet) -- no es un error.",
-                    styles['NotaChica'],
-                ))
-            otras_neg = [a for a in areas_directos_neg if a != 'Mesa']
-            if otras_neg:
-                story.append(Spacer(1, 2))
-                story.append(Paragraph(
-                    f"{', '.join(otras_neg)}: \"Directos\" dio negativo este mes. A diferencia de Mesa, no hay una "
-                    f"causa estructural conocida para esto en otras áreas -- vale la pena revisarlo en el Sheet "
-                    f"antes de dar el mes por cerrado.",
+                    f"{', '.join(areas_directos_neg)}: \"Directos\" dio negativo este mes -- es un gasto real, no "
+                    f"debería pasar. Vale la pena revisarlo en el Sheet antes de dar el mes por cerrado.",
                     styles['NotaChica'],
                 ))
 
