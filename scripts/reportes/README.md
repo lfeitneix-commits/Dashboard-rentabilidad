@@ -25,7 +25,9 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
 
 1. Mirá la sección "ANÁLISIS DEL MES · {mes}" (el título lleva el mes que
    pasaste en `--mes-label`): arranca con 1 bullet generado solo (el mayor
-   rubro que subió). Si no le pasaste `--bullet`, el PDF sale con un
+   rubro que subió), más un bullet automático por cada rubro/proveedor del
+   top 3/5 que tenga una nota cargada en `NOTAS_CUENTAS` (extract_data.js)
+   -- ver punto 2. Si no le pasaste `--bullet`, el PDF sale con un
    placeholder `[Completar a mano: ...]` -- antes de publicar, volvé a
    correr `build_report.py` con 1-3 `--bullet` que expliquen el *por qué*
    de lo más llamativo del mes (revisando la nota de la fila en el Sheet,
@@ -36,6 +38,18 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    valor atípico de uno normal (ver el caso real de Agosto 2026 en el
    historial de git: "IVA No Computable" parecía un salto, pero estaba en
    línea con el promedio -- Julio había sido el mes atípico, no Agosto).
+2. `NOTAS_CUENTAS` (en `extract_data.js`) es una lista a mano de "por qué"
+   reales para una cuenta/proveedor/rubro en un mes puntual (ej. "Gtos
+   Mant de Oficina" bajó de Julio a Agosto porque en Julio hubo una obra
+   de mantenimiento que no se repitió). Cuando esa cuenta aparece en el
+   top de "Top rubros" o "Cuentas / Proveedores con mayor variación" --
+   en cualquiera de los dos meses de la comparación -- el bullet de
+   "Análisis del mes" lo explica solo, en vez de quedarse en el número
+   pelado. Agregá una entrada nueva la primera vez que alguien te cuente
+   el motivo real de un movimiento raro -- después se va a seguir usando
+   solo en cualquier mes futuro donde ese mismo nombre vuelva a aparecer
+   en el top (ej. si en Septiembre "Gtos Mant de Oficina" vuelve a
+   compararse contra Julio por algún motivo).
 2. Revisá "Proveedores con mayor variación": la lista sale ordenada por
    |variación %| (no por monto), filtrada a pares con monto > 0 en ambos
    meses. Si hay algo raro (un proveedor que debería estar y no está, un

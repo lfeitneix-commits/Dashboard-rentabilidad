@@ -121,6 +121,28 @@ const APP = context.__APP__;
     return Object.fromEntries(AREAS_.map(a => [a, d.agg[a].ingresos]));
   };
 
+  // Notas manuales para explicar variaciones puntuales de una cuenta,
+  // proveedor o rubro en un mes específico -- a mano, mismo criterio que
+  // EXCEPCION_KEYWORDS/PROVEEDOR_MANUAL_2026 en el dashboard: la hoja no
+  // tiene un campo de "motivo" para esto, así que se carga una vez acá y
+  // de ahí en más el reporte lo explica solo cada vez que ese nombre
+  // aparezca en el top de variación (ya sea porque ese fue el mes alto, o
+  // porque el mes de comparación lo fue). Agregar una entrada nueva cada
+  // vez que haya un "por qué" real que valga la pena que el reporte
+  // mencione en vez de dejarlo en el número pelado.
+  const NOTAS_CUENTAS = {
+    'Gtos Mant de Oficina': {
+      Julio: 'hubo una obra de mantenimiento en la oficina ese mes, que no se repitió después',
+    },
+  };
+  function notaParaCuenta(nombre) {
+    const porMes = NOTAS_CUENTAS[nombre];
+    if (!porMes) return null;
+    if (porMes[mesActual]) return { mes: mesActual, texto: porMes[mesActual] };
+    if (mesAnterior && porMes[mesAnterior]) return { mes: mesAnterior, texto: porMes[mesAnterior] };
+    return null;
+  }
+
   // Ranking de rubros (Fijo+Variable), mes actual vs anterior -- para "Top
   // rubros que más subieron". Se filtra a rubros con monto > 0 en AMBOS
   // meses (evita el artefacto de "+infinito%" de un rubro que apareció de la
@@ -140,7 +162,11 @@ const APP = context.__APP__;
         return { nombre: r.nombre, cat: r.cat, anterior: prev, actual: r.monto, deltaPct: prev ? (r.monto - prev) / prev * 100 : null };
       })
       .filter(r => r.anterior > 0 && r.actual > 0 && r.actual > RUBRO_MONTO_MIN)
-      .sort((a, b) => b.deltaPct - a.deltaPct);
+      .sort((a, b) => b.deltaPct - a.deltaPct)
+      .map(r => {
+        const nota = notaParaCuenta(r.nombre);
+        return nota ? { ...r, notaManual: nota.texto, notaMes: nota.mes } : r;
+      });
   }
 
   // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --
@@ -166,7 +192,11 @@ const APP = context.__APP__;
       proveedores = proveedores
         .filter(p => p.anterior > 0 && p.actual > 0 && p.actual > PROVEEDOR_MONTO_MIN)
         .map(p => ({ ...p, deltaPct: (p.actual - p.anterior) / p.anterior * 100 }))
-        .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
+        .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct))
+        .map(p => {
+          const nota = notaParaCuenta(p.nombre);
+          return nota ? { ...p, notaManual: nota.texto, notaMes: nota.mes } : p;
+        });
     }
   }
 
