@@ -71,6 +71,7 @@ let code = extractScript(indexPath);
 code += `
 this.__APP__ = {
   ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy, parseNum,
+  BASE, SHEETS, parseCSV,
 };`;
 const context = vm.createContext(sandbox);
 vm.runInContext(code, context, { filename: 'index.html#script' });
@@ -197,8 +198,15 @@ const APP = context.__APP__;
     const d = ST.mesData[mesActual];
     if (d && comitentesRow && empleadosRow && factPromRow) {
       const gastosTotales = d.gastosTotalesRow;
+      // "Facturación promedio (Ene-Jul)" -- comitentes/empleados/facturación
+      // promedio son fijos en la Matriz (no cambian de mes a mes); el costo
+      // sí es de mesActual. Si no se puede leer el período del rótulo, se
+      // avisa en vez de inventar una fecha.
+      const factPromLabel = String(Object.values(factPromRow)[0] || Object.values(factPromRow)[1] || '');
+      const periodoMatch = /\(([^)]+)\)/.exec(factPromLabel);
       unitEconomics = {
         mes: mesActual,
+        periodoPromedio: periodoMatch ? periodoMatch[1] : '¿período no identificado en la Matriz?',
         porArea: AREAS_.map(a => ({
           area: a,
           comitentes: matrizAuxVal(comitentesRow, a),
@@ -207,6 +215,46 @@ const APP = context.__APP__;
           gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
         })),
       };
+    }
+  }
+
+  // Gastos directos vs indirectos por área -- el ratio Gastos/Facturación
+  // de "Ratios por área" mezcla costo propio del área (directos) con el
+  // prorrateo de la estructura común (indirectos, repartido según la
+  // Matriz), y esa mezcla puede ser la mayor parte del ratio en áreas
+  // chicas (BC, BP). d.subtotalRow/d.indirectosRow ya existen en ST (son
+  // las mismas filas "SUBTOTAL DIRECTOS"/"GASTOS INDIRECTOS" que usa el
+  // dashboard), así que esto no reimplementa nada. OJO: Mesa descuenta sus
+  // costos de mercado directo de la facturación bruta (ver nota de esa
+  // fila en el Sheet) -- su SUBTOTAL DIRECTOS puede dar negativo ese mes
+  // por eso, no es un error de esta extracción.
+  const directosIndirectosPorArea = (mes) => {
+    const d = ST.mesData[mes];
+    if (!d || !d.subtotalRow || !d.indirectosRow) return null;
+    return Object.fromEntries(AREAS_.map(a => [a, {
+      directos: getAreaVal(d.subtotalRow, a),
+      indirectos: getAreaVal(d.indirectosRow, a),
+    }]));
+  };
+  const directosIndirectosActual = directosIndirectosPorArea(mesActual);
+
+  // Tipo de cambio (MEP) del mes -- fila "DÓLAR AL <fecha>", que el loader
+  // del dashboard corta a propósito (todo lo que sigue a "GASTOS TOTALES"
+  // en la hoja es contable/de caja, no entra a ST.mesData). Se vuelve a
+  // pedir la hoja cruda de este mes nomás para sacar ese único valor.
+  let dolarMEP = null;
+  {
+    const sheetInfo = APP.SHEETS.find(s => s.mes === mesActual);
+    if (sheetInfo) {
+      try {
+        const res = await fetch(APP.BASE + sheetInfo.gid);
+        const text = await res.text();
+        const { rows } = APP.parseCSV(text);
+        const dolarRow = rows.find(r => /^D[OÓ]LAR/i.test(String(Object.values(r)[0] || '').trim()));
+        if (dolarRow) dolarMEP = parseNum(Object.values(dolarRow)[1]);
+      } catch (e) {
+        console.error('No se pudo obtener el tipo de cambio (no bloqueante):', e.message);
+      }
     }
   }
 
@@ -243,6 +291,8 @@ const APP = context.__APP__;
     gastosTotalesAnterior: mesAnterior ? areaVals(mesAnterior, 'gastosTotalesRow') : null,
     impuestosActual: areaVals(mesActual, 'impuestosRow'),
     ingresosPorAreaActual: ingresosPorArea(mesActual),
+    directosIndirectosActual,
+    dolarMEP,
     rubrosVariacion,
     proveedores,
     unitEconomics,
