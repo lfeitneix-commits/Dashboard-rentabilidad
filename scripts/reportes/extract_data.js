@@ -174,6 +174,47 @@ const APP = context.__APP__;
       });
   }
 
+  // Mismo ranking que arriba, pero aperturado por área -- "Clasificación de
+  // gastos" (la fuente de rubrosVariacion) es un total de TODA la empresa,
+  // sin desglose por área, así que esto sale de otra fuente: las filas de
+  // ST.mesData[mes].annotated, que sí tienen una columna por área
+  // (getAreaVal). Se usan solo las filas "hoja" -- _kind 'account' o
+  // 'subaccount' que NO sean el padre de un grupo (_parentId sin _child,
+  // ej. "Sueldos y CS Directos", que ya es la suma de "Sueldos y CS Mesa" +
+  // "... BC" + "... FAs" + "... BP") -- si se incluyera el padre también,
+  // cada rubro agrupado se contaría dos veces (una en el padre, otra en el
+  // hijo de esa área). Mismo criterio que rubrosVariacion (monto > 0 en
+  // ambos meses, piso de USD 500) para no listar ruido.
+  const RUBRO_AREA_MONTO_MIN = 500;
+  function leafRows(mes) {
+    const d = ST.mesData[mes];
+    if (!d) return [];
+    return (d.annotated || []).filter(r =>
+      (r._kind === 'account' || r._kind === 'subaccount') && (!r._parentId || r._child));
+  }
+  let rubrosVariacionPorArea = {};
+  if (mesAnterior) {
+    const leafActual = leafRows(mesActual);
+    const leafAnterior = leafRows(mesAnterior);
+    AREAS_.forEach(area => {
+      const montoActual = {};
+      leafActual.forEach(r => { montoActual[r._nom] = (montoActual[r._nom] || 0) + getAreaVal(r, area); });
+      const montoAnterior = {};
+      leafAnterior.forEach(r => { montoAnterior[r._nom] = (montoAnterior[r._nom] || 0) + getAreaVal(r, area); });
+      const nombres = new Set([...Object.keys(montoActual), ...Object.keys(montoAnterior)]);
+      const lista = [];
+      nombres.forEach(nombre => {
+        const anterior = montoAnterior[nombre] || 0;
+        const actual = montoActual[nombre] || 0;
+        if (anterior > 0 && actual > 0 && actual > RUBRO_AREA_MONTO_MIN) {
+          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100 });
+        }
+      });
+      lista.sort((a, b) => b.deltaPct - a.deltaPct);
+      rubrosVariacionPorArea[area] = lista;
+    });
+  }
+
   // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --
   // ordenado por |variación %|, no por monto absoluto, para que salten a la
   // vista los cambios bruscos aunque el proveedor no sea de los más caros.
@@ -353,6 +394,7 @@ const APP = context.__APP__;
     directosIndirectosActual,
     dolarMEP,
     rubrosVariacion,
+    rubrosVariacionPorArea,
     proveedores,
     unitEconomics,
     unitEconomicsTrend,

@@ -154,6 +154,26 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     ("1k", "1k", "0k") en el eje. Si se agrega un gráfico de otra métrica
     a escala chica, pasarle también un `fmt_axis` en vez de dejar el
     default.
+14. "Top rubros que más subieron · por área" (debajo de la tabla general
+    de rubros): una mini-tabla por área con su propio top 5 (mismo
+    criterio `deltaPct > 0`), se salta el área si no tuvo ninguno. Ojo:
+    sale de una fuente distinta a la tabla de arriba. La tabla general usa
+    "Clasificación de gastos" (`rubrosVariacion`/`getClasifRubrosRanking`),
+    que es un total de TODA la empresa sin columna por área. Esta tabla
+    usa `rubrosVariacionPorArea` (en `extract_data.js`), armada a partir
+    de las filas "hoja" de `ST.mesData[mes].annotated` (cada una con su
+    propia columna por área, vía `getAreaVal`) -- por eso los nombres de
+    rubro y los montos de una tabla no cierran exactamente con la otra
+    (son dos clasificaciones de gastos distintas, cargadas en hojas
+    distintas del Sheet). "Filas hoja" excluye los rubros que son
+    "padre" de un grupo por área (`_parentId` sin `_child`, ej. "Sueldos
+    y CS Directos", que ya es la suma de "... Mesa" + "... BC" + "... FAs"
+    + "... BP") -- incluir el padre además de sus hijos contaría ese
+    rubro dos veces. Es normal ver "IVA No Computable" como el #1 en las
+    4 áreas con un % enorme (de una base de pocos dólares a varios miles)
+    -- es el mismo fenómeno que ya explica el bullet de "Análisis del
+    mes" de Agosto 2026 (Julio fue el mes atípico, con una base casi en
+    cero), prorrateado en las 4 áreas.
 
 ## Subirlo al dashboard
 
