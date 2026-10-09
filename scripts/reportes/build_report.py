@@ -174,17 +174,33 @@ def build(data, mes_label, out_path, bullets_extra=None):
         return Paragraph(html, styles['VarCell']), tint
 
     def var_cell_delta(delta):
+        # Delta en USD (nunca %) -- para cuando un % directamente no es
+        # interpretable: la base era <= 0, o el valor cambió de signo (ver
+        # pct_or_delta). "USD" explícito para que no se confunda con un %
+        # o un monto en otra unidad.
         if delta == 0:
             icon, color_hex, tint = asset('tri_flat_muted.png'), MUTED_HEX, MUTED_TINT
-            txt = '0'
+            txt = 'USD 0'
         elif delta > 0:
             icon, color_hex, tint = asset('tri_up_verde.png'), VERDE_HEX, VERDE_TINT
-            txt = f'+{num(delta)}'
+            txt = f'+USD {num(delta)}'
         else:
             icon, color_hex, tint = asset('tri_down_bordeaux.png'), BORDEAUX_HEX, BORDEAUX_TINT
-            txt = num(delta)
+            txt = f'USD {num(delta)}'
         html = f'<img src="{icon}" width="7.5" height="7.5" valign="-1.3"/>&nbsp;<font color="{color_hex}">{txt}</font>'
         return Paragraph(html, styles['VarCell']), tint
+
+    def pct_or_delta(actual, anterior):
+        # Un % de variación solo es interpretable si NO cruza el cero: si
+        # el valor cambia de signo (ej. Facturación de +1.073.707 a
+        # -702.967 = "-165,5%", que se lee como una caída descomunal en
+        # vez de "se volvió negativo") o si la base ya era <= 0 (divide por
+        # un número no positivo e invierte el sentido del %). En esos casos
+        # se muestra el delta en USD en vez de un % -- ver docstring del
+        # módulo.
+        if anterior > 0 and actual > 0:
+            return var_cell((actual - anterior) / anterior * 100)
+        return var_cell_delta(actual - anterior)
 
     def ratio_cell(pct, good_below=50.0):
         good = pct <= good_below
@@ -400,9 +416,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
 
     if kpi_ant:
         fact_ant, gastos_ant, result_ant = kpi_ant['ingresos'], kpi_ant['egresos'], kpi_ant['resultado']
-        fact_var = var_cell((fact_act - fact_ant) / fact_ant * 100) if fact_ant > 0 else var_cell_delta(fact_act - fact_ant)
-        gastos_var = var_cell((gastos_act - gastos_ant) / gastos_ant * 100) if gastos_ant > 0 else var_cell_delta(gastos_act - gastos_ant)
-        result_var = var_cell((result_act - result_ant) / result_ant * 100) if result_ant > 0 else var_cell_delta(result_act - result_ant)
+        fact_var = pct_or_delta(fact_act, fact_ant)
+        gastos_var = pct_or_delta(gastos_act, gastos_ant)
+        result_var = pct_or_delta(result_act, result_ant)
     else:
         fact_var = gastos_var = result_var = var_cell(0.0)
 
@@ -461,15 +477,19 @@ def build(data, mes_label, out_path, bullets_extra=None):
             data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
 
-    # ── Proveedores con mayor variación (no los de mayor monto -- ver nota
-    # en extract_data.js sobre el filtro anterior>0 && actual>0) ──
+    # ── Cuentas/proveedores con mayor variación (no los de mayor monto --
+    # ver nota en extract_data.js sobre el filtro anterior>0 && actual>0).
+    # "Cuenta / Proveedor" porque Gastos Fijos Detalle no siempre tiene un
+    # proveedor con nombre propio en esa fila -- a veces es una cuenta
+    # genérica (ej. "Gtos Mant de Oficina"), y llamarlo solo "Proveedor"
+    # sugiere algo más específico de lo que hay. ──
     if data['proveedores']:
         with keep_together():
-            section_title("PROVEEDORES CON MAYOR VARIACIÓN")
+            section_title("CUENTAS / PROVEEDORES CON MAYOR VARIACIÓN")
             rows = []
             for p in data['proveedores'][:5]:
                 rows.append([p['nombre'], num(p['anterior']), num(p['actual']), var_cell(p['deltaPct'])])
-            data_table(["Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
+            data_table(["Cuenta / Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [65 * mm, 26 * mm, 26 * mm, CONTENT_W - 65 * mm - 52 * mm], var_colidx=3)
 
     # ── Facturación por área: siempre tabla con signo (nunca %, por si
@@ -494,6 +514,55 @@ def build(data, mes_label, out_path, bullets_extra=None):
             plain_table(["Área", "Gastos + Impuestos"], [[a, usd(gastos_area_abs[a])] for a in AREAS],
                         [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
                         signed_vals=[gastos_area_abs[a] for a in AREAS])
+
+    # ── Directos vs Indirectos: el ratio de "Ratios por área" mezcla costo
+    # propio del área (Directos) con el prorrateo de la estructura común
+    # (Indirectos, repartido según la Matriz) -- en áreas chicas eso puede
+    # ser la mayor parte del ratio. subtotalRow/indirectosRow son las
+    # mismas filas que ya usa el dashboard, no una reimplementación. ──
+    di_area = data.get('directosIndirectosActual')
+    if di_area:
+        with keep_together():
+            section_title("GASTOS DIRECTOS VS INDIRECTOS POR ÁREA")
+            rows = []
+            areas_directos_neg = []
+            for a in AREAS:
+                dd = di_area.get(a, {})
+                directos, indirectos = dd.get('directos', 0), dd.get('indirectos', 0)
+                total = directos + indirectos
+                # % solo si ambos componentes son >= 0 -- con un Directos
+                # negativo (Mesa, o excepcionalmente otra área) el % puede
+                # dar > 100% o cualquier otro valor sin sentido (ver nota
+                # de más abajo), no solo "raro de leer".
+                pct_txt = f"{indirectos / total * 100:.1f}%" if (total > 0 and directos >= 0) else "N/D"
+                if directos < 0:
+                    areas_directos_neg.append(a)
+                rows.append([a, usd(directos), usd(indirectos), pct_txt])
+            plain_table(["Área", "Directos", "Indirectos", "% Indirectos / Total"], rows,
+                        [40 * mm, 42 * mm, 42 * mm, CONTENT_W - 40 * mm - 42 * mm - 42 * mm],
+                        signed_colidx=1, signed_vals=[di_area.get(a, {}).get('directos', 0) for a in AREAS])
+            story.append(Paragraph(
+                "El ratio de \"Gastos / Facturación\" de abajo mezcla costo propio del área (Directos) con el "
+                "prorrateo de la estructura común (Indirectos) -- en áreas chicas como Banca Corporativa y Banca "
+                "Privada, el prorrateo puede explicar la mayor parte del ratio.",
+                styles['NotaChica'],
+            ))
+            if 'Mesa' in areas_directos_neg:
+                story.append(Spacer(1, 2))
+                story.append(Paragraph(
+                    "Mesa: \"Directos\" da negativo porque esa fila ya incluye los costos de mercado que se "
+                    "descuentan directo de la Facturación Bruta (ver nota de esa fila en el Sheet) -- no es un error.",
+                    styles['NotaChica'],
+                ))
+            otras_neg = [a for a in areas_directos_neg if a != 'Mesa']
+            if otras_neg:
+                story.append(Spacer(1, 2))
+                story.append(Paragraph(
+                    f"{', '.join(otras_neg)}: \"Directos\" dio negativo este mes. A diferencia de Mesa, no hay una "
+                    f"causa estructural conocida para esto en otras áreas -- vale la pena revisarlo en el Sheet "
+                    f"antes de dar el mes por cerrado.",
+                    styles['NotaChica'],
+                ))
 
     # ── Ratios por área ──
     with keep_together():
@@ -541,17 +610,30 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(ratios_row)
 
     # ── Unit economics: cruza "CÁLCULOS AUX" de la Matriz (comitentes,
-    # empleados, operaciones promedio por área) con Gastos Totales y Sueldos
-    # y CS Back del mes actual. Si el Sheet no tiene esos datos todavía
-    # (hoja Matriz sin la sección CÁLCULOS AUX), extract_data.js manda
-    # unitEconomics=null y esta sección se omite en vez de romper. ──
+    # empleados, facturación promedio por área) con Gastos Totales del mes
+    # actual. Si el Sheet no tiene esos datos todavía (hoja Matriz sin la
+    # sección CÁLCULOS AUX), extract_data.js manda unitEconomics=null y esta
+    # sección se omite en vez de romper.
+    #
+    # OJO al leer esto: "Comitentes", "Empleados" y "Facturación promedio"
+    # son fijos en la Matriz (el mismo valor en el reporte de cualquier
+    # mes, ver periodoPromedio) -- NO son del mes de este reporte. Solo
+    # "Costo" sale de ese mes puntual. Por eso puede pasar que, en un mes
+    # con facturación negativa (ej. Mesa en Agosto), la "Facturación /
+    # comitente" de la tabla dé positiva igual: es el promedio histórico,
+    # no lo que pasó ese mes. Aclararlo en el subtítulo en vez de dejar
+    # "Datos de {mes}" a secas, que sugiere que todo es de ese mes. ──
     ue = data.get('unitEconomics')
     if ue:
         col_a = 48 * mm
         col_rest = (CONTENT_W - col_a) / 3
         with keep_together():
             section_title("UNIT ECONOMICS")
-            story.append(Paragraph(f"Datos de {ue['mes']}", styles['NotaChica']))
+            story.append(Paragraph(
+                f"Comitentes, Empleados y Facturación promedio: Matriz ({ue['periodoPromedio']}, no cambia mes a mes) "
+                f"&nbsp;·&nbsp; Costo: datos de {ue['mes']}",
+                styles['NotaChica'],
+            ))
             story.append(Spacer(1, 4))
             rows = [[a['area'], num(a['comitentes']) if a['comitentes'] else '—',
                      usd2(a['facturacionPromedio'] / a['comitentes']) if a['comitentes'] else '—',
@@ -603,6 +685,28 @@ def build(data, mes_label, out_path, bullets_extra=None):
             ]))
             story.append(t)
             story.append(Spacer(1, 4))
+
+    # ── Notas de metodología: breve, al pie -- no repite todo el docstring
+    # del módulo, solo lo que hace falta para leer los montos de este PDF
+    # puntual (el tipo de cambio usado, principalmente). ──
+    dolar = data.get('dolarMEP')
+    with keep_together():
+        section_title("NOTAS DE METODOLOGÍA")
+        bullets_meta = []
+        if dolar:
+            bullets_meta.append(f"Tipo de cambio (MEP) usado para convertir a USD este mes: {usd2(dolar)}.")
+        bullets_meta.append(
+            "Un % de variación no se muestra (se reemplaza por el delta en USD) cuando la base del mes anterior "
+            "es <= 0, o cuando el valor cambia de signo entre un mes y el otro -- en ninguno de los dos casos un % "
+            "es interpretable de forma directa."
+        )
+        bullets_meta.append(
+            "\"Gastos / Facturación\" por área mezcla costo directo del área con el prorrateo de gastos "
+            "indirectos (ver \"Gastos Directos vs Indirectos por área\")."
+        )
+        for b in bullets_meta:
+            story.append(Paragraph(f"•  {b}", styles['NotaChica']))
+            story.append(Spacer(1, 3))
 
     doc = SimpleDocTemplate(out_path, pagesize=letter, topMargin=HEADER_H + 11 * mm, bottomMargin=17 * mm,
                              leftMargin=MARGIN, rightMargin=MARGIN,

@@ -43,15 +43,45 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    bug de este script.
 3. Fijate en los "N/D" (ratios con facturación <= 0 ese mes): son así a
    propósito (ver el docstring de `build_report.py`), no un error.
-4. "Unit economics" no incluye operaciones/comitente: el dato de
-   "Operaciones promedio" de Mesa en la hoja Matriz no es confiable
-   todavía. Si en algún momento se corrige, se puede volver a sumar (ver
-   el historial de este archivo para la versión que la tenía).
+4. "Unit economics": "Comitentes", "Empleados" y "Facturación promedio"
+   son fijos en la hoja Matriz (el mismo número en el reporte de
+   cualquier mes -- ver `periodoPromedio`, hoy "Ene-Jul"), **no** son del
+   mes de ese reporte. Solo "Costo" sale de ese mes puntual. El subtítulo
+   de la tabla lo aclara; no lo cambies a algo tipo "Datos de {mes}" sin
+   especificar qué es fijo y qué no, porque da a entender que todo es de
+   ese mes (pasó: en un mes con facturación negativa, "Facturación /
+   comitente" seguía dando positiva porque es el promedio histórico). No
+   incluye operaciones/comitente: el dato de "Operaciones promedio" de
+   Mesa en la Matriz no es confiable todavía.
 5. "Excepciones / no recurrentes" solo mira el mes que se está
    reportando, no el historial completo -- el reporte de Agosto no repite
    un viaje que ya salió en el de Junio o Julio. Si no hubo ninguna
    excepción ese mes, la sección directamente no aparece en el PDF (no es
    un bug).
+6. Un % de variación no se muestra -- se reemplaza por el delta en USD --
+   no solo cuando la base del mes anterior es <= 0, sino también cuando
+   el valor cambia de signo entre los dos meses (ej. Facturación de
+   positiva a negativa). Ambos casos hacen que el % no sea interpretable
+   directamente (ver `pct_or_delta` en `build_report.py`).
+7. "Gastos Directos vs Indirectos por área": separa cuánto del costo de
+   cada área es propio (Directos) de cuánto es prorrateo de la estructura
+   común (Indirectos, repartido según la Matriz) -- en áreas chicas (BC,
+   BP) el prorrateo puede ser la mayor parte del ratio "Gastos /
+   Facturación" de la sección siguiente, y sin este desglose no se nota.
+   Si el "Directos" de un área da negativo, el % de esa fila sale "N/D"
+   en vez de un número sin sentido (puede pasar >100%, o invertirse el
+   signo) -- para Mesa hay una causa estructural conocida (ver nota en el
+   PDF); para cualquier otra área, es una señal de revisar el Sheet.
+8. "Cuentas / Proveedores con mayor variación" (antes solo "Proveedores"):
+   Gastos Fijos Detalle no siempre tiene un proveedor con nombre propio
+   en cada fila -- a veces es una cuenta genérica (ej. "Gtos Mant de
+   Oficina"). El título y la columna dicen "Cuenta / Proveedor" a
+   propósito, para no prometer algo más específico de lo que hay.
+9. "Notas de metodología" (al final del PDF) trae el tipo de cambio (MEP)
+   usado ese mes -- se re-pide la hoja cruda de ese mes nomás para leer la
+   fila "DÓLAR AL ...", que el loader del dashboard corta a propósito
+   (todo lo que sigue a "GASTOS TOTALES" en la hoja es contable/de caja,
+   no entra a `ST.mesData`).
 
 ## Subirlo al dashboard
 
