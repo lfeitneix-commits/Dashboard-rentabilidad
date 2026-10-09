@@ -632,7 +632,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
             section_title("UNIT ECONOMICS")
             story.append(Paragraph(
                 f"Comitentes y Empleados: Matriz (fijo, no cambia mes a mes) "
-                f"&nbsp;·&nbsp; Facturación (FAs neta de Comisiones Productores) y Costo: datos de {ue['mes']}",
+                f"&nbsp;·&nbsp; Facturación (FAs neta de Comisiones Productores) y Costo total "
+                f"(Directos + Indirectos prorrateados): datos de {ue['mes']}",
                 styles['NotaChica'],
             ))
             story.append(Spacer(1, 4))
@@ -640,7 +641,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
                      usd2(a['facturacionMes'] / a['comitentes']) if a['comitentes'] else '—',
                      usd2(a['gastoTotal'] / a['comitentes']) if a['comitentes'] else '—']
                     for a in ue['porArea']]
-            plain_table(["Área", "Comitentes", "Facturación / comitente", "Costo / comitente"], rows,
+            plain_table(["Área", "Comitentes", "Facturación / comitente", "Costo total / comitente"], rows,
                         [col_a, col_rest, col_rest, col_rest])
 
         with keep_together():
@@ -648,7 +649,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
                      usd2(a['facturacionMes'] / a['empleados']) if a['empleados'] else '—',
                      usd2(a['gastoTotal'] / a['empleados']) if a['empleados'] else '—']
                     for a in ue['porArea']]
-            plain_table(["Área", "Empleados", "Facturación / empleado", "Costo / empleado"], rows,
+            plain_table(["Área", "Empleados", "Facturación / empleado", "Costo total / empleado"], rows,
                         [col_a, col_rest, col_rest, col_rest])
 
     # ── Excepciones / no recurrentes: gastos puntuales identificados por

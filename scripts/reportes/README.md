@@ -59,7 +59,11 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    es neta de "Comisiones Productores" (un gasto directo de FAs en el
    Sheet, pero conceptualmente es plata que se queda el productor externo,
    no FAs) -- solo para estas métricas, no para el resto del reporte
-   ("Facturación por área" sigue siendo la bruta del Sheet).
+   ("Facturación por área" sigue siendo la bruta del Sheet). "Costo" es el
+   GASTOS TOTALES del Sheet (Directos + Indirectos prorrateados), no solo
+   el costo directo del área -- por eso la tabla dice "Costo total", para
+   no dar a entender que es solo lo propio (ver "Gastos Directos vs
+   Indirectos por área" para esa distinción).
 5. "Excepciones / no recurrentes" solo mira el mes que se está
    reportando, no el historial completo -- el reporte de Agosto no repite
    un viaje que ya salió en el de Junio o Julio. Si no hubo ninguna
