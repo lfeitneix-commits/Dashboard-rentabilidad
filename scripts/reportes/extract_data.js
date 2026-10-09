@@ -171,10 +171,18 @@ const APP = context.__APP__;
   }
 
   // Unit economics (cruza "CÁLCULOS AUX" de la Matriz -- comitentes y
-  // empleados promedio por área -- con Gastos Totales del mes más
-  // reciente). No reimplementa nada que no esté ya en el sheet: solo arma
-  // los cocientes. No incluye operaciones/comitente: el dato de
-  // "Operaciones promedio" de Mesa en la Matriz no es confiable todavía.
+  // empleados por área, que no tienen desglose mensual en el Sheet -- con
+  // Facturación y Gastos Totales de mesActual). No reimplementa nada que
+  // no esté ya en el sheet: solo arma los cocientes. No incluye
+  // operaciones/comitente: el dato de "Operaciones promedio" de Mesa en
+  // la Matriz no es confiable todavía.
+  //
+  // Antes "Facturación/comitente" usaba la "Facturación promedio (Ene-Jul)"
+  // de la Matriz -- un promedio fijo, no el dato real de mesActual. Eso
+  // hacía que, en un mes con facturación negativa (Mesa en Agosto), la
+  // tabla siguiera mostrando un número positivo (el promedio histórico),
+  // que no refleja lo que pasó ese mes. Ahora usa la facturación real de
+  // mesActual por área (mismo dato que "Facturación por área").
   const parseNum = APP.parseNum;
   function matrizAuxRow(labelSubstr) {
     if (!ST.matrizData) return null;
@@ -194,24 +202,17 @@ const APP = context.__APP__;
   {
     const comitentesRow = matrizAuxRow('comitentes totales');
     const empleadosRow = matrizAuxRow('empleados');
-    const factPromRow = matrizAuxRow('facturación promedio');
     const d = ST.mesData[mesActual];
-    if (d && comitentesRow && empleadosRow && factPromRow) {
+    if (d && comitentesRow && empleadosRow) {
       const gastosTotales = d.gastosTotalesRow;
-      // "Facturación promedio (Ene-Jul)" -- comitentes/empleados/facturación
-      // promedio son fijos en la Matriz (no cambian de mes a mes); el costo
-      // sí es de mesActual. Si no se puede leer el período del rótulo, se
-      // avisa en vez de inventar una fecha.
-      const factPromLabel = String(Object.values(factPromRow)[0] || Object.values(factPromRow)[1] || '');
-      const periodoMatch = /\(([^)]+)\)/.exec(factPromLabel);
+      const ingresosMes = ingresosPorArea(mesActual) || {};
       unitEconomics = {
         mes: mesActual,
-        periodoPromedio: periodoMatch ? periodoMatch[1] : '¿período no identificado en la Matriz?',
         porArea: AREAS_.map(a => ({
           area: a,
           comitentes: matrizAuxVal(comitentesRow, a),
           empleados: matrizAuxVal(empleadosRow, a),
-          facturacionPromedio: matrizAuxVal(factPromRow, a),
+          facturacionMes: ingresosMes[a] || 0,
           gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
         })),
       };

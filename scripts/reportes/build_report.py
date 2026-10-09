@@ -610,19 +610,17 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(ratios_row)
 
     # ── Unit economics: cruza "CÁLCULOS AUX" de la Matriz (comitentes,
-    # empleados, facturación promedio por área) con Gastos Totales del mes
-    # actual. Si el Sheet no tiene esos datos todavía (hoja Matriz sin la
-    # sección CÁLCULOS AUX), extract_data.js manda unitEconomics=null y esta
-    # sección se omite en vez de romper.
+    # empleados por área -- sin desglose mensual en el Sheet) con
+    # Facturación y Gastos Totales de mesActual. Si el Sheet no tiene esos
+    # datos todavía (hoja Matriz sin la sección CÁLCULOS AUX), extract_data.js
+    # manda unitEconomics=null y esta sección se omite en vez de romper.
     #
-    # OJO al leer esto: "Comitentes", "Empleados" y "Facturación promedio"
-    # son fijos en la Matriz (el mismo valor en el reporte de cualquier
-    # mes, ver periodoPromedio) -- NO son del mes de este reporte. Solo
-    # "Costo" sale de ese mes puntual. Por eso puede pasar que, en un mes
-    # con facturación negativa (ej. Mesa en Agosto), la "Facturación /
-    # comitente" de la tabla dé positiva igual: es el promedio histórico,
-    # no lo que pasó ese mes. Aclararlo en el subtítulo en vez de dejar
-    # "Datos de {mes}" a secas, que sugiere que todo es de ese mes. ──
+    # "Comitentes" y "Empleados" son fijos en la Matriz (no cambian de mes a
+    # mes, no hay desglose mensual para eso en el Sheet); "Facturación" y
+    # "Costo" sí son de mesActual -- por eso en un mes con facturación
+    # negativa (ej. Mesa en Agosto), "Facturación / comitente" también da
+    # negativa (correcto: antes usaba un promedio histórico fijo que no
+    # reflejaba lo que pasó ese mes puntual). ──
     ue = data.get('unitEconomics')
     if ue:
         col_a = 48 * mm
@@ -630,13 +628,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
         with keep_together():
             section_title("UNIT ECONOMICS")
             story.append(Paragraph(
-                f"Comitentes, Empleados y Facturación promedio: Matriz ({ue['periodoPromedio']}, no cambia mes a mes) "
-                f"&nbsp;·&nbsp; Costo: datos de {ue['mes']}",
+                f"Comitentes y Empleados: Matriz (fijo, no cambia mes a mes) "
+                f"&nbsp;·&nbsp; Facturación y Costo: datos de {ue['mes']}",
                 styles['NotaChica'],
             ))
             story.append(Spacer(1, 4))
             rows = [[a['area'], num(a['comitentes']) if a['comitentes'] else '—',
-                     usd2(a['facturacionPromedio'] / a['comitentes']) if a['comitentes'] else '—',
+                     usd2(a['facturacionMes'] / a['comitentes']) if a['comitentes'] else '—',
                      usd2(a['gastoTotal'] / a['comitentes']) if a['comitentes'] else '—']
                     for a in ue['porArea']]
             plain_table(["Área", "Comitentes", "Facturación / comitente", "Costo / comitente"], rows,
@@ -644,7 +642,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
 
         with keep_together():
             rows = [[a['area'], num(a['empleados']) if a['empleados'] else '—',
-                     usd2(a['facturacionPromedio'] / a['empleados']) if a['empleados'] else '—',
+                     usd2(a['facturacionMes'] / a['empleados']) if a['empleados'] else '—',
                      usd2(a['gastoTotal'] / a['empleados']) if a['empleados'] else '—']
                     for a in ue['porArea']]
             plain_table(["Área", "Empleados", "Facturación / empleado", "Costo / empleado"], rows,

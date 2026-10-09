@@ -43,16 +43,19 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    bug de este script.
 3. Fijate en los "N/D" (ratios con facturación <= 0 ese mes): son así a
    propósito (ver el docstring de `build_report.py`), no un error.
-4. "Unit economics": "Comitentes", "Empleados" y "Facturación promedio"
-   son fijos en la hoja Matriz (el mismo número en el reporte de
-   cualquier mes -- ver `periodoPromedio`, hoy "Ene-Jul"), **no** son del
-   mes de ese reporte. Solo "Costo" sale de ese mes puntual. El subtítulo
-   de la tabla lo aclara; no lo cambies a algo tipo "Datos de {mes}" sin
+4. "Unit economics": "Comitentes" y "Empleados" son fijos en la hoja
+   Matriz (el mismo número en el reporte de cualquier mes -- no hay
+   desglose mensual para eso en el Sheet), **no** son del mes de ese
+   reporte. "Facturación" y "Costo" sí son de mesActual. El subtítulo de
+   la tabla lo aclara; no lo cambies a algo tipo "Datos de {mes}" sin
    especificar qué es fijo y qué no, porque da a entender que todo es de
-   ese mes (pasó: en un mes con facturación negativa, "Facturación /
-   comitente" seguía dando positiva porque es el promedio histórico). No
-   incluye operaciones/comitente: el dato de "Operaciones promedio" de
-   Mesa en la Matriz no es confiable todavía.
+   ese mes. (Antes "Facturación/comitente" usaba la "Facturación promedio
+   (Ene-Jul)" de la Matriz -- un promedio histórico fijo -- en vez de la
+   facturación real del mes; eso hacía que, en un mes con facturación
+   negativa, la tabla siguiera mostrando un número positivo que no
+   reflejaba lo que había pasado ese mes puntual.) No incluye
+   operaciones/comitente: el dato de "Operaciones promedio" de Mesa en la
+   Matriz no es confiable todavía.
 5. "Excepciones / no recurrentes" solo mira el mes que se está
    reportando, no el historial completo -- el reporte de Agosto no repite
    un viaje que ya salió en el de Junio o Julio. Si no hubo ninguna
