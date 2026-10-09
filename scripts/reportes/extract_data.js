@@ -221,6 +221,9 @@ const APP = context.__APP__;
           comitentes: matrizAuxVal(comitentesRow, a),
           empleados: matrizAuxVal(empleadosRow, a),
           facturacionMes: (ingresosMes[a] || 0) - (a === 'FAs' ? comisionesProductoresFAs : 0),
+          // gastoTotal = GASTOS TOTALES del Sheet = Directos + Indirectos
+          // prorrateados (no solo el costo directo del área) -- mismo
+          // criterio que "Gastos Totales + Impuestos por área".
           gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
         })),
       };
