@@ -83,11 +83,15 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    un viaje que ya salió en el de Junio o Julio. Si no hubo ninguna
    excepción ese mes, la sección directamente no aparece en el PDF (no es
    un bug).
-6. Un % de variación no se muestra -- se reemplaza por el delta en USD --
-   no solo cuando la base del mes anterior es <= 0, sino también cuando
-   el valor cambia de signo entre los dos meses (ej. Facturación de
-   positiva a negativa). Ambos casos hacen que el % no sea interpretable
-   directamente (ver `pct_or_delta` en `build_report.py`).
+6. Las 3 KPI cards (Facturación Bruta, Gastos Totales, Resultado) siempre
+   muestran la variación como %, incluso si la base del mes anterior era
+   negativa o el valor cruzó el cero -- `pct_or_delta` (en
+   `build_report.py`) calcula el % sobre el valor ABSOLUTO de la base,
+   no la base con signo, para que el signo del % siempre coincida con si
+   mejoró o empeoró (antes se reemplazaba por el delta en USD en esos
+   casos, porque la fórmula estándar divide por un número negativo e
+   invierte el signo -- ver el comentario de la función). Solo se
+   muestra el delta en USD cuando la base es exactamente 0.
 7. "Gastos Directos vs Indirectos por área": separa cuánto del costo de
    cada área es propio (Directos) de cuánto es prorrateo de la estructura
    común (Indirectos, repartido según la Matriz) -- en áreas chicas (BC,
