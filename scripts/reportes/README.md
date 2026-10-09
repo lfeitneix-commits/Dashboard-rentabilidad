@@ -55,7 +55,11 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    negativa, la tabla siguiera mostrando un número positivo que no
    reflejaba lo que había pasado ese mes puntual.) No incluye
    operaciones/comitente: el dato de "Operaciones promedio" de Mesa en la
-   Matriz no es confiable todavía.
+   Matriz no es confiable todavía. La "Facturación" de FAs en esta sección
+   es neta de "Comisiones Productores" (un gasto directo de FAs en el
+   Sheet, pero conceptualmente es plata que se queda el productor externo,
+   no FAs) -- solo para estas métricas, no para el resto del reporte
+   ("Facturación por área" sigue siendo la bruta del Sheet).
 5. "Excepciones / no recurrentes" solo mira el mes que se está
    reportando, no el historial completo -- el reporte de Agosto no repite
    un viaje que ya salió en el de Junio o Julio. Si no hubo ninguna

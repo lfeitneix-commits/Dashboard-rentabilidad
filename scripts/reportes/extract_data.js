@@ -206,13 +206,21 @@ const APP = context.__APP__;
     if (d && comitentesRow && empleadosRow) {
       const gastosTotales = d.gastosTotalesRow;
       const ingresosMes = ingresosPorArea(mesActual) || {};
+      // FAs factura bruto, pero una parte de eso (via "Comisiones
+      // Productores", que en el Sheet está cargado como un gasto directo
+      // de FAs) se la queda el productor externo, no FAs -- para Unit
+      // Economics (facturación "propia" por comitente/empleado) se usa la
+      // neta de esa comisión. Solo afecta a FAs: esa cuenta da 0 en las
+      // demás áreas.
+      const comisionesRow = (d.annotated || []).find(r => r._nom && /^Comisiones\s+Productores$/i.test(r._nom.trim()));
+      const comisionesProductoresFAs = comisionesRow ? getAreaVal(comisionesRow, 'FAs') : 0;
       unitEconomics = {
         mes: mesActual,
         porArea: AREAS_.map(a => ({
           area: a,
           comitentes: matrizAuxVal(comitentesRow, a),
           empleados: matrizAuxVal(empleadosRow, a),
-          facturacionMes: ingresosMes[a] || 0,
+          facturacionMes: (ingresosMes[a] || 0) - (a === 'FAs' ? comisionesProductoresFAs : 0),
           gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
         })),
       };
