@@ -233,37 +233,41 @@ const APP = context.__APP__;
     const key = Object.keys(row).find(k => k.trim() === col) || col;
     return parseNum(row[key]);
   }
-  let unitEconomics = null;
-  {
-    const comitentesRow = matrizAuxRow('comitentes totales');
-    const empleadosRow = matrizAuxRow('empleados');
-    const d = ST.mesData[mesActual];
-    if (d && comitentesRow && empleadosRow) {
-      const gastosTotales = d.gastosTotalesRow;
-      const ingresosMes = ingresosPorArea(mesActual) || {};
-      // FAs factura bruto, pero una parte de eso (via "Comisiones
-      // Productores", que en el Sheet está cargado como un gasto directo
-      // de FAs) se la queda el productor externo, no FAs -- para Unit
-      // Economics (facturación "propia" por comitente/empleado) se usa la
-      // neta de esa comisión. Solo afecta a FAs: esa cuenta da 0 en las
-      // demás áreas.
-      const comisionesRow = (d.annotated || []).find(r => r._nom && /^Comisiones\s+Productores$/i.test(r._nom.trim()));
-      const comisionesProductoresFAs = comisionesRow ? getAreaVal(comisionesRow, 'FAs') : 0;
-      unitEconomics = {
-        mes: mesActual,
-        porArea: AREAS_.map(a => ({
-          area: a,
-          comitentes: matrizAuxVal(comitentesRow, a),
-          empleados: matrizAuxVal(empleadosRow, a),
-          facturacionMes: (ingresosMes[a] || 0) - (a === 'FAs' ? comisionesProductoresFAs : 0),
-          // gastoTotal = GASTOS TOTALES del Sheet = Directos + Indirectos
-          // prorrateados (no solo el costo directo del área) -- mismo
-          // criterio que "Gastos Totales + Impuestos por área".
-          gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
-        })),
-      };
-    }
+  // comitentes/empleados son fijos (Matriz, sin desglose mensual) --
+  // calcularlos una sola vez afuera de la función de abajo, no por mes.
+  const comitentesRow = matrizAuxRow('comitentes totales');
+  const empleadosRow = matrizAuxRow('empleados');
+  function unitEconomicsFor(mes) {
+    const d = ST.mesData[mes];
+    if (!d || !comitentesRow || !empleadosRow) return null;
+    const gastosTotales = d.gastosTotalesRow;
+    const ingresosMes = ingresosPorArea(mes) || {};
+    // FAs factura bruto, pero una parte de eso (vía "Comisiones
+    // Productores", que en el Sheet está cargado como un gasto directo de
+    // FAs) se la queda el productor externo, no FAs -- para Unit Economics
+    // (facturación "propia" por comitente/empleado) se usa la neta de esa
+    // comisión. Solo afecta a FAs: esa cuenta da 0 en las demás áreas.
+    const comisionesRow = (d.annotated || []).find(r => r._nom && /^Comisiones\s+Productores$/i.test(r._nom.trim()));
+    const comisionesProductoresFAs = comisionesRow ? getAreaVal(comisionesRow, 'FAs') : 0;
+    return {
+      mes,
+      porArea: AREAS_.map(a => ({
+        area: a,
+        comitentes: matrizAuxVal(comitentesRow, a),
+        empleados: matrizAuxVal(empleadosRow, a),
+        facturacionMes: (ingresosMes[a] || 0) - (a === 'FAs' ? comisionesProductoresFAs : 0),
+        // gastoTotal = GASTOS TOTALES del Sheet = Directos + Indirectos
+        // prorrateados (no solo el costo directo del área) -- mismo
+        // criterio que "Gastos Totales + Impuestos por área".
+        gastoTotal: gastosTotales ? getAreaVal(gastosTotales, a) : 0,
+      })),
+    };
   }
+  const unitEconomics = unitEconomicsFor(mesActual);
+  // Mismo cálculo mes a mes (Enero..mesActual) para poder comparar la
+  // evolución de Unit Economics, igual que ya se hace con Facturación/
+  // Gastos/Resultado en "Evolución últimos meses".
+  const unitEconomicsTrend = mesesTrend.map(m => unitEconomicsFor(m)).filter(Boolean);
 
   // Gastos directos vs indirectos por área -- el ratio Gastos/Facturación
   // de "Ratios por área" mezcla costo propio del área (directos) con el
@@ -351,6 +355,7 @@ const APP = context.__APP__;
     rubrosVariacion,
     proveedores,
     unitEconomics,
+    unitEconomicsTrend,
     excepciones,
   };
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
