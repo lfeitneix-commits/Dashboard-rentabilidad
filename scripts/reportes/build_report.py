@@ -289,16 +289,25 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(t)
         story.append(Spacer(1, 4))
 
-    def kpi_card(label, value_str, para_tint):
+    def kpi_card(label, value_str, para_tint, sub_label=None):
+        # sub_label (ej. "vs. Julio") aclara contra qué mes es la
+        # variación de abajo -- sin esto no es obvio a simple vista que
+        # siempre es "vs. el mes inmediato anterior", nunca un promedio ni
+        # el mismo mes del año pasado.
         para, _tint = para_tint
         para.style = styles['KpiVar']
-        cell = Table(
-            [[Paragraph(label.upper(), styles['KpiLabel'])],
-             [Paragraph(value_str, styles['KpiValue'])],
-             [para]],
-            colWidths=[58 * mm],
-        )
-        cell.setStyle(TableStyle([
+        content = [
+            [Paragraph(label.upper(), styles['KpiLabel'])],
+            [Paragraph(value_str, styles['KpiValue'])],
+            [para],
+        ]
+        if sub_label:
+            content.append([Paragraph(
+                sub_label,
+                ParagraphStyle('KpiSub', fontName='DMSans', fontSize=7, textColor=MUTED, alignment=TA_CENTER),
+            )])
+        cell = Table(content, colWidths=[58 * mm])
+        style_cmds = [
             ('BACKGROUND', (0, 0), (-1, -1), CREMA),
             ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
             ('LINEABOVE', (0, 0), (-1, 0), 3, BORDEAUX),
@@ -306,7 +315,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
             ('BOTTOMPADDING', (-1, -1), (-1, -1), 12),
             ('TOPPADDING', (0, 1), (0, 1), 1),
             ('TOPPADDING', (0, 2), (0, 2), 1),
-        ]))
+        ]
+        if sub_label:
+            style_cmds.append(('TOPPADDING', (0, 3), (0, 3), 1))
+        cell.setStyle(TableStyle(style_cmds))
         return cell
 
     def na_card(label, note):
@@ -422,10 +434,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
     else:
         fact_var = gastos_var = result_var = var_cell(0.0)
 
+    kpi_sub = f"vs. {data['mesAnterior']}" if kpi_ant else None
     kpis = Table(
-        [[kpi_card("Facturación bruta", usd(fact_act), fact_var),
-          kpi_card("Gastos totales", usd(gastos_act), gastos_var),
-          kpi_card("Resultado", usd(result_act), result_var)]],
+        [[kpi_card("Facturación bruta", usd(fact_act), fact_var, kpi_sub),
+          kpi_card("Gastos totales", usd(gastos_act), gastos_var, kpi_sub),
+          kpi_card("Resultado", usd(result_act), result_var, kpi_sub)]],
         colWidths=[CONTENT_W / 3] * 3,
     )
     kpis.setStyle(TableStyle([
