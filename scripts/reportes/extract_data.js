@@ -6,7 +6,13 @@
 // entorno, cosa que curl/fetch de Node sí resuelven vía NODE_EXTRA_CA_CERTS.
 //
 // Uso:
-//   NODE_USE_ENV_PROXY=1 node extract_data.js [ruta/a/index.html] > real_data.json
+//   NODE_USE_ENV_PROXY=1 node extract_data.js [ruta/a/index.html] [salida.json] [Mes]
+//
+// El tercer argumento (opcional) elige qué mes cargado es "mesActual" --
+// por defecto es el último mes del Sheet. Sirve para generar el reporte de
+// un mes pasado (ej. "Marzo") en vez del más reciente. "Evolución" y
+// "Excepciones" quedan acotados a Enero..ese mes, no al año completo --
+// cada reporte es una foto de lo que se sabía hasta ese momento.
 //
 // Requiere que el entorno tenga docs.google.com habilitado en Network access
 // (si no, ST.meses queda vacío y el script lo avisa en vez de fallar en silencio).
@@ -16,6 +22,7 @@ const path = require('path');
 
 const indexPath = process.argv[2] || path.join(__dirname, '..', '..', 'index.html');
 const outPath = process.argv[3] || path.join(__dirname, 'real_data.json');
+const mesOverride = process.argv[4] || null;
 
 function makeFakeEl() {
   const el = {
@@ -81,11 +88,17 @@ const APP = context.__APP__;
   const AREAS_ = APP.AREAS;
   const getAreaVal = APP.getAreaVal;
   const meses = ST.meses;
-  const mesActual = meses[meses.length - 1];
-  const mesAnterior = meses.length > 1 ? meses[meses.length - 2] : null;
-  // Todos los meses cargados -- el Sheet tiene una hoja por mes del año en
-  // curso (Enero..mesActual), así que esto ya es "desde principio de año".
-  const mesesTrend = meses;
+  const idxActual = mesOverride ? meses.indexOf(mesOverride) : meses.length - 1;
+  if (idxActual < 0) {
+    console.error(`"${mesOverride}" no está entre los meses cargados (${meses.join(', ')}).`);
+    process.exit(1);
+  }
+  const mesActual = meses[idxActual];
+  const mesAnterior = idxActual > 0 ? meses[idxActual - 1] : null;
+  // Enero..mesActual -- no el año completo: el reporte de un mes es una
+  // foto de lo que se sabía hasta ese momento, no debería adelantar meses
+  // que todavía no habían pasado.
+  const mesesTrend = meses.slice(0, idxActual + 1);
 
   const kpiFor = (mes) => {
     const d = ST.mesData[mes];
@@ -110,7 +123,11 @@ const APP = context.__APP__;
   // Ranking de rubros (Fijo+Variable), mes actual vs anterior -- para "Top
   // rubros que más subieron". Se filtra a rubros con monto > 0 en AMBOS
   // meses (evita el artefacto de "+infinito%" de un rubro que apareció de la
-  // nada, y división por cero de uno que desapareció).
+  // nada, y división por cero de uno que desapareció) y, como en
+  // proveedores, a montos de este mes > USD 500 -- si no, un rubro casi en
+  // cero (ej. "Gastos Bancarios Exentos" de 6 a 382) puede salir como "el
+  // que más subió" con un % absurdo sin que importe en términos absolutos.
+  const RUBRO_MONTO_MIN = 500;
   let rubrosVariacion = [];
   if (mesAnterior) {
     const rankActual = APP.getClasifRubrosRanking(mesActual);
@@ -121,7 +138,7 @@ const APP = context.__APP__;
         const prev = byNombreAnterior[r.nombre] || 0;
         return { nombre: r.nombre, cat: r.cat, anterior: prev, actual: r.monto, deltaPct: prev ? (r.monto - prev) / prev * 100 : null };
       })
-      .filter(r => r.anterior > 0 && r.actual > 0)
+      .filter(r => r.anterior > 0 && r.actual > 0 && r.actual > RUBRO_MONTO_MIN)
       .sort((a, b) => b.deltaPct - a.deltaPct);
   }
 

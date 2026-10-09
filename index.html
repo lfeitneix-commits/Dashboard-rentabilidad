@@ -3431,19 +3431,47 @@ function renderMatriz(){
 // Sheet, arma el análisis del mes y lo sube acá -- esta lista se actualiza
 // a mano (un reporte más) cada vez que corre esa Routine.
 const REPORTES_MENSUALES=[
-  {mes:'Agosto 2026',archivo:'reportes/2026-08-reporte-agosto.pdf',generado:'2026-10-08'},
+  {mes:'Enero 2026',archivo:'reportes/2026-01-reporte-enero.pdf',generado:'2026-10-09'},
+  {mes:'Febrero 2026',archivo:'reportes/2026-02-reporte-febrero.pdf',generado:'2026-10-09'},
+  {mes:'Marzo 2026',archivo:'reportes/2026-03-reporte-marzo.pdf',generado:'2026-10-09'},
+  {mes:'Abril 2026',archivo:'reportes/2026-04-reporte-abril.pdf',generado:'2026-10-09'},
+  {mes:'Mayo 2026',archivo:'reportes/2026-05-reporte-mayo.pdf',generado:'2026-10-09'},
+  {mes:'Junio 2026',archivo:'reportes/2026-06-reporte-junio.pdf',generado:'2026-10-09'},
+  {mes:'Julio 2026',archivo:'reportes/2026-07-reporte-julio.pdf',generado:'2026-10-09'},
+  {mes:'Agosto 2026',archivo:'reportes/2026-08-reporte-agosto.pdf',generado:'2026-10-09'},
 ];
-function renderReportes(){
-  document.getElementById('topbar-title').textContent='Reportes Mensuales';
-  const rows=[...REPORTES_MENSUALES].reverse().map(r=>`<tr>
+function buildReportesTableHTML(query){
+  const q=normSearch(query||'');
+  const filtered=q?REPORTES_MENSUALES.filter(r=>normSearch(r.mes).includes(q)):REPORTES_MENSUALES;
+  const rows=[...filtered].reverse().map(r=>`<tr>
     <td>${r.mes}</td>
     <td style="color:var(--muted);font-size:12px">${r.generado}</td>
     <td class="r"><a href="${r.archivo}" target="_blank" class="export-btn" style="text-decoration:none;display:inline-flex">Ver PDF</a></td>
   </tr>`).join('');
+  const body=rows||`<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">${q?'Sin resultados para "'+query+'"':'Todavía no hay reportes generados'}</td></tr>`;
+  return`<table><thead><tr><th>Mes</th><th>Generado</th><th class="r">Archivo</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+function filterReportes(q){
+  ST.reportesSearchQuery=q;
+  const wrap=document.getElementById('reportes-table-wrap');
+  if(wrap) wrap.innerHTML=buildReportesTableHTML(q);
+  const clr=document.getElementById('reportes-search-clear');
+  if(clr) clr.classList.toggle('visible',q.length>0);
+}
+function clearReportesSearch(){
+  const el=document.getElementById('reportes-search');
+  if(el) el.value='';
+  filterReportes('');
+}
+function renderReportes(){
+  document.getElementById('topbar-title').textContent='Reportes Mensuales';
+  const q=ST.reportesSearchQuery||'';
+  const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   return`<div class="sec-hd"><div class="sec-title">Reportes Mensuales</div><div class="sec-sub">Generados automáticamente con IA</div></div>
-    <div class="tc"><div class="tc-hd">Reportes</div>
-      <table><thead><tr><th>Mes</th><th>Generado</th><th class="r">Archivo</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Todavía no hay reportes generados</td></tr>'}</tbody></table>
+    <div class="tc"><div class="tc-hd">Reportes
+      <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="reportes-search" type="text" placeholder="Buscar mes…" autocomplete="off" value="${qAttr}" oninput="filterReportes(this.value)"/><div class="search-clear" id="reportes-search-clear${q.length>0?' visible':''}" onclick="clearReportesSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
+    </div>
+      <div id="reportes-table-wrap">${buildReportesTableHTML(q)}</div>
     </div>`;
 }
 
