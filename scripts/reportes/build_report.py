@@ -456,11 +456,30 @@ def build(data, mes_label, out_path, bullets_extra=None):
     with keep_together():
         section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
         bullets = []
+        ya_mencionado = set()
         if data['rubrosVariacion']:
             top = data['rubrosVariacion'][0]
-            bullets.append(
+            top_txt = (
                 f"{top['nombre']} fue el rubro que más subió ({'+' if top['deltaPct'] >= 0 else ''}{top['deltaPct']:.1f}%, "
                 f"de {num(top['anterior'])} a {num(top['actual'])})."
+            )
+            if top.get('notaManual'):
+                top_txt += f" Esto fue porque {top['notaManual']}."
+            bullets.append(top_txt)
+            ya_mencionado.add(top['nombre'])
+        # Notas manuales para cualquier otro rubro/proveedor del top que
+        # tenga un "por qué" cargado (ver NOTAS_CUENTAS en extract_data.js)
+        # y no se haya mencionado ya arriba -- esto es lo que hace que el
+        # análisis explique, no solo liste números.
+        for item in data['rubrosVariacion'][:3] + data['proveedores'][:5]:
+            nota = item.get('notaManual')
+            if not nota or item['nombre'] in ya_mencionado:
+                continue
+            ya_mencionado.add(item['nombre'])
+            signo = 'subió' if item['deltaPct'] >= 0 else 'bajó'
+            pct = f"{'+' if item['deltaPct'] >= 0 else ''}{item['deltaPct']:.1f}%"
+            bullets.append(
+                f"{item['nombre']} {signo} {pct} (de {num(item['anterior'])} a {num(item['actual'])}) porque {nota}."
             )
         if bullets_extra:
             bullets.extend(bullets_extra)
