@@ -4546,6 +4546,12 @@ function rebuildQuant(){
   // elegido -- el monto de arriba ya quedó bien sumado mes a mes.
   const mesRef=mesesScope[mesesScope.length-1];
   const serviciosActivos=mesRef?serviciosConFecha.filter(s=>parseDesde(s.desde)<=mesIdx(mesRef)):[];
+  // El monto que se muestra por servicio es SU propio total dentro del
+  // período elegido (costo mensual × cantidad de meses activos en
+  // mesesScope), no el costo de un solo mes -- si no, en Consolidado la
+  // suma de las subfilas no da el total de la sección de arriba (costo
+  // mensual plano × 1, cuando el total ya suma varios meses).
+  const costoServicioEnScope=s=>mesesScope.filter(m=>parseDesde(s.desde)<=mesIdx(m)).length*s.costo;
 
   const gastosTotales=costoLaboralTotal+infraTotal;
 
@@ -4569,7 +4575,11 @@ function rebuildQuant(){
   costoLaboralRows.forEach(r=>{ html+=subRow(r.label,r.val); });
 
   html+=secRow('SERVICIOS DE INFRAESTRUCTURA',infraTotal);
-  serviciosActivos.forEach(s=>{ html+=subRow(s.servicio,s.costo,'desde '+s.desde); });
+  serviciosActivos.forEach(s=>{
+    const nMeses=mesesScope.filter(m=>parseDesde(s.desde)<=mesIdx(m)).length;
+    const extra=isConsolidado?`desde ${s.desde} · ${nMeses} ${nMeses===1?'mes':'meses'} × ${fmtD(s.costo)}`:'desde '+s.desde;
+    html+=subRow(s.servicio,costoServicioEnScope(s),extra);
+  });
   // Servicios sin fecha de alta real (ej. Cirion, "Proyectado" -- en etapa
   // de contratación) no suman al total, pero se listan igual para que no
   // parezca que el reporte se olvidó de ellos.
