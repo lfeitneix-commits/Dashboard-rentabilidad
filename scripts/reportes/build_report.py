@@ -618,42 +618,61 @@ def build(data, mes_label, out_path, bullets_extra=None):
         if suben_area:
             area_blocks.append((area, suben_area))
 
-    # ── Qué rubros de las tablas de abajo tienen detalle por proveedor
-    # cargado en el Sheet (ver "Anexo · Detalle de cuentas" más abajo) --
-    # calculado acá para poder linkear el nombre del rubro directo a su
-    # entrada del Anexo, en vez de solo mencionarlo al final del PDF.
+    # ── Qué rubros de las tablas de abajo tienen algo para mostrar en el
+    # Anexo -- calculado acá para poder linkear el nombre del rubro
+    # directo a su entrada, en vez de solo mencionarlo al final del PDF.
     #
     # Ojo, esto NO es "mostrame cuánto es cada cuenta por mes" (eso ya
     # está en la tabla de arriba, mesAnterior/mesActual) -- es de qué
-    # proveedores/conceptos se compone. Si el rubro no coincide con una
-    # cuenta de Gastos Fijos Detalle, no hay ese desglose cargado en el
-    # Sheet (ej. "Honorarios por Servicios" -- confirmado contra la hoja
-    # cruda, no tiene bloque propio, solo "Honorarios Profesionales" lo
-    # tiene) y el nombre queda sin link -- no inventa un desglose que no
-    # existe, ni lo reemplaza por otra cosa (una serie mensual se probó y
-    # no es lo que resuelve "qué es esto"; se sacó). Para que aparezca,
-    # hay que cargar esa cuenta en "Gastos Fijos Detalle" con el mismo
-    # formato que las que ya tienen desglose. ──
+    # proveedores/conceptos/movimientos se compone. Dos fuentes posibles
+    # por rubro (`anexo_entries`, cada una con su `tipo`), en este orden:
+    #   'providers' -- el rubro coincide por nombre con una cuenta de
+    #     Gastos Fijos Detalle: proveedores con su monto en mesAnterior y
+    #     mesActual (gastosFijosDetalleCuentas, ya agregado por mes).
+    #   'ledger' -- no hay esa cuenta en Gastos Fijos Detalle (ej.
+    #     "Honorarios por Servicios" -- confirmado contra la hoja cruda,
+    #     no tiene bloque propio ahí, solo "Honorarios Profesionales" lo
+    #     tiene), pero el nombre coincide EXACTO con una cuenta del mayor
+    #     contable (gastosLedgerDetalle, extract_data.js): movimiento por
+    #     movimiento de mesActual, con fecha y concepto reales. Si el
+    #     rubro es un agregado de varias cuentas del mayor (ej.
+    #     "Impuestos" = Impuesto Ley 25413 + IVA No Computable + ...) NO
+    #     hay match exacto a propósito -- sumar esas cuentas a mano acá
+    #     sería adivinar, no leer el Sheet.
+    # Si un rubro no tiene ninguna de las dos, queda sin link -- no inventa
+    # un desglose que no existe, ni lo reemplaza por otra cosa (una serie
+    # mensual se probó como "tercera fuente" y no resolvía "qué es esto";
+    # se sacó). ──
     cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
+    ledger_detalle = data.get('gastosLedgerDetalle') or {}
     nombres_vistos = {r['nombre'] for r in rubros_suben}
     for area, suben_area in area_blocks:
         nombres_vistos.update(r['nombre'] for r in suben_area)
     cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
-    anexo_cuentas = sorted({
-        cuentas_por_nombre[n.strip().lower()]
-        for n in nombres_vistos
-        if n.strip().lower() in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[n.strip().lower()])
-    })
-    anexo_set = set(anexo_cuentas)
+    ledger_por_nombre = {k.strip().lower(): k for k in ledger_detalle.keys()}
+    anexo_entries = []
+    vistos_lower = set()
+    for n in sorted(nombres_vistos):
+        nl = n.strip().lower()
+        if nl in vistos_lower:
+            continue
+        if nl in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[nl]):
+            anexo_entries.append((cuentas_por_nombre[nl], 'providers'))
+            vistos_lower.add(nl)
+        elif nl in ledger_por_nombre and ledger_detalle.get(ledger_por_nombre[nl]):
+            anexo_entries.append((ledger_por_nombre[nl], 'ledger'))
+            vistos_lower.add(nl)
+    anexo_entries.sort(key=lambda e: e[0])
+    anexo_nombres = {e[0] for e in anexo_entries}
     nombre_style = ParagraphStyle('rubroNombre', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
 
     def nombre_cell(nombre):
-        # Si ese rubro tiene detalle cargado (ver anexo_cuentas), el
-        # nombre es un link interno a su tabla en el Anexo -- mismo
-        # criterio de match (case-insensitive) que arriba.
-        cuenta = cuentas_por_nombre.get(nombre.strip().lower())
-        if cuenta and cuenta in anexo_set:
-            html = f'<a href="#{cuenta_slug(cuenta)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
+        # Si ese rubro tiene una entrada en el Anexo (providers o ledger),
+        # el nombre es un link interno -- mismo criterio de match
+        # (case-insensitive) que arriba.
+        match = cuentas_por_nombre.get(nombre.strip().lower()) or ledger_por_nombre.get(nombre.strip().lower())
+        if match and match in anexo_nombres:
+            html = f'<a href="#{cuenta_slug(match)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
             return Paragraph(html, nombre_style)
         return Paragraph(nombre, nombre_style)
 
@@ -937,53 +956,85 @@ def build(data, mes_label, out_path, bullets_extra=None):
             story.append(t)
             story.append(Spacer(1, 4))
 
-    # ── Anexo: detalle por proveedor/concepto de las cuentas de Gastos
-    # Fijos Detalle que coinciden (por nombre) con un rubro que apareció en
-    # "Top rubros" (general o por área) este mes -- para responder "¿y qué
-    # es esto?" (de qué se compone, no "cuánto es cada mes" -- eso ya está
-    # arriba) sin inflar las tablas principales. No todos los rubros de
-    # arriba tienen este desglose cargado en el Sheet: ej. "Honorarios por
-    # Servicios" y "Honorarios Profesionales" son cuentas DISTINTAS, y solo
-    # la segunda tiene detalle por proveedor -- si un rubro de "Top rubros"
-    # no aparece acá, es porque el Sheet todavía no tiene ese desglose
-    # cargado para esa cuenta (no un bug de este script; cargarlo en
-    # "Gastos Fijos Detalle", con el mismo formato que las cuentas que sí
-    # lo tienen -- encabezado, una fila por proveedor/concepto, fila TOTAL
-    # -- lo habilitaría). Sin piso de USD 500 a propósito: la idea de este
-    # anexo es completitud (de qué se compone), no destacar los
-    # movimientos más grandes como las tablas de arriba.
+    # ── Anexo: para cada rubro de "Top rubros" (general o por área) que
+    # tiene algo más para mostrar (ver anexo_entries, calculado arriba), de
+    # qué proveedores/movimientos se compone -- para responder "¿y qué es
+    # esto?" (no "cuánto es cada mes" -- eso ya está arriba) sin inflar las
+    # tablas principales. No todos los rubros de arriba tienen esto
+    # cargado en el Sheet: si uno no aparece acá, es porque no hay cuenta
+    # de Gastos Fijos Detalle NI cuenta exacta del mayor contable para ese
+    # nombre (no un bug de este script -- ver el comentario de
+    # anexo_entries más arriba para el porqué). Sin piso de USD 500 a
+    # propósito en 'providers': la idea de este anexo es completitud, no
+    # destacar los movimientos más grandes como las tablas de arriba.
     #
-    # anexo_cuentas/cuentas_detalle ya se calcularon más arriba (antes de
-    # las tablas de "Top rubros", para poder linkear el nombre del rubro
-    # a su entrada acá vía nombre_cell/Anchor). Esta sección siempre
-    # arranca en página nueva (PageBreak) -- un anexo no es "más del
-    # cuerpo del reporte", es la referencia aparte a la que ese link te
-    # manda, y mezclarlo con lo anterior en la misma página rompería esa
-    # lectura. Cada entrada del Anexo termina con un link "Volver arriba"
-    # al anchor 'top' (creado al principio de la sección "Contenido" en
-    # build()) -- ida y vuelta, no solo ida. ──
-    if anexo_cuentas:
+    # anexo_entries/cuentas_detalle/ledger_detalle ya se calcularon más
+    # arriba (antes de las tablas de "Top rubros", para poder linkear el
+    # nombre del rubro a su entrada acá vía nombre_cell/Anchor). Esta
+    # sección siempre arranca en página nueva (PageBreak) -- un anexo no
+    # es "más del cuerpo del reporte", es la referencia aparte a la que
+    # ese link te manda, y mezclarlo con lo anterior en la misma página
+    # rompería esa lectura. Cada entrada del Anexo termina con un link
+    # "Volver arriba" al anchor 'top' (creado al principio de la sección
+    # "Contenido" en build()) -- ida y vuelta, no solo ida. ──
+    if anexo_entries:
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
         story.append(Paragraph(
-            "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\" que tiene desglose "
-            "cargado en el Sheet (no todas lo tienen). Tocá el nombre de un rubro en las tablas de arriba "
-            "para volver acá directamente.",
+            "De qué proveedores/conceptos (o movimientos del mayor contable, cuando no hay cuenta en "
+            "Gastos Fijos Detalle) se compone cada cuenta de \"Top rubros\" -- no todas tienen este "
+            "desglose cargado en el Sheet. Tocá el nombre de un rubro en las tablas de arriba para "
+            "volver acá directamente.",
             styles['NotaChica'],
         ))
         story.append(Spacer(1, 4))
-        for cuenta in anexo_cuentas:
+        for nombre, tipo in anexo_entries:
             with keep_together():
-                story.append(Anchor(cuenta_slug(cuenta)))
-                story.append(Paragraph(cuenta, ParagraphStyle(f'anexoCuenta{cuenta}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
+                story.append(Anchor(cuenta_slug(nombre)))
+                story.append(Paragraph(nombre, ParagraphStyle(f'anexoCuenta{nombre}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
                 story.append(Spacer(1, 2))
-                rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[cuenta]]
-                plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
-                            [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                if tipo == 'providers':
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[nombre]]
+                    plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
+                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                else:
+                    story.append(Paragraph(
+                        "Sin cuenta propia en \"Gastos Fijos Detalle\" -- movimientos reales del mayor "
+                        f"contable en {data['mesActual']} (convertidos de ARS a USD con el MEP de ese mes):",
+                        styles['NotaChica'],
+                    ))
+                    story.append(Spacer(1, 2))
+                    # No usa plain_table() -- su estilo alinea a la derecha
+                    # todas las columnas salvo la primera, pensado para
+                    # columnas numéricas; acá "Concepto" es texto libre
+                    # (puede ser largo) y necesita quedar a la izquierda y
+                    # envolver en Paragraph, no como string plano. ──
+                    concepto_style = ParagraphStyle('ledgerConcepto', fontName='DMSans', fontSize=9, textColor=GRAFITO, leading=11)
+                    col_fecha, col_monto = 22 * mm, 28 * mm
+                    ledger_rows = [[item['fecha'], Paragraph(item['concepto'], concepto_style), num(item['montoUSD'])]
+                                   for item in ledger_detalle[nombre]]
+                    t = Table([["Fecha", "Concepto", "Monto (USD)"]] + ledger_rows,
+                              colWidths=[col_fecha, CONTENT_W - col_fecha - col_monto, col_monto])
+                    t.setStyle(TableStyle([
+                        ('FONTNAME', (0, 0), (-1, -1), 'DMSans'),
+                        ('FONTNAME', (2, 1), (2, -1), 'DMMono-Medium'),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EDEAE4')),
+                        ('FONTNAME', (0, 0), (-1, 0), 'DMSans-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9.5),
+                        ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, CREMA]),
+                        ('TOPPADDING', (0, 0), (-1, -1), 5.5),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 5.5),
+                        ('LINEBELOW', (0, -1), (-1, -1), 0.6, BORDER),
+                        ('BOX', (0, 0), (-1, -1), 0.6, BORDER),
+                    ]))
+                    story.append(t)
+                    story.append(Spacer(1, 4))
                 story.append(Spacer(1, 3))
                 story.append(Paragraph(
                     f'<a href="#top" color="{AZUL_HEX}"><u>&#8593; Volver arriba</u></a>',
-                    ParagraphStyle(f'backTop{cuenta}', fontName='DMSans', fontSize=8, textColor=AZUL),
+                    ParagraphStyle(f'backTop{nombre}', fontName='DMSans', fontSize=8, textColor=AZUL),
                 ))
 
     # ── Notas de metodología: breve, al pie -- no repite todo el docstring

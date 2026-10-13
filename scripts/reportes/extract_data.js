@@ -410,6 +410,77 @@ const APP = context.__APP__;
     }
   }
 
+  // Mayor contable detallado (hojas "Gastos MM.26", una por mes -- gid fijo
+  // por mes, no cambia) -- fuente más granular que "Gastos Fijos Detalle"
+  // (que es una vista curada, por proveedor, de un subconjunto de cuentas
+  // "fijas"). Para un rubro que no está en Gastos Fijos Detalle (ej.
+  // "Honorarios por Servicios"), este es el único lugar del Sheet donde
+  // realmente se puede ver de qué se compone: movimiento por movimiento,
+  // con fecha y concepto -- no una tabla de "cuánto es cada mes" (eso ya
+  // está en la fila de "Top rubros").
+  //
+  // Se usa SOLO cuando el nombre de una cuenta del mayor coincide EXACTO
+  // (case-insensitive) con un rubro de "Top rubros" -- no se intenta sumar
+  // varias cuentas del mayor para "armar" un rubro agregado (ej.
+  // "Impuestos" es la suma de varias cuentas del mayor -- Impuesto Ley
+  // 25413, IVA No Computable, Impuestos a los Sellos -- adivinar esa
+  // agregación acá sería mucho más frágil que simplemente no mostrar
+  // nada; igual para rubros con desglose por área en el mayor, ej.
+  // "Capacitacion y Cursos" = "Capacit. y Cursos Mesa" + "... BC" + "...
+  // Neix", tampoco se agregan). Los montos del mayor están en ARS -- se
+  // convierten a USD con el MEP de mesActual (dolarMEP, de arriba); si no
+  // se pudo obtener ese tipo de cambio, se omite esta sección entera (no
+  // se adivina un monto en USD sin saber el tipo de cambio real de ese
+  // mes). El monto de cada movimiento sale de la diferencia de SALDO
+  // entre filas (no de sumar DEBE/HABER a mano): es exactamente lo que
+  // ya calculó la hoja, con cualquier convención de signo que use.
+  const GASTOS_LEDGER_GID = {
+    Enero: '504407038', Febrero: '1383245355', Marzo: '460907963', Abril: '617795229',
+    Mayo: '1112341850', Junio: '1053178830', Julio: '937435377', Agosto: '373585666',
+  };
+  let gastosLedgerDetalle = {};
+  if (dolarMEP) {
+    const ledgerGid = GASTOS_LEDGER_GID[mesActual];
+    if (ledgerGid) {
+      try {
+        const res = await fetch(APP.BASE + ledgerGid);
+        const text = await res.text();
+        const { rows } = APP.parseCSV(text);
+        let cuentaActual = null;
+        let saldoPrevio = 0;
+        rows.forEach(r => {
+          const v = Object.values(r);
+          const col0 = String(v[0] || '').trim();
+          const concepto = String(v[3] || '').trim();
+          const mCta = /^Cta:\s*[\d.]+\s+(.+)$/.exec(col0);
+          if (mCta) {
+            cuentaActual = mCta[1].trim();
+            if (!gastosLedgerDetalle[cuentaActual]) gastosLedgerDetalle[cuentaActual] = [];
+            saldoPrevio = parseNum(v[6]);
+            return;
+          }
+          if (!cuentaActual) return;
+          if (!concepto || concepto === 'TOTALES DEL PERIODO') {
+            cuentaActual = null;
+            return;
+          }
+          const saldo = parseNum(v[6]);
+          const montoArs = saldo - saldoPrevio;
+          saldoPrevio = saldo;
+          if (montoArs !== 0) {
+            gastosLedgerDetalle[cuentaActual].push({
+              fecha: String(v[1] || '').trim(),
+              concepto,
+              montoUSD: montoArs / dolarMEP,
+            });
+          }
+        });
+      } catch (e) {
+        console.error('No se pudo obtener el mayor contable (no bloqueante):', e.message);
+      }
+    }
+  }
+
   // Excepciones / no recurrentes DEL MES ACTUAL -- la hoja no tiene un flag
   // propio, se infiere de la nota de la cuenta. Solo el mes que se está
   // reportando, no el historial completo (el reporte de Agosto no debería
@@ -450,6 +521,7 @@ const APP = context.__APP__;
     rubrosVariacionPorArea,
     proveedores,
     gastosFijosDetalleCuentas,
+    gastosLedgerDetalle,
     unitEconomics,
     unitEconomicsTrend,
     excepciones,
