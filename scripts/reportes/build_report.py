@@ -80,6 +80,12 @@ AREA_COLOR = {
 }
 AREAS = ['Mesa', 'FAs', 'Banca Corporativa', 'Banca Privada']
 
+# "Cuentas / Proveedores con mayor variación" -- 10, no 5: desde que
+# extract_data.js suma las bajas a cero (un proveedor con gasto real el
+# mes anterior que pasó a 0), todas esas bajas empatan en -100% y, en un
+# mes con varias cancelaciones, un top 5 quedaría copado solo por ellas.
+PROVEEDORES_TOP_N = 10
+
 PAGE_W, PAGE_H = letter
 HEADER_H = 30 * mm
 MARGIN = 18 * mm
@@ -574,7 +580,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
         # tenga un "por qué" cargado (ver NOTAS_CUENTAS en extract_data.js)
         # y no se haya mencionado ya arriba -- esto es lo que hace que el
         # análisis explique, no solo liste números.
-        for item in rubros_suben + data['proveedores'][:5]:
+        for item in rubros_suben + data['proveedores'][:PROVEEDORES_TOP_N]:
             nota = item.get('notaManual')
             if not nota or item['nombre'] in ya_mencionado:
                 continue
@@ -722,12 +728,19 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # "Cuenta / Proveedor" porque Gastos Fijos Detalle no siempre tiene un
     # proveedor con nombre propio en esa fila -- a veces es una cuenta
     # genérica (ej. "Gtos Mant de Oficina"), y llamarlo solo "Proveedor"
-    # sugiere algo más específico de lo que hay. ──
+    # sugiere algo más específico de lo que hay.
+    #
+    # Top 10, no 5: desde que extract_data.js suma las bajas a cero (un
+    # proveedor con gasto real el mes anterior que pasó a 0), todas esas
+    # bajas empatan en -100% y, en un mes con varias cancelaciones, un
+    # top 5 quedaría copado solo por ellas -- tapando otras variaciones ya
+    # explicadas (ej. "Gtos Mant de Oficina", que tiene nota manual en
+    # NOTAS_CUENTAS). Con 10 lugares entran las dos cosas. ──
     if data['proveedores']:
         with keep_together():
             section_title("CUENTAS / PROVEEDORES CON MAYOR VARIACIÓN")
             rows = []
-            for p in data['proveedores'][:5]:
+            for p in data['proveedores'][:PROVEEDORES_TOP_N]:
                 rows.append([p['nombre'], num(p['anterior']), num(p['actual']), var_cell(p['deltaPct'])])
             data_table(["Cuenta / Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [65 * mm, 26 * mm, 26 * mm, CONTENT_W - 65 * mm - 52 * mm], var_colidx=3)
