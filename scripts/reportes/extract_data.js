@@ -152,9 +152,12 @@ const APP = context.__APP__;
   // rubros que más subieron". Se filtra a rubros con monto > 0 en AMBOS
   // meses (evita el artefacto de "+infinito%" de un rubro que apareció de la
   // nada, y división por cero de uno que desapareció) y, como en
-  // proveedores, a montos de este mes > USD 500 -- si no, un rubro casi en
-  // cero (ej. "Gastos Bancarios Exentos" de 6 a 382) puede salir como "el
-  // que más subió" con un % absurdo sin que importe en términos absolutos.
+  // proveedores, a que AMBOS meses superen USD 500 -- si no, un rubro casi
+  // en cero en el mes base (ej. "IVA No Computable" de 78 a 61.513, un
+  // +78.833%) puede salir como "el que más subió" con un % descomunal que
+  // no es comparable con el resto de la tabla, aunque el monto actual sí
+  // importe en términos absolutos (antes el piso era solo sobre el monto
+  // actual, y un caso así pasaba el filtro).
   const RUBRO_MONTO_MIN = 500;
   let rubrosVariacion = [];
   if (mesAnterior) {
@@ -166,7 +169,7 @@ const APP = context.__APP__;
         const prev = byNombreAnterior[r.nombre] || 0;
         return { nombre: r.nombre, cat: r.cat, anterior: prev, actual: r.monto, deltaPct: prev ? (r.monto - prev) / prev * 100 : null };
       })
-      .filter(r => r.anterior > 0 && r.actual > 0 && r.actual > RUBRO_MONTO_MIN)
+      .filter(r => r.anterior > RUBRO_MONTO_MIN && r.actual > RUBRO_MONTO_MIN)
       .sort((a, b) => b.deltaPct - a.deltaPct)
       .map(r => {
         const nota = notaParaCuenta(r.nombre);
@@ -183,8 +186,8 @@ const APP = context.__APP__;
   // ej. "Sueldos y CS Directos", que ya es la suma de "Sueldos y CS Mesa" +
   // "... BC" + "... FAs" + "... BP") -- si se incluyera el padre también,
   // cada rubro agrupado se contaría dos veces (una en el padre, otra en el
-  // hijo de esa área). Mismo criterio que rubrosVariacion (monto > 0 en
-  // ambos meses, piso de USD 500) para no listar ruido.
+  // hijo de esa área). Mismo criterio que rubrosVariacion (AMBOS meses por
+  // encima de USD 500, no solo el actual) para no listar ruido.
   const RUBRO_AREA_MONTO_MIN = 500;
   function leafRows(mes) {
     const d = ST.mesData[mes];
@@ -206,7 +209,7 @@ const APP = context.__APP__;
       nombres.forEach(nombre => {
         const anterior = montoAnterior[nombre] || 0;
         const actual = montoActual[nombre] || 0;
-        if (anterior > 0 && actual > 0 && actual > RUBRO_AREA_MONTO_MIN) {
+        if (anterior > RUBRO_AREA_MONTO_MIN && actual > RUBRO_AREA_MONTO_MIN) {
           lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100 });
         }
       });
@@ -220,9 +223,11 @@ const APP = context.__APP__;
   // vista los cambios bruscos aunque el proveedor no sea de los más caros.
   // Se filtra a pares con monto > 0 en AMBOS meses (mismo criterio que
   // rubrosVariacion, evita el artefacto de "+infinito%" de un proveedor que
-  // apareció de la nada o uno que bajó a cero) y, además, a montos de este
-  // mes > USD 500 -- por debajo de eso el % puede ser enorme (ej. Slack de
-  // 9 a 24) sin que importe en términos absolutos.
+  // apareció de la nada o uno que bajó a cero) y, además, a que AMBOS meses
+  // superen USD 500 -- no solo el actual: por debajo de eso el % puede ser
+  // enorme (ej. Slack de 9 a 24) sin que importe en términos absolutos, y
+  // un proveedor con un mes base casi en cero da el mismo % descomunal
+  // aunque el monto actual sí sea grande.
   const PROVEEDOR_MONTO_MIN = 500;
   let proveedores = [];
   const gfd = ST.gastosFijosDetalle;
@@ -236,7 +241,7 @@ const APP = context.__APP__;
         });
       });
       proveedores = proveedores
-        .filter(p => p.anterior > 0 && p.actual > 0 && p.actual > PROVEEDOR_MONTO_MIN)
+        .filter(p => p.anterior > PROVEEDOR_MONTO_MIN && p.actual > PROVEEDOR_MONTO_MIN)
         .map(p => ({ ...p, deltaPct: (p.actual - p.anterior) / p.anterior * 100 }))
         .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct))
         .map(p => {
