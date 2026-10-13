@@ -195,32 +195,56 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     d.annotated" sin volver a chequear esto. Mismo piso de USD 500 en
     ambos meses que la tabla general (`RUBRO_AREA_MONTO_MIN`).
 15. "Anexo · Detalle de cuentas" (al final, antes de "Notas de
-    metodología"): cuando un rubro de "Top rubros" (general o por área)
-    coincide por nombre con una "cuenta" de Gastos Fijos Detalle, muestra
-    de qué proveedores/conceptos se compone -- para responder "¿y qué es
-    esto?", no "cuánto es cada mes" (eso ya está en la fila de la tabla de
-    arriba, mesAnterior/mesActual) -- sin inflar las tablas de arriba.
-    Sale de `gastosFijosDetalleCuentas` (en `extract_data.js`): a
-    diferencia de `proveedores`, exporta TODOS los proveedores de TODAS
-    las cuentas, sin el piso de USD 500 ni el filtro de "ambos meses > 0"
-    -- la idea de este anexo es completitud (de qué se compone), no
-    destacar los movimientos más grandes. `build_report.py` decide qué
-    cuentas mostrar (las que coinciden con un rubro visto en "Top rubros"
-    ese mes puntual) y arma una mini-tabla por cuenta con todos sus
-    proveedores. No todos los rubros de "Top rubros" tienen este
-    desglose cargado en el Sheet -- ojo con nombres parecidos: "Honorarios
-    por Servicios" y "Honorarios Profesionales" son cuentas DISTINTAS
-    (confirmado contra la hoja cruda de Gastos Fijos Detalle), y solo la
-    segunda tiene detalle por proveedor. Si un rubro no aparece en el
-    Anexo, es porque el Sheet todavía no tiene ese desglose cargado para
-    esa cuenta puntual (no un bug de este script) -- cargarlo en "Gastos
-    Fijos Detalle", con el mismo formato que las cuentas que sí lo tienen
-    (encabezado, una fila por proveedor/concepto, fila TOTAL), lo
-    habilitaría. **No se reemplaza esa falta de desglose por ningún otro
-    dato** (se probó mostrar la evolución mensual del rubro como
-    fallback y se sacó -- no responde "de qué se compone", que es lo que
-    pide esta sección; mostrar otra cosa ahí es más confuso que dejarlo
-    sin link).
+    metodología"): para cada rubro de "Top rubros" (general o por área)
+    que tiene algo más para mostrar, de qué proveedores/movimientos se
+    compone -- para responder "¿y qué es esto?", no "cuánto es cada mes"
+    (eso ya está en la fila de la tabla de arriba, mesAnterior/mesActual)
+    -- sin inflar las tablas principales. Dos fuentes posibles por rubro
+    (`anexo_entries`, cada una con su `tipo`, en `build_report.py`), en
+    este orden de preferencia:
+    - `'providers'`: el rubro coincide por nombre con una "cuenta" de
+      Gastos Fijos Detalle -- sale de `gastosFijosDetalleCuentas` (en
+      `extract_data.js`), que a diferencia de `proveedores` exporta
+      TODOS los proveedores de TODAS las cuentas, sin piso de USD 500 ni
+      el filtro de "ambos meses > 0" (acá la idea es completitud, no
+      destacar movimientos grandes). Mini-tabla con mesAnterior y
+      mesActual por proveedor, igual que antes.
+    - `'ledger'`: no hay esa cuenta en Gastos Fijos Detalle (ej.
+      "Honorarios por Servicios" -- confirmado contra esa hoja: no tiene
+      bloque propio ahí, solo "Honorarios Profesionales" lo tiene), pero
+      el nombre coincide EXACTO con una cuenta del **mayor contable**
+      (hojas "Gastos 01.26".."Gastos 08.26" del Sheet, una por mes --
+      gids fijos en `GASTOS_LEDGER_GID`, `extract_data.js`). Ahí sí hay
+      detalle real, movimiento por movimiento (fecha + concepto), que
+      "Gastos Fijos Detalle" nunca tuvo para esa cuenta -- esto lo
+      destapó la propia usuaria ("fijate en las pestañas de detalle de
+      cada mes, está desglosado"). Los montos del mayor están en ARS --
+      se convierten a USD con el MEP de mesActual (mismo `dolarMEP` que
+      ya se usa en "Notas de metodología"); si no se pudo obtener ese
+      tipo de cambio, esta fuente se omite entera (no se adivina un
+      monto en USD sin el tipo de cambio real de ese mes). El monto de
+      cada movimiento sale de la diferencia de SALDO entre filas
+      consecutivas del mayor (no de sumar DEBE/HABER a mano) -- así
+      hereda cualquier convención de signo que use la hoja, sin tener
+      que adivinarla. Solo mesActual (no mesAnterior, a diferencia de
+      `'providers'`): traer el mayor de otro mes más requeriría otra
+      consulta y otro tipo de cambio; se dejó así por ahora.
+    - **Importante**: el match con el mayor contable es SIEMPRE exacto
+      por nombre, nunca una agregación armada a mano. Varios rubros de
+      "Top rubros" son la SUMA de varias cuentas del mayor (ej.
+      "Impuestos" = Impuesto Ley 25413 + IVA No Computable + Impuestos a
+      los Sellos; "Capacitacion y Cursos" = Capacit. y Cursos Mesa + ...
+      BC + ... Neix, repartido por área igual que en "Resultados por
+      área") -- sumarlas a mano acá para "armar" el agregado sería
+      adivinar una fórmula que no está en el Sheet tal cual, mucho más
+      frágil que simplemente no mostrar nada para esos casos. Si un
+      rubro no tiene NINGUNA de las dos fuentes, queda sin entrada en el
+      Anexo y sin link -- no es un bug, es que no hay (o no se puede
+      inferir con confianza) un desglose real para mostrar. Si hace
+      falta desglosar uno de esos rubros agregados, la forma correcta es
+      cargarlo como cuenta propia en "Gastos Fijos Detalle" (ver más
+      arriba), no enseñarle a este script a sumar cuentas del mayor por
+      su cuenta.
 
     El Anexo es "dinámico" en tres sentidos, todos en `build_report.py`:
     (a) siempre arranca en página nueva (`PageBreak()` antes de
