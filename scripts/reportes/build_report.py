@@ -755,15 +755,18 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ]))
         story.append(ratios_row)
 
-    # ── Unit economics: cruza "CÁLCULOS AUX" de la Matriz (comitentes,
-    # empleados por área -- sin desglose mensual en el Sheet) con
-    # Facturación y Gastos Totales de mesActual. Si el Sheet no tiene esos
-    # datos todavía (hoja Matriz sin la sección CÁLCULOS AUX), extract_data.js
-    # manda unitEconomics=null y esta sección se omite en vez de romper.
+    # ── Unit economics: cruza la Matriz (comitentes y empleados por área)
+    # con Facturación y Gastos Totales de mesActual. Si el Sheet no tiene
+    # esos datos todavía, extract_data.js manda unitEconomics=null y esta
+    # sección se omite en vez de romper.
     #
-    # "Comitentes" y "Empleados" son fijos en la Matriz (no cambian de mes a
-    # mes, no hay desglose mensual para eso en el Sheet); "Facturación" y
-    # "Costo" sí son de mesActual -- por eso en un mes con facturación
+    # "Comitentes" sale de "CUENTAS ABIERTAS" (Matriz) -- SÍ cambia mes a
+    # mes (antes se usaba "Comitentes totales" de CÁLCULOS AUX, un único
+    # número fijo para todo el año; eso quedó como respaldo si un mes
+    # puntual todavía no está cargado en CUENTAS ABIERTAS, ver
+    # comitentesPorMes en extract_data.js). "Empleados" sigue siendo fijo
+    # (no hay desglose mensual para eso en el Sheet). "Facturación" y
+    # "Costo" son de mesActual -- por eso en un mes con facturación
     # negativa (ej. Mesa en Agosto), "Facturación / comitente" también da
     # negativa (correcto: antes usaba un promedio histórico fijo que no
     # reflejaba lo que pasó ese mes puntual). La "Facturación" de FAs acá es
@@ -777,7 +780,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
         with keep_together():
             section_title("UNIT ECONOMICS")
             story.append(Paragraph(
-                f"Comitentes y Empleados: Matriz (fijo, no cambia mes a mes) "
+                f"Comitentes: cuentas abiertas de {ue['mes']} (Matriz) "
+                f"&nbsp;·&nbsp; Empleados: Matriz (fijo, no cambia mes a mes) "
                 f"&nbsp;·&nbsp; Facturación (FAs neta de Comisiones Productores) y Costo total "
                 f"(Directos + Indirectos prorrateados): datos de {ue['mes']}",
                 styles['NotaChica'],
@@ -801,9 +805,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # ── Evolución Unit Economics: mismo criterio que "Evolución últimos
     # meses" (Facturación/Gastos/Resultado), pero por área y por comitente
     # -- para ver si el costo o la facturación por cliente vienen subiendo
-    # o bajando, no solo la foto del mes. Comitentes es fijo (Matriz), así
-    # que la serie es simplemente facturación/costo de cada mes dividido
-    # por ese número constante. ──
+    # o bajando, no solo la foto del mes. Comitentes sale de "CUENTAS
+    # ABIERTAS" (Matriz) y varía mes a mes -- cada punto de la serie divide
+    # por el comitente de ESE mes puntual, no por un número fijo. ──
     ue_trend = data.get('unitEconomicsTrend') or []
     if ue and len(ue_trend) > 1:
         meses_ue = [m['mes'][:3] for m in ue_trend]

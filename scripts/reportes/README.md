@@ -64,17 +64,22 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    atípico que un bug de este script.
 3. Fijate en los "N/D" (ratios con facturación <= 0 ese mes): son así a
    propósito (ver el docstring de `build_report.py`), no un error.
-4. "Unit economics": "Comitentes" y "Empleados" son fijos en la hoja
-   Matriz (el mismo número en el reporte de cualquier mes -- no hay
-   desglose mensual para eso en el Sheet), **no** son del mes de ese
-   reporte. "Facturación" y "Costo" sí son de mesActual. El subtítulo de
-   la tabla lo aclara; no lo cambies a algo tipo "Datos de {mes}" sin
-   especificar qué es fijo y qué no, porque da a entender que todo es de
-   ese mes. (Antes "Facturación/comitente" usaba la "Facturación promedio
-   (Ene-Jul)" de la Matriz -- un promedio histórico fijo -- en vez de la
-   facturación real del mes; eso hacía que, en un mes con facturación
-   negativa, la tabla siguiera mostrando un número positivo que no
-   reflejaba lo que había pasado ese mes puntual.) No incluye
+4. "Unit economics": "Comitentes" sale de "CUENTAS ABIERTAS" (bloque de la
+   hoja Matriz, debajo de "CÁLCULOS AUX") y SÍ varía mes a mes -- antes
+   usaba "Comitentes totales" (CÁLCULOS AUX), un único número fijo para
+   todo el año, que quedó como respaldo (`comitentesFijoRow` en
+   `extract_data.js`) para un mes puntual que todavía no esté cargado en
+   "CUENTAS ABIERTAS". "Empleados" sigue siendo fijo en la Matriz (mismo
+   número en el reporte de cualquier mes -- no hay desglose mensual para
+   eso en el Sheet). "Facturación" y "Costo" son de mesActual. El
+   subtítulo de la tabla aclara qué es de mesActual y qué es fijo
+   (Empleados); no lo cambies a algo tipo "Datos de {mes}" sin esa
+   distinción, porque da a entender que todo es de ese mes. (Antes
+   "Facturación/comitente" usaba la "Facturación promedio (Ene-Jul)" de
+   la Matriz -- un promedio histórico fijo -- en vez de la facturación
+   real del mes; eso hacía que, en un mes con facturación negativa, la
+   tabla siguiera mostrando un número positivo que no reflejaba lo que
+   había pasado ese mes puntual.) No incluye
    operaciones/comitente: el dato de "Operaciones promedio" de Mesa en la
    Matriz no es confiable todavía. La "Facturación" de FAs en esta sección
    es neta de "Comisiones Productores" (un gasto directo de FAs en el
@@ -153,7 +158,8 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     Costo total/comitente y Facturación/comitente, una línea por área,
     con los mismos colores de `AREA_COLOR`. Sale de `unitEconomicsTrend`
     (un `unitEconomicsFor(mes)` por cada mes de `mesesTrend`, en
-    `extract_data.js`) dividido por el comitente fijo de cada área. Usa
+    `extract_data.js`) dividido por el comitente de CADA mes (desde
+    "CUENTAS ABIERTAS" -- ver punto 4), no por un número fijo. Usa
     `trend_chart(..., fmt_axis=...)` con un formateador propio (`usd2`,
     sin compactar a "k") en vez del default -- los montos por comitente
     son mucho más chicos que Facturación/Gastos/Resultado totales, y el
