@@ -251,10 +251,9 @@ const APP = context.__APP__;
     }
   }
 
-  // Unit economics (cruza "CÁLCULOS AUX" de la Matriz -- comitentes y
-  // empleados por área, que no tienen desglose mensual en el Sheet -- con
-  // Facturación y Gastos Totales de mesActual). No reimplementa nada que
-  // no esté ya en el sheet: solo arma los cocientes. No incluye
+  // Unit economics (cruza la Matriz -- comitentes y empleados por área --
+  // con Facturación y Gastos Totales de mesActual). No reimplementa nada
+  // que no esté ya en el sheet: solo arma los cocientes. No incluye
   // operaciones/comitente: el dato de "Operaciones promedio" de Mesa en
   // la Matriz no es confiable todavía.
   //
@@ -279,13 +278,29 @@ const APP = context.__APP__;
     const key = Object.keys(row).find(k => k.trim() === col) || col;
     return parseNum(row[key]);
   }
-  // comitentes/empleados son fijos (Matriz, sin desglose mensual) --
-  // calcularlos una sola vez afuera de la función de abajo, no por mes.
-  const comitentesRow = matrizAuxRow('comitentes totales');
+  // "CUENTAS ABIERTAS" (bloque de la Matriz, debajo de "CÁLCULOS AUX") trae
+  // comitentes por MES y por área -- a diferencia de "Comitentes totales"
+  // (en CÁLCULOS AUX), que es un único número fijo sin desglose mensual.
+  // Se busca la fila de ese mes DESPUÉS del encabezado "CUENTAS ABIERTAS"
+  // (no en toda la hoja) para no confundirla con alguna otra fila que por
+  // casualidad arranque con el mismo nombre de mes en otro bloque.
+  function comitentesPorMes(mes) {
+    if (!ST.matrizData) return null;
+    const idxHeader = ST.matrizData.findIndex(r => String(Object.values(r)[0] || '').trim() === 'CUENTAS ABIERTAS');
+    if (idxHeader < 0) return null;
+    for (let i = idxHeader + 1; i < ST.matrizData.length; i++) {
+      if (String(Object.values(ST.matrizData[i])[0] || '').trim() === mes) return ST.matrizData[i];
+    }
+    return null;
+  }
+  // "Comitentes totales" (CÁLCULOS AUX) queda como respaldo fijo por si
+  // "CUENTAS ABIERTAS" todavía no está cargado para ese mes puntual.
+  const comitentesFijoRow = matrizAuxRow('comitentes totales');
   const empleadosRow = matrizAuxRow('empleados');
   function unitEconomicsFor(mes) {
     const d = ST.mesData[mes];
-    if (!d || !comitentesRow || !empleadosRow) return null;
+    const comitentesRowMes = comitentesPorMes(mes) || comitentesFijoRow;
+    if (!d || !comitentesRowMes || !empleadosRow) return null;
     const gastosTotales = d.gastosTotalesRow;
     const ingresosMes = ingresosPorArea(mes) || {};
     // FAs factura bruto, pero una parte de eso (vía "Comisiones
@@ -299,7 +314,7 @@ const APP = context.__APP__;
       mes,
       porArea: AREAS_.map(a => ({
         area: a,
-        comitentes: matrizAuxVal(comitentesRow, a),
+        comitentes: matrizAuxVal(comitentesRowMes, a),
         empleados: matrizAuxVal(empleadosRow, a),
         facturacionMes: (ingresosMes[a] || 0) - (a === 'FAs' ? comisionesProductoresFAs : 0),
         // gastoTotal = GASTOS TOTALES del Sheet = Directos + Indirectos
