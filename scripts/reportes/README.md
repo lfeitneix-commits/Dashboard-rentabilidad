@@ -51,10 +51,17 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
    en el top (ej. si en Septiembre "Gtos Mant de Oficina" vuelve a
    compararse contra Julio por algún motivo).
 2. Revisá "Proveedores con mayor variación": la lista sale ordenada por
-   |variación %| (no por monto), filtrada a pares con monto > 0 en ambos
-   meses. Si hay algo raro (un proveedor que debería estar y no está, un
-   monto que no cierra), es más fácil que sea un dato real atípico que un
-   bug de este script.
+   |variación %| (no por monto), filtrada a pares con AMBOS meses por
+   encima de USD 500 (no solo el mes actual) -- si el piso fuera solo
+   sobre el actual, un proveedor con una base casi en cero (ej. de 78 a
+   61.513) pasaría el filtro con un % descomunal, no comparable con el
+   resto de la tabla, aunque el monto actual sí importe en términos
+   absolutos. Mismo piso (y mismo motivo) en `rubrosVariacion` y
+   `rubrosVariacionPorArea` -- ver `RUBRO_MONTO_MIN` /
+   `PROVEEDOR_MONTO_MIN` / `RUBRO_AREA_MONTO_MIN` en `extract_data.js` si
+   hace falta ajustarlo. Si hay algo raro (un proveedor que debería estar
+   y no está, un monto que no cierra), es más fácil que sea un dato real
+   atípico que un bug de este script.
 3. Fijate en los "N/D" (ratios con facturación <= 0 ese mes): son así a
    propósito (ver el docstring de `build_report.py`), no un error.
 4. "Unit economics": "Comitentes" y "Empleados" son fijos en la hoja
@@ -169,11 +176,12 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     "padre" de un grupo por área (`_parentId` sin `_child`, ej. "Sueldos
     y CS Directos", que ya es la suma de "... Mesa" + "... BC" + "... FAs"
     + "... BP") -- incluir el padre además de sus hijos contaría ese
-    rubro dos veces. Es normal ver "IVA No Computable" como el #1 en las
-    4 áreas con un % enorme (de una base de pocos dólares a varios miles)
-    -- es el mismo fenómeno que ya explica el bullet de "Análisis del
-    mes" de Agosto 2026 (Julio fue el mes atípico, con una base casi en
-    cero), prorrateado en las 4 áreas.
+    rubro dos veces. Mismo piso de USD 500 en ambos meses que la tabla
+    general (`RUBRO_AREA_MONTO_MIN`) -- por eso "IVA No Computable" (que
+    en Julio tenía una base de apenas unos dólares en cada área) no
+    aparece acá aunque sí se explica aparte en el bullet de "Análisis
+    del mes" de Agosto 2026 (ahí se compara contra el promedio de 8
+    meses, no contra un piso fijo).
 
 ## Subirlo al dashboard
 
