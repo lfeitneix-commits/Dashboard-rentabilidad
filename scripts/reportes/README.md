@@ -195,43 +195,56 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     d.annotated" sin volver a chequear esto. Mismo piso de USD 500 en
     ambos meses que la tabla general (`RUBRO_AREA_MONTO_MIN`).
 15. "Anexo · Detalle de cuentas" (al final, antes de "Notas de
-    metodología"): cuando un rubro de "Top rubros" (general o por área)
-    coincide por nombre con una "cuenta" de Gastos Fijos Detalle, muestra
-    de qué proveedores/conceptos se compone -- para responder "¿y qué es
-    esto?" sin inflar las tablas de arriba. Sale de
-    `gastosFijosDetalleCuentas` (en `extract_data.js`): a diferencia de
-    `proveedores`, exporta TODOS los proveedores de TODAS las cuentas,
-    sin el piso de USD 500 ni el filtro de "ambos meses > 0" -- la idea de
-    este anexo es completitud (de qué se compone), no destacar los
-    movimientos más grandes. `build_report.py` decide qué cuentas mostrar
-    (las que coinciden con un rubro visto en "Top rubros" ese mes
-    puntual) y arma una mini-tabla por cuenta con todos sus proveedores.
-    No todos los rubros de "Top rubros" tienen este desglose cargado en
-    el Sheet -- ojo con nombres parecidos: "Honorarios por Servicios" y
-    "Honorarios Profesionales" son cuentas DISTINTAS, y solo la segunda
-    tiene detalle por proveedor en Gastos Fijos Detalle. Si un rubro no
-    aparece en el Anexo, es porque el Sheet todavía no tiene ese desglose
-    cargado para esa cuenta puntual (no un bug de este script) -- cargarlo
-    en "Gastos Fijos Detalle", con el mismo formato que las cuentas que sí
-    lo tienen, lo habilitaría.
+    metodología"): para cada rubro de "Top rubros" (general o por área)
+    que tiene algo más para mostrar, de qué proveedores se compone -- o,
+    si el Sheet no tiene ese desglose, su evolución mensual real. Nunca
+    inventa un desglose por proveedor que no existe. Dos fuentes
+    posibles por rubro (`anexo_entries`, cada una con su `tipo`, en
+    `build_report.py`), en este orden de preferencia:
+    - `'providers'`: el rubro coincide por nombre con una "cuenta" de
+      Gastos Fijos Detalle -- sale de `gastosFijosDetalleCuentas` (en
+      `extract_data.js`), que a diferencia de `proveedores` exporta
+      TODOS los proveedores de TODAS las cuentas, sin piso de USD 500 ni
+      el filtro de "ambos meses > 0" (acá la idea es completitud, no
+      destacar movimientos grandes).
+    - `'mensual'`: no hay esa cuenta -- ej. "Honorarios por Servicios" no
+      tiene bloque propio en Gastos Fijos Detalle (confirmado contra la
+      hoja cruda: solo existe "Honorarios Profesionales", son cuentas
+      DISTINTAS) -- pero sí hay historial mensual real en
+      `rubrosEvolucionMensual` (misma fuente que `rubrosVariacion`,
+      "Clasificación de gastos"), así que se muestra eso en vez de nada.
+    Si un rubro no tiene NINGUNA de las dos (ej. un rubro específico de
+    área como "Sueldos y CS Mesa" -- no existe como cuenta de Gastos
+    Fijos Detalle ni como rubro de Clasificación de gastos, que es
+    company-wide), no aparece en el Anexo y queda sin link -- no es un
+    bug, es que no hay más dato real para mostrar.
 
-    El Anexo es "dinámico" en dos sentidos, ambos en `build_report.py`:
+    El Anexo es "dinámico" en tres sentidos, todos en `build_report.py`:
     (a) siempre arranca en página nueva (`PageBreak()` antes de
     `section_title("ANEXO...")`) para que se note que es aparte del
     cuerpo del reporte, no una sección más; (b) el nombre de cada rubro
-    que SÍ tiene entrada en el Anexo aparece como link interno (azul,
-    subrayado, `nombre_cell()`) en "Top rubros que más subieron" y en
-    "... por área" -- tocarlo en un lector de PDF que soporte links
-    internos (Acrobat, Preview, la mayoría de los visores embebidos de
-    navegador) salta directo a esa tabla del Anexo. El mecanismo: cada
-    cuenta del Anexo tiene un `Anchor` (flowable invisible, `cuenta_slug`
-    como clave) que llama a `canv.bookmarkPage(...)` al dibujarse, y el
-    link usa `<a href="#esa_clave">` -- apunta al tope de la página donde
-    cae esa cuenta, no a la fila exacta (reportlab no da control de
-    y más fino sin un flowable a medida más elaborado, y esto ya resuelve
-    "llevarte al Anexo"). Si se agrega CUALQUIER tabla nueva que liste
-    nombres de rubro, pasarlos por `nombre_cell()` en vez de un string
-    plano para que también herede el link cuando corresponda.
+    con entrada en el Anexo (de cualquiera de los dos tipos) aparece como
+    link interno (azul, subrayado, `nombre_cell()`) en "Top rubros que
+    más subieron" y en "... por área" -- tocarlo en un lector de PDF que
+    soporte links internos (Acrobat, Preview, la mayoría de los visores
+    embebidos de navegador) salta directo a esa entrada del Anexo; (c)
+    cada entrada del Anexo termina con un link "↑ Volver arriba" de
+    vuelta a la página 1 (ida y vuelta, no solo ida).
+
+    Mecanismo de los links (ambas direcciones usan el mismo patrón): una
+    clase `Anchor` (flowable invisible, 0x0) que al dibujarse llama a
+    `canv.bookmarkPage(clave)`, registrando el tope de la página actual
+    como destino con ese nombre; el link en el otro extremo usa
+    `<a href="#clave">`. `cuenta_slug(nombre)` arma la clave para cada
+    entrada del Anexo; la del "volver arriba" es la constante `'top'`,
+    marcada con un `Anchor('top')` como lo primero que se dibuja en el
+    cuerpo del reporte (ver el comienzo de la sección "Contenido" en
+    `build()`). Apunta al tope de la página de destino, no a la fila
+    exacta -- reportlab no da control de y más fino sin un flowable a
+    medida más elaborado, y esto ya resuelve "llevarte ahí". Si se
+    agrega CUALQUIER tabla nueva que liste nombres de rubro, pasarlos por
+    `nombre_cell()` en vez de un string plano para que también herede el
+    link cuando corresponda.
 
 ## Subirlo al dashboard
 
