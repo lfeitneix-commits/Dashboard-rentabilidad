@@ -236,13 +236,21 @@ const APP = context.__APP__;
   // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --
   // ordenado por |variación %|, no por monto absoluto, para que salten a la
   // vista los cambios bruscos aunque el proveedor no sea de los más caros.
-  // Se filtra a pares con monto > 0 en AMBOS meses (mismo criterio que
-  // rubrosVariacion, evita el artefacto de "+infinito%" de un proveedor que
-  // apareció de la nada o uno que bajó a cero) y, además, a que AMBOS meses
-  // superen USD 500 -- no solo el actual: por debajo de eso el % puede ser
-  // enorme (ej. Slack de 9 a 24) sin que importe en términos absolutos, y
-  // un proveedor con un mes base casi en cero da el mismo % descomunal
-  // aunque el monto actual sí sea grande.
+  // Se filtra a que AMBOS meses superen USD 500 -- no solo el actual: por
+  // debajo de eso el % puede ser enorme (ej. Slack de 9 a 24) sin que
+  // importe en términos absolutos, y un proveedor con un mes base casi en
+  // cero da el mismo % descomunal aunque el monto actual sí sea grande.
+  //
+  // EXCEPCIÓN a ese piso: un proveedor que tenía gasto real (> el piso) el
+  // mes anterior y cayó a CERO este mes -- ej. Refinitiv/Bloomberg/NYSE en
+  // Agosto 2026, de ~USD 11-14k/mes a 0 -- es justo el caso contrario al
+  // que el piso quiere evitar (no es ruido de una base chica, es una baja
+  // real y grande), pero el piso lo tapaba igual porque el monto actual
+  // (0) nunca supera USD 500. Sin esta excepción, una cancelación de
+  // proveedor queda invisible en esta tabla -- solo se ve, si acaso, muy
+  // enterrada en el Anexo (y solo si la cuenta llegó a aparecer en "Top
+  // rubros" por otro motivo). Acá el % no se calcula con la fórmula
+  // normal (dividir por el anterior) -- es, por definición, -100%.
   const PROVEEDOR_MONTO_MIN = 500;
   let proveedores = [];
   // Detalle COMPLETO por cuenta (sin el piso de USD 500 ni el filtro de
@@ -274,9 +282,16 @@ const APP = context.__APP__;
         gastosFijosDetalleCuentas[cuenta.nombre] = detalle.sort((a, b) => b.actual - a.actual);
       });
       proveedores = proveedores
-        .filter(p => p.anterior > PROVEEDOR_MONTO_MIN && p.actual > PROVEEDOR_MONTO_MIN)
-        .map(p => ({ ...p, deltaPct: (p.actual - p.anterior) / p.anterior * 100 }))
-        .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct))
+        .filter(p => (p.anterior > PROVEEDOR_MONTO_MIN && p.actual > PROVEEDOR_MONTO_MIN) ||
+                     (p.anterior > PROVEEDOR_MONTO_MIN && p.actual <= 0))
+        .map(p => ({ ...p, deltaPct: p.actual > 0 ? (p.actual - p.anterior) / p.anterior * 100 : -100 }))
+        // Desempate por monto (p.anterior, lo que se dejó de gastar) --
+        // un mes con más de una baja a cero empata todas en -100%, y sin
+        // esto el orden entre ellas queda a la suerte de en qué orden
+        // aparecen en la hoja (no de cuál achicó más plata). Con el
+        // desempate, Bloomberg (USD 14k) sale antes que una donación de
+        // USD 658 aunque las dos den el mismo -100%.
+        .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct) || b.anterior - a.anterior)
         .map(p => {
           const nota = notaParaCuenta(p.nombre);
           return nota ? { ...p, notaManual: nota.texto, notaMes: nota.mes } : p;
