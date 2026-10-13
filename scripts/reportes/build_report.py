@@ -504,10 +504,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # ============================================================
     # Contenido
     # ============================================================
-    # Ancla 'top' -- destino del link "Volver arriba" de cada entrada del
-    # Anexo (ver más abajo). Tiene que ser lo primero que se dibuja en el
-    # cuerpo del reporte para que "volver arriba" caiga en la página 1.
-    story.append(Anchor('top'))
     kpi_act, kpi_ant = data['kpiActual'], data['kpiAnterior']
     fact_act, gastos_act, result_act = kpi_act['ingresos'], kpi_act['egresos'], kpi_act['resultado']
     # Rubros que efectivamente subieron (deltaPct > 0), tope 10 -- usado acá
@@ -974,9 +970,18 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # sección siempre arranca en página nueva (PageBreak) -- un anexo no
     # es "más del cuerpo del reporte", es la referencia aparte a la que
     # ese link te manda, y mezclarlo con lo anterior en la misma página
-    # rompería esa lectura. Cada entrada del Anexo termina con un link
-    # "Volver arriba" al anchor 'top' (creado al principio de la sección
-    # "Contenido" en build()) -- ida y vuelta, no solo ida. ──
+    # rompería esa lectura.
+    #
+    # No hay un link de "volver" propio acá -- un mismo rubro puede tener
+    # el link de ida desde más de un lugar (la tabla general Y la de su
+    # área), así que no hay una única "página de origen" fija a la que
+    # un link de vuelta pudiera apuntar. Los lectores de PDF ya resuelven
+    # esto mejor de lo que podríamos acá: cualquier link interno (como el
+    # de nombre_cell) empuja la vista actual a una pila de navegación, y
+    # "vista anterior" (Alt+Flecha izq. en Acrobat/Reader, el botón atrás
+    # del visor de Chrome/Firefox, Cmd+[ en Preview) te devuelve exactamente
+    # a la fila de la que viniste -- no a un destino fijo como esta página
+    # 1 (se probó un link "Volver arriba" acá y se sacó por esto mismo). ──
     if anexo_entries:
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
@@ -1031,11 +1036,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     ]))
                     story.append(t)
                     story.append(Spacer(1, 4))
-                story.append(Spacer(1, 3))
-                story.append(Paragraph(
-                    f'<a href="#top" color="{AZUL_HEX}"><u>&#8593; Volver arriba</u></a>',
-                    ParagraphStyle(f'backTop{nombre}', fontName='DMSans', fontSize=8, textColor=AZUL),
-                ))
 
     # ── Notas de metodología: breve, al pie -- no repite todo el docstring
     # del módulo, solo lo que hace falta para leer los montos de este PDF
