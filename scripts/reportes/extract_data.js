@@ -177,6 +177,22 @@ const APP = context.__APP__;
       });
   }
 
+  // Evolución mensual (Enero..mesActual) de cada rubro de "Clasificación
+  // de gastos" -- fallback para el Anexo del reporte cuando un rubro de
+  // "Top rubros" NO tiene una cuenta con detalle por proveedor en Gastos
+  // Fijos Detalle (ver gastosFijosDetalleCuentas más abajo). Ej.
+  // "Honorarios por Servicios" no tiene bloque propio en Gastos Fijos
+  // Detalle (solo "Honorarios Profesionales" lo tiene) -- en vez de no
+  // mostrar nada, el Anexo puede mostrar su historial mensual real, que
+  // sí está disponible acá (mismo sheet que rubrosVariacion).
+  const rubrosEvolucionMensual = {};
+  mesesTrend.forEach(m => {
+    APP.getClasifRubrosRanking(m).forEach(r => {
+      if (!rubrosEvolucionMensual[r.nombre]) rubrosEvolucionMensual[r.nombre] = [];
+      rubrosEvolucionMensual[r.nombre].push({ mes: m, monto: r.monto });
+    });
+  });
+
   // Mismo ranking que arriba, pero aperturado por área -- "Clasificación de
   // gastos" (la fuente de rubrosVariacion) es un total de TODA la empresa,
   // sin desglose por área, así que esto sale de otra fuente: las filas de
@@ -447,6 +463,7 @@ const APP = context.__APP__;
     directosIndirectosActual,
     dolarMEP,
     rubrosVariacion,
+    rubrosEvolucionMensual,
     rubrosVariacionPorArea,
     proveedores,
     gastosFijosDetalleCuentas,

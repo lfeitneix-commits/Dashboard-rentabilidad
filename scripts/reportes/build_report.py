@@ -504,6 +504,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # ============================================================
     # Contenido
     # ============================================================
+    # Ancla 'top' -- destino del link "Volver arriba" de cada entrada del
+    # Anexo (ver más abajo). Tiene que ser lo primero que se dibuja en el
+    # cuerpo del reporte para que "volver arriba" caiga en la página 1.
+    story.append(Anchor('top'))
     kpi_act, kpi_ant = data['kpiActual'], data['kpiAnterior']
     fact_act, gastos_act, result_act = kpi_act['ingresos'], kpi_act['egresos'], kpi_act['resultado']
     # Rubros que efectivamente subieron (deltaPct > 0), tope 10 -- usado acá
@@ -614,30 +618,50 @@ def build(data, mes_label, out_path, bullets_extra=None):
         if suben_area:
             area_blocks.append((area, suben_area))
 
-    # ── Qué rubros de las tablas de abajo tienen detalle por proveedor
-    # cargado en el Sheet (ver "Anexo · Detalle de cuentas" más abajo) --
-    # calculado acá para poder linkear el nombre del rubro directo a su
-    # entrada del Anexo, en vez de solo mencionarlo al final del PDF. ──
+    # ── Qué rubros de las tablas de abajo tienen algo para mostrar en el
+    # Anexo -- calculado acá para poder linkear el nombre del rubro
+    # directo a su entrada, en vez de solo mencionarlo al final del PDF.
+    # Dos fuentes posibles, en orden de preferencia (`anexo_entries`,
+    # cada una con su `tipo`):
+    #   'providers' -- el rubro coincide por nombre con una cuenta de
+    #     Gastos Fijos Detalle: se puede mostrar de qué proveedores se
+    #     compone (ver gastosFijosDetalleCuentas en extract_data.js).
+    #   'mensual' -- no hay esa cuenta (ej. "Honorarios por Servicios",
+    #     que no tiene bloque propio en Gastos Fijos Detalle -- solo
+    #     "Honorarios Profesionales" lo tiene), pero sí hay un historial
+    #     mensual real (rubrosEvolucionMensual, misma fuente que
+    #     rubrosVariacion) -- se muestra eso en vez de nada. Nunca se
+    #     inventa un desglose por proveedor que el Sheet no tiene. ──
     cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
+    evol_mensual = data.get('rubrosEvolucionMensual') or {}
     nombres_vistos = {r['nombre'] for r in rubros_suben}
     for area, suben_area in area_blocks:
         nombres_vistos.update(r['nombre'] for r in suben_area)
     cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
-    anexo_cuentas = sorted({
-        cuentas_por_nombre[n.strip().lower()]
-        for n in nombres_vistos
-        if n.strip().lower() in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[n.strip().lower()])
-    })
-    anexo_set = set(anexo_cuentas)
+    evol_por_nombre = {k.strip().lower(): k for k in evol_mensual.keys()}
+    anexo_entries = []
+    vistos_lower = set()
+    for n in sorted(nombres_vistos):
+        nl = n.strip().lower()
+        if nl in vistos_lower:
+            continue
+        if nl in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[nl]):
+            anexo_entries.append((cuentas_por_nombre[nl], 'providers'))
+            vistos_lower.add(nl)
+        elif nl in evol_por_nombre and evol_mensual.get(evol_por_nombre[nl]):
+            anexo_entries.append((evol_por_nombre[nl], 'mensual'))
+            vistos_lower.add(nl)
+    anexo_entries.sort(key=lambda e: e[0])
+    anexo_nombres = {e[0] for e in anexo_entries}
     nombre_style = ParagraphStyle('rubroNombre', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
 
     def nombre_cell(nombre):
-        # Si ese rubro tiene detalle cargado (ver anexo_cuentas), el
-        # nombre es un link interno a su tabla en el Anexo -- mismo
-        # criterio de match (case-insensitive) que arriba.
-        cuenta = cuentas_por_nombre.get(nombre.strip().lower())
-        if cuenta and cuenta in anexo_set:
-            html = f'<a href="#{cuenta_slug(cuenta)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
+        # Si ese rubro tiene una entrada en el Anexo (providers o
+        # mensual), el nombre es un link interno -- mismo criterio de
+        # match (case-insensitive) que arriba.
+        match = cuentas_por_nombre.get(nombre.strip().lower()) or evol_por_nombre.get(nombre.strip().lower())
+        if match and match in anexo_nombres:
+            html = f'<a href="#{cuenta_slug(match)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
             return Paragraph(html, nombre_style)
         return Paragraph(nombre, nombre_style)
 
@@ -921,46 +945,57 @@ def build(data, mes_label, out_path, bullets_extra=None):
             story.append(t)
             story.append(Spacer(1, 4))
 
-    # ── Anexo: detalle por proveedor/concepto de las cuentas de Gastos
-    # Fijos Detalle que coinciden (por nombre) con un rubro que apareció en
-    # "Top rubros" (general o por área) este mes -- para responder "¿y qué
-    # es esto?" sin inflar las tablas principales de arriba. No todos los
-    # rubros de arriba tienen este desglose cargado en el Sheet: ej.
-    # "Honorarios por Servicios" y "Honorarios Profesionales" son cuentas
-    # DISTINTAS, y solo la segunda tiene detalle por proveedor -- si un
-    # rubro de "Top rubros" no aparece acá, es porque el Sheet todavía no
-    # tiene ese desglose cargado para esa cuenta (no un bug de este
-    # script; cargarlo en "Gastos Fijos Detalle", con el mismo formato que
-    # las cuentas que sí lo tienen, lo habilitaría). Sin piso de USD 500
-    # a propósito: la idea de este anexo es completitud (de qué se
-    # compone la cuenta), no destacar los movimientos más grandes como
-    # las tablas de arriba.
+    # ── Anexo: para cada rubro de "Top rubros" (general o por área) que
+    # tiene algo más para mostrar (ver anexo_entries, calculado arriba),
+    # de qué proveedores se compone o -- si el Sheet no tiene ese
+    # desglose -- su evolución mensual real. Responde "¿y qué es esto?"
+    # sin inflar las tablas principales de arriba. Sin piso de USD 500 a
+    # propósito en el caso 'providers': la idea de este anexo es
+    # completitud (de qué se compone la cuenta), no destacar los
+    # movimientos más grandes como las tablas de arriba.
     #
-    # anexo_cuentas/cuentas_detalle ya se calcularon más arriba (antes de
-    # las tablas de "Top rubros", para poder linkear el nombre del rubro
-    # a su entrada acá vía nombre_cell/Anchor). Esta sección siempre
-    # arranca en página nueva (PageBreak) -- un anexo no es "más del
-    # cuerpo del reporte", es la referencia aparte a la que ese link te
-    # manda, y mezclarlo con lo anterior en la misma página rompería esa
-    # lectura. ──
-    if anexo_cuentas:
+    # anexo_entries/cuentas_detalle/evol_mensual ya se calcularon más
+    # arriba (antes de las tablas de "Top rubros", para poder linkear el
+    # nombre del rubro a su entrada acá vía nombre_cell/Anchor). Esta
+    # sección siempre arranca en página nueva (PageBreak) -- un anexo no
+    # es "más del cuerpo del reporte", es la referencia aparte a la que
+    # ese link te manda, y mezclarlo con lo anterior en la misma página
+    # rompería esa lectura. Cada entrada del Anexo termina con un link
+    # "Volver arriba" al anchor 'top' (creado al principio de build(),
+    # ver story.insert más abajo) -- ida y vuelta, no solo ida. ──
+    if anexo_entries:
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
         story.append(Paragraph(
             "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\" que tiene desglose "
-            "cargado en el Sheet (no todas lo tienen). Tocá el nombre de un rubro en las tablas de arriba "
-            "para volver acá directamente.",
+            "cargado en el Sheet -- o, si no lo tiene, su evolución mensual. Tocá el nombre de un rubro "
+            "en las tablas de arriba para volver acá directamente.",
             styles['NotaChica'],
         ))
         story.append(Spacer(1, 4))
-        for cuenta in anexo_cuentas:
+        for nombre, tipo in anexo_entries:
             with keep_together():
-                story.append(Anchor(cuenta_slug(cuenta)))
-                story.append(Paragraph(cuenta, ParagraphStyle(f'anexoCuenta{cuenta}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
+                story.append(Anchor(cuenta_slug(nombre)))
+                story.append(Paragraph(nombre, ParagraphStyle(f'anexoCuenta{nombre}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
                 story.append(Spacer(1, 2))
-                rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[cuenta]]
-                plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
-                            [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                if tipo == 'providers':
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[nombre]]
+                    plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
+                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                else:
+                    story.append(Paragraph(
+                        "Esta cuenta no tiene desglose por proveedor cargado en \"Gastos Fijos Detalle\" -- "
+                        "evolución mensual real (Clasificación de gastos):",
+                        styles['NotaChica'],
+                    ))
+                    story.append(Spacer(1, 2))
+                    rows = [[item['mes'], num(item['monto'])] for item in evol_mensual[nombre]]
+                    plain_table(["Mes", "Monto"], rows, [CONTENT_W - 32 * mm, 32 * mm])
+                story.append(Spacer(1, 3))
+                story.append(Paragraph(
+                    f'<a href="#top" color="{AZUL_HEX}"><u>&#8593; Volver arriba</u></a>',
+                    ParagraphStyle(f'backTop{nombre}', fontName='DMSans', fontSize=8, textColor=AZUL),
+                ))
 
     # ── Notas de metodología: breve, al pie -- no repite todo el docstring
     # del módulo, solo lo que hace falta para leer los montos de este PDF
