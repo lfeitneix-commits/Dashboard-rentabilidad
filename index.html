@@ -3585,11 +3585,10 @@ function toggleMatrizGrupo(slug,rowEl){
   });
 }
 
-// Hardware + obra -- inversión única de Quant (no se repite mes a mes, a
-// diferencia del Costo Laboral y los Servicios de Infraestructura que
-// viven en la sub-pestaña "EERR" de rebuildQuant). Antes era la pestaña
-// separada "Inversión Quant"; se fusionó acá como sub-pestaña de "Quant"
-// para no mostrar Servicios de Infraestructura duplicado en dos lugares.
+// Contenido completo de la ex-pestaña separada "Inversión Quant" (Hardware +
+// Servicios de Infraestructura + Resumen Ejecutivo), sin recortar nada --
+// ahora vive como sub-pestaña "Inversión Inicial" dentro de "Quant", pero el
+// informe en sí queda igual que antes de la fusión.
 function buildQuantInversionInicialHtml(){
   // Convierte cada compra al TC de su propio mes — no un TC único para todo
   // el período, que subestimaría lo pagado en meses con el peso más débil.
@@ -3637,6 +3636,13 @@ function buildQuantInversionInicialHtml(){
       </tbody></table></div></div>`;
   }).join('');
 
+  const serviciosRows=QUANT_SERVICIOS.rows.map(s=>`<tr>
+      <td style="font-size:12px">${s.servicio}</td>
+      <td class="r" style="font-family:'DM Mono',monospace;font-size:12px">${$c(s.costo)}</td>
+      <td class="r" style="font-size:11px;color:var(--muted)">${s.desde}</td>
+      <td style="font-size:11px;color:var(--muted)">${s.obs}</td>
+    </tr>`).join('');
+
   // La Obra ya estaba pagada/cargada como de Ene–Jun en el informe original
   // -- se sigue convirtiendo con el promedio de esos 6 meses, no con el
   // promedio ampliado (que ahora incluye Jul/Ago/Sep y distorsionaría un
@@ -3645,22 +3651,46 @@ function buildQuantInversionInicialHtml(){
   const tcProm=mesesObra.reduce((s,m)=>s+QUANT_TC_MENSUAL[m],0)/mesesObra.length;
   const obraUsd=QUANT_OBRA_ARS/tcProm;
 
-  const OTRAS_INVERSIONES=[
-    {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'por única vez · TC promedio Ene–Jun'},
-    {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'por única vez'},
-    {concepto:'Placa FPGA',importe:3464.00,periodo:'en Aduana'},
-    {concepto:'Placa FPGA',importe:2345.00,periodo:'en camino'},
+  // Se separa en dos grupos -- una compra de hardware/obra es plata que ya
+  // salió una vez y no vuelve a salir; un servicio/suscripción es plata que
+  // sigue saliendo todos los meses. Mezclarlos en una sola lista no deja ver
+  // cuál es el compromiso real hacia adelante.
+  const RESUMEN_ITEMS=[
+    {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Ago 2026, TC de cada mes de compra',tipo:'unica'},
+    {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'Por única vez · TC promedio Ene–Jun',tipo:'unica'},
+    {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'Por única vez',tipo:'unica'},
+    {concepto:'Placa FPGA',importe:3464.00,periodo:'En Aduana',tipo:'unica'},
+    {concepto:'Placa FPGA',importe:2345.00,periodo:'En Camino',tipo:'unica'},
+    {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion)',tipo:'recurrente'},
+    {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'Acumulado (Marzo–Julio 2026)',tipo:'recurrente'},
+    {concepto:'OpenAI – Codex (Suscripciones x 6)',importe:1200.00,periodo:'Recurrente mensual a partir de Agosto',tipo:'recurrente'},
   ];
-  const totalOtras=OTRAS_INVERSIONES.reduce((s,r)=>s+r.importe,0);
-  const totalInversionInicial=totalHardwareUsd+totalOtras;
-  const otrasRows=OTRAS_INVERSIONES.map(r=>`<tr class="row-parent">
-      <td style="padding-left:28px">${r.concepto} <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(${r.periodo})</span></td>
-      <td class="r" style="font-family:'DM Mono',monospace;font-size:12px">${fmtD(r.importe)}</td>
-    </tr>`).join('');
+  const resumenRowHTML=r=>`<tr>
+      <td style="font-size:12px;font-weight:500">${r.concepto}</td>
+      <td class="r" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${$c(r.importe)}</td>
+      <td class="c" style="font-size:11px;color:var(--muted)">USD</td>
+      <td style="font-size:11px;color:var(--muted)">${r.periodo}</td>
+    </tr>`;
+  const unicaItems=RESUMEN_ITEMS.filter(r=>r.tipo==='unica');
+  const recurrenteItems=RESUMEN_ITEMS.filter(r=>r.tipo==='recurrente');
+  const totalUnica=unicaItems.reduce((s,r)=>s+r.importe,0);
+  const totalRecurrente=recurrenteItems.reduce((s,r)=>s+r.importe,0);
+  const resumenGrupoHTML=(titulo,items,total,colorVar)=>`
+      <div style="font-size:11px;font-weight:700;color:${colorVar};text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px">${titulo}</div>
+      <div class="tc"><table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:38%"><col style="width:17%"><col style="width:13%"><col style="width:32%"></colgroup>
+      <tbody>${items.map(resumenRowHTML).join('')}
+        <tr style="background:rgba(171,25,48,.06)">
+          <td style="font-weight:700;font-size:11px;color:var(--bordeaux);text-transform:uppercase;letter-spacing:.05em">Total ${titulo.toLowerCase()}</td>
+          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--bordeaux)">${$c(total)}</td>
+          <td></td><td></td>
+        </tr>
+      </tbody></table></div>`;
 
-  return`<div style="background:var(--crema);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin:0 0 20px;font-size:12px;color:var(--muted);line-height:1.5">${QUANT_META.nota} Todos los montos se muestran en USD, convertidos al tipo de cambio "Dólar al cierre" del mes en que se realizó cada compra.</div>
+  return`<div class="sec-hd"><div class="sec-title">Inversión Quant</div><div class="sec-sub">Informe de Gastos IT — ${QUANT_META.periodo} · Emitido ${QUANT_META.emision}</div></div>
+    <div style="background:var(--crema);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5">${QUANT_META.nota} Todos los montos se muestran en USD, convertidos al tipo de cambio "Dólar al cierre" del mes en que se realizó cada compra.</div>
 
-    <div class="matriz-title" style="margin-bottom:8px">Hardware — Adquisiciones ${QUANT_META.periodo} (USD)</div>
+    <div class="matriz-title" style="margin-bottom:8px">1. Hardware — Adquisiciones ${QUANT_META.periodo} (USD)</div>
     ${hwTables}
     <div class="tc" style="margin-bottom:24px"><table><tbody>
       <tr style="background:var(--azul-osc)">
@@ -3669,17 +3699,33 @@ function buildQuantInversionInicialHtml(){
       </tr>
     </tbody></table></div>
 
-    <div style="overflow-x:auto"><table style="width:100%;table-layout:fixed;border-collapse:collapse">
-    <thead><tr>
-      <th style="width:65%;text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Otras inversiones únicas</th>
-      <th style="width:35%;text-align:center;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-left:1px solid var(--border)">Quant (USD)</th>
-    </tr></thead><tbody>
-      ${otrasRows}
-      <tr style="background:rgba(0,72,54,.07);border-top:2px solid rgba(0,72,54,.2)">
-        <td style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--verde);padding:8px 12px">TOTAL INVERSIÓN INICIAL</td>
-        <td class="r" style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--verde)">${fmtD(totalInversionInicial)}</td>
+    <div class="matriz-block">
+      <div class="matriz-title">2. Servicios de Infraestructura — Costo mensual (USD)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${QUANT_SERVICIOS.nota}</div>
+      <div class="tc"><table style="table-layout:fixed;width:100%">
+      <colgroup><col style="width:30%"><col style="width:15%"><col style="width:15%"><col style="width:40%"></colgroup>
+      <thead><tr><th>Servicio</th><th class="c">Costo mensual</th><th class="c">Desde</th><th>Observaciones</th></tr></thead>
+      <tbody>${serviciosRows}
+        <tr style="background:rgba(171,25,48,.06)">
+          <td style="font-weight:700;font-size:11px;color:var(--bordeaux);text-transform:uppercase;letter-spacing:.05em">Total mensual</td>
+          <td class="r" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:var(--bordeaux)">${$c(QUANT_SERVICIOS.total)}</td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tbody></table></div>
+    </div>
+    <div class="tc" style="margin-bottom:24px"><table><tbody>
+      <tr style="background:var(--azul-osc)">
+        <td colspan="3" style="font-weight:700;font-size:12px;color:#fff;text-transform:uppercase;letter-spacing:.05em;padding:10px 14px">Total Infraestructura</td>
+        <td class="r" style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#fff;padding:10px 14px">${$c(QUANT_SERVICIOS.total)}</td>
       </tr>
-    </tbody></table></div>`;
+    </tbody></table></div>
+
+    <div class="matriz-block">
+      <div class="matriz-title">3. Resumen Ejecutivo</div>
+      ${resumenGrupoHTML('Inversión única',unicaItems,totalUnica,'var(--azul-osc)')}
+      ${resumenGrupoHTML('Costo recurrente',recurrenteItems,totalRecurrente,'var(--verde)')}
+    </div>`;
 }
 
 
