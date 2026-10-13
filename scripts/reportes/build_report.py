@@ -32,12 +32,13 @@ merece una línea propia en "Análisis del mes" en vez de pasar de largo.
 import argparse
 import json
 import os
+import re
 from contextlib import contextmanager
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, KeepTogether, Flowable, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.graphics import renderPDF
@@ -110,6 +111,28 @@ def usd2(n):
     s = f"{abs(n):,.2f}"
     integer, dec = s.split('.')
     return f"{sign}{integer.replace(',', '.')},{dec}"
+
+
+def cuenta_slug(nombre):
+    # Clave de ancla PDF para el Anexo -- solo ascii/dígitos/guion bajo,
+    # para no depender de cómo reportlab codifique tildes/espacios en un
+    # nombre de destino interno.
+    return 'anexo_' + re.sub(r'[^a-z0-9]+', '_', nombre.strip().lower()).strip('_')
+
+
+class Anchor(Flowable):
+    # Flowable invisible (0x0) que solo marca, al dibujarse, el destino de
+    # un link interno (ver cuenta_slug) -- bookmarkPage apunta al tope de
+    # la página donde termina cayendo esta cuenta, no a la fila exacta,
+    # pero alcanza para "llevarte al Anexo" al tocar el rubro.
+    def __init__(self, key):
+        Flowable.__init__(self)
+        self.key = key
+        self.width = 0
+        self.height = 0
+
+    def draw(self):
+        self.canv.bookmarkPage(self.key)
 
 
 def build(data, mes_label, out_path, bullets_extra=None):
@@ -576,33 +599,63 @@ def build(data, mes_label, out_path, bullets_extra=None):
             ]
             trend_chart(meses_trend, series)
 
-    # ── Top rubros que más subieron (rubros_suben calculado arriba) ──
-    if rubros_suben:
-        with keep_together():
-            section_title("TOP RUBROS QUE MÁS SUBIERON")
-            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in rubros_suben]
-            data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
-                       [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
-
     # ── Mismo top, aperturado por área (rubrosVariacionPorArea en
     # extract_data.js) -- "Clasificación de gastos" (la fuente de la tabla
     # de arriba) es un total de toda la empresa, así que esto sale de la
     # otra fuente que sí tiene columna por área. Una mini-tabla por área
     # (top 5 cada una, mismo criterio deltaPct > 0 que la tabla general) --
-    # se salta el área si no tuvo ningún rubro que subiera. ──
+    # se salta el área si no tuvo ningún rubro que subiera. Se calcula
+    # ACÁ (antes de las tablas de "Top rubros") para saber, antes de
+    # dibujarlas, qué nombres de rubro van a tener un link al Anexo. ──
     rubros_por_area = data.get('rubrosVariacionPorArea') or {}
     area_blocks = []
     for area in AREAS:
         suben_area = [r for r in rubros_por_area.get(area, []) if r['deltaPct'] > 0][:5]
         if suben_area:
             area_blocks.append((area, suben_area))
+
+    # ── Qué rubros de las tablas de abajo tienen detalle por proveedor
+    # cargado en el Sheet (ver "Anexo · Detalle de cuentas" más abajo) --
+    # calculado acá para poder linkear el nombre del rubro directo a su
+    # entrada del Anexo, en vez de solo mencionarlo al final del PDF. ──
+    cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
+    nombres_vistos = {r['nombre'] for r in rubros_suben}
+    for area, suben_area in area_blocks:
+        nombres_vistos.update(r['nombre'] for r in suben_area)
+    cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
+    anexo_cuentas = sorted({
+        cuentas_por_nombre[n.strip().lower()]
+        for n in nombres_vistos
+        if n.strip().lower() in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[n.strip().lower()])
+    })
+    anexo_set = set(anexo_cuentas)
+    nombre_style = ParagraphStyle('rubroNombre', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
+
+    def nombre_cell(nombre):
+        # Si ese rubro tiene detalle cargado (ver anexo_cuentas), el
+        # nombre es un link interno a su tabla en el Anexo -- mismo
+        # criterio de match (case-insensitive) que arriba.
+        cuenta = cuentas_por_nombre.get(nombre.strip().lower())
+        if cuenta and cuenta in anexo_set:
+            html = f'<a href="#{cuenta_slug(cuenta)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
+            return Paragraph(html, nombre_style)
+        return Paragraph(nombre, nombre_style)
+
+    # ── Top rubros que más subieron (rubros_suben calculado arriba) ──
+    if rubros_suben:
+        with keep_together():
+            section_title("TOP RUBROS QUE MÁS SUBIERON")
+            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in rubros_suben]
+            data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
+                       [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
+
     for i, (area, suben_area) in enumerate(area_blocks):
         with keep_together():
             if i == 0:
                 section_title("TOP RUBROS QUE MÁS SUBIERON · POR ÁREA")
             story.append(Paragraph(area, ParagraphStyle(f'areaRubroLabel{area}', fontName='DMSans-Bold', fontSize=9.5, textColor=AREA_COLOR[area])))
             story.append(Spacer(1, 2))
-            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in suben_area]
+            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in suben_area]
             data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
 
@@ -881,27 +934,28 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # las cuentas que sí lo tienen, lo habilitaría). Sin piso de USD 500
     # a propósito: la idea de este anexo es completitud (de qué se
     # compone la cuenta), no destacar los movimientos más grandes como
-    # las tablas de arriba. ──
-    cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
-    nombres_vistos = {r['nombre'] for r in rubros_suben}
-    for area, suben_area in area_blocks:
-        nombres_vistos.update(r['nombre'] for r in suben_area)
-    cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
-    anexo_cuentas = sorted({
-        cuentas_por_nombre[n.strip().lower()]
-        for n in nombres_vistos
-        if n.strip().lower() in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[n.strip().lower()])
-    })
+    # las tablas de arriba.
+    #
+    # anexo_cuentas/cuentas_detalle ya se calcularon más arriba (antes de
+    # las tablas de "Top rubros", para poder linkear el nombre del rubro
+    # a su entrada acá vía nombre_cell/Anchor). Esta sección siempre
+    # arranca en página nueva (PageBreak) -- un anexo no es "más del
+    # cuerpo del reporte", es la referencia aparte a la que ese link te
+    # manda, y mezclarlo con lo anterior en la misma página rompería esa
+    # lectura. ──
     if anexo_cuentas:
+        story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
         story.append(Paragraph(
             "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\" que tiene desglose "
-            "cargado en el Sheet (no todas lo tienen).",
+            "cargado en el Sheet (no todas lo tienen). Tocá el nombre de un rubro en las tablas de arriba "
+            "para volver acá directamente.",
             styles['NotaChica'],
         ))
         story.append(Spacer(1, 4))
         for cuenta in anexo_cuentas:
             with keep_together():
+                story.append(Anchor(cuenta_slug(cuenta)))
                 story.append(Paragraph(cuenta, ParagraphStyle(f'anexoCuenta{cuenta}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
                 story.append(Spacer(1, 2))
                 rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[cuenta]]
