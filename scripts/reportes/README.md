@@ -215,6 +215,24 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     en "Gastos Fijos Detalle", con el mismo formato que las cuentas que sí
     lo tienen, lo habilitaría.
 
+    El Anexo es "dinámico" en dos sentidos, ambos en `build_report.py`:
+    (a) siempre arranca en página nueva (`PageBreak()` antes de
+    `section_title("ANEXO...")`) para que se note que es aparte del
+    cuerpo del reporte, no una sección más; (b) el nombre de cada rubro
+    que SÍ tiene entrada en el Anexo aparece como link interno (azul,
+    subrayado, `nombre_cell()`) en "Top rubros que más subieron" y en
+    "... por área" -- tocarlo en un lector de PDF que soporte links
+    internos (Acrobat, Preview, la mayoría de los visores embebidos de
+    navegador) salta directo a esa tabla del Anexo. El mecanismo: cada
+    cuenta del Anexo tiene un `Anchor` (flowable invisible, `cuenta_slug`
+    como clave) que llama a `canv.bookmarkPage(...)` al dibujarse, y el
+    link usa `<a href="#esa_clave">` -- apunta al tope de la página donde
+    cae esa cuenta, no a la fila exacta (reportlab no da control de
+    y más fino sin un flowable a medida más elaborado, y esto ya resuelve
+    "llevarte al Anexo"). Si se agrega CUALQUIER tabla nueva que liste
+    nombres de rubro, pasarlos por `nombre_cell()` en vez de un string
+    plano para que también herede el link cuando corresponda.
+
 ## Subirlo al dashboard
 
 ```bash
