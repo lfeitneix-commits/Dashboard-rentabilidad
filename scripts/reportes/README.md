@@ -246,7 +246,7 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
       arriba), no enseñarle a este script a sumar cuentas del mayor por
       su cuenta.
 
-    El Anexo es "dinámico" en dos sentidos, ambos en `build_report.py`:
+    El Anexo es "dinámico" en tres sentidos, todos en `build_report.py`:
     (a) siempre arranca en página nueva (`PageBreak()` antes de
     `section_title("ANEXO...")`) para que se note que es aparte del
     cuerpo del reporte, no una sección más; (b) el nombre de cada rubro
@@ -254,29 +254,35 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     subrayado, `nombre_cell()`) en "Top rubros que más subieron" y en
     "... por área" -- tocarlo en un lector de PDF que soporte links
     internos (Acrobat, Preview, la mayoría de los visores embebidos de
-    navegador) salta directo a esa tabla del Anexo.
+    navegador) salta directo a esa tabla del Anexo; (c) cada entrada del
+    Anexo termina con uno o más links "↑ Volver a '...'" de vuelta a CADA
+    lugar de donde vino ese rubro.
 
-    Mecanismo del link: una clase `Anchor` (flowable invisible, 0x0) que
-    al dibujarse llama a `canv.bookmarkPage(clave)`, registrando el tope
-    de la página actual como destino con ese nombre (`cuenta_slug(nombre)`
-    arma la clave para cada cuenta); el nombre del rubro usa
-    `<a href="#clave">`. Apunta al tope de la página de destino, no a la
-    fila exacta -- reportlab no da control de y más fino sin un flowable
-    a medida más elaborado, y esto ya resuelve "llevarte ahí". Si se
-    agrega CUALQUIER tabla nueva que liste nombres de rubro, pasarlos por
-    `nombre_cell()` en vez de un string plano para que también herede el
-    link cuando corresponda.
+    Mecanismo de los links de ida: una clase `Anchor` (flowable
+    invisible, 0x0) que al dibujarse llama a `canv.bookmarkPage(clave)`,
+    registrando el tope de la página actual como destino con ese nombre
+    (`cuenta_slug(nombre)` arma la clave para cada cuenta del Anexo); el
+    nombre del rubro usa `<a href="#clave">`. Apunta al tope de la
+    página de destino, no a la fila exacta -- reportlab no da control de
+    y más fino sin un flowable a medida más elaborado, y esto ya resuelve
+    "llevarte ahí". Si se agrega CUALQUIER tabla nueva que liste nombres
+    de rubro, pasarlos por `nombre_cell()` en vez de un string plano para
+    que también herede el link cuando corresponda.
 
-    No hay un link de "volver" propio en el Anexo (se probó uno fijo a la
-    página 1 y se sacó): un mismo rubro puede tener el link de ida desde
-    más de un lugar (la tabla general Y la de su área), así que no hay
-    una única "página de origen" a la que un link de vuelta pudiera
-    apuntar sin equivocarse a veces. Los lectores de PDF ya resuelven
-    esto mejor de lo que se podría acá: cualquier link interno empuja la
-    vista actual a una pila de navegación, y "vista anterior" (Alt+Flecha
-    izq. en Acrobat/Reader, el botón atrás del visor de Chrome/Firefox,
-    Cmd+[ en Preview) devuelve exactamente a la fila de la que viniste --
-    no a un destino fijo.
+    Los links de "volver" (`anexo_fuentes`, calculado junto con
+    `anexo_entries`) NO apuntan a un destino fijo como la página 1 -- se
+    probó eso primero y no servía: un mismo rubro puede tener el link de
+    ida desde más de un lugar (la tabla general Y la de su área, ej.
+    "Suscripciones Mesa" solo en la de Mesa, pero "Telefonia e Internet"
+    solo en la general), así que no hay una única "página de origen". En
+    cambio, cada entrada del Anexo arrastra la lista de TODOS los lugares
+    de donde vino (`fuentes_por_nombre`, por rubro: `('general', None)` o
+    `('area', <área>)`) y pone un link "Volver a ..." por cada uno,
+    apuntando al `Anchor('sec_top_rubros')` (al principio de "Top rubros
+    que más subieron") o `Anchor('sec_top_rubros_area_<área-slug>')` (uno
+    por área, al principio del label de esa área en "... por área") --
+    mismo mecanismo de `Anchor`/`bookmarkPage` que el link de ida, pero
+    con un destino real por cada origen real, no una ancla fija.
 
 ## Subirlo al dashboard
 
