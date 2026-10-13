@@ -5351,15 +5351,29 @@ async function loadData(){
     }
     if(!loaded)throw new Error('Ninguna hoja devolvió datos');
     if(!ST.currentMes) ST.currentMes=ST.meses[0];
-    // Month tabs
-    const tabsEl=document.getElementById('month-tabs');tabsEl.innerHTML='';
-    ST.meses.forEach(m=>{
-      const el=document.createElement('div');
-      el.className='mtab'+(m===ST.currentMes?' active':'');
-      el.dataset.mes=m;el.textContent=m;
-      el.addEventListener('click',()=>switchMes(m));
-      tabsEl.appendChild(el);
-    });
+    // Month tabs -- esta barra es la genérica (un mtab por mes de
+    // ST.meses); si la pestaña activa en este momento tiene su PROPIA
+    // barra (Quant, Capital N), hay que reconstruir esa en vez de dejar
+    // la genérica pisándola, si no al apretar "Actualizar datos" (o en
+    // cualquier refresh automático) la barra de meses de Quant/CapN
+    // queda reemplazada por Enero..Agosto sin "Consolidado", mientras el
+    // contenido de abajo sigue mostrando lo último que se había
+    // renderizado (ej. Consolidado) -- confunde mostrando un mes
+    // "activo" que en realidad no tiene nada que ver con el contenido.
+    if(ST.currentTab==='quant'){
+      _buildQuantTabs();
+    } else if(ST.currentTab==='capn'||ST.currentTab==='analisis_capn'){
+      _buildCapNTabs();
+    } else {
+      const tabsEl=document.getElementById('month-tabs');tabsEl.innerHTML='';
+      ST.meses.forEach(m=>{
+        const el=document.createElement('div');
+        el.className='mtab'+(m===ST.currentMes?' active':'');
+        el.dataset.mes=m;el.textContent=m;
+        el.addEventListener('click',()=>switchMes(m));
+        tabsEl.appendChild(el);
+      });
+    }
 
     const faltantes=SHEETS.filter(s=>!ST.meses.includes(s.mes)).map(s=>s.mes);
     if(faltantes.length||!ST.matrizData||!ST.capnData){
