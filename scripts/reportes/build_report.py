@@ -868,6 +868,46 @@ def build(data, mes_label, out_path, bullets_extra=None):
             story.append(t)
             story.append(Spacer(1, 4))
 
+    # ── Anexo: detalle por proveedor/concepto de las cuentas de Gastos
+    # Fijos Detalle que coinciden (por nombre) con un rubro que apareció en
+    # "Top rubros" (general o por área) este mes -- para responder "¿y qué
+    # es esto?" sin inflar las tablas principales de arriba. No todos los
+    # rubros de arriba tienen este desglose cargado en el Sheet: ej.
+    # "Honorarios por Servicios" y "Honorarios Profesionales" son cuentas
+    # DISTINTAS, y solo la segunda tiene detalle por proveedor -- si un
+    # rubro de "Top rubros" no aparece acá, es porque el Sheet todavía no
+    # tiene ese desglose cargado para esa cuenta (no un bug de este
+    # script; cargarlo en "Gastos Fijos Detalle", con el mismo formato que
+    # las cuentas que sí lo tienen, lo habilitaría). Sin piso de USD 500
+    # a propósito: la idea de este anexo es completitud (de qué se
+    # compone la cuenta), no destacar los movimientos más grandes como
+    # las tablas de arriba. ──
+    cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
+    nombres_vistos = {r['nombre'] for r in rubros_suben}
+    for area, suben_area in area_blocks:
+        nombres_vistos.update(r['nombre'] for r in suben_area)
+    cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
+    anexo_cuentas = sorted({
+        cuentas_por_nombre[n.strip().lower()]
+        for n in nombres_vistos
+        if n.strip().lower() in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[n.strip().lower()])
+    })
+    if anexo_cuentas:
+        section_title("ANEXO · DETALLE DE CUENTAS")
+        story.append(Paragraph(
+            "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\" que tiene desglose "
+            "cargado en el Sheet (no todas lo tienen).",
+            styles['NotaChica'],
+        ))
+        story.append(Spacer(1, 4))
+        for cuenta in anexo_cuentas:
+            with keep_together():
+                story.append(Paragraph(cuenta, ParagraphStyle(f'anexoCuenta{cuenta}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
+                story.append(Spacer(1, 2))
+                rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[cuenta]]
+                plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
+                            [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+
     # ── Notas de metodología: breve, al pie -- no repite todo el docstring
     # del módulo, solo lo que hace falta para leer los montos de este PDF
     # puntual (el tipo de cambio usado, principalmente). ──

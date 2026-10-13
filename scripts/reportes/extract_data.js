@@ -181,24 +181,39 @@ const APP = context.__APP__;
   // gastos" (la fuente de rubrosVariacion) es un total de TODA la empresa,
   // sin desglose por área, así que esto sale de otra fuente: las filas de
   // ST.mesData[mes].annotated, que sí tienen una columna por área
-  // (getAreaVal). Se usan solo las filas "hoja" -- _kind 'account' o
-  // 'subaccount' que NO sean el padre de un grupo (_parentId sin _child,
-  // ej. "Sueldos y CS Directos", que ya es la suma de "Sueldos y CS Mesa" +
-  // "... BC" + "... FAs" + "... BP") -- si se incluyera el padre también,
-  // cada rubro agrupado se contaría dos veces (una en el padre, otra en el
-  // hijo de esa área). Mismo criterio que rubrosVariacion (AMBOS meses por
+  // (getAreaVal). Mismo criterio que rubrosVariacion (AMBOS meses por
   // encima de USD 500, no solo el actual) para no listar ruido.
+  //
+  // Ojo: se usan solo las filas de la sección "GASTOS DIRECTOS" (entre el
+  // marcador _kind 'section' con ese nombre y el marcador _kind
+  // 'subtotal_dir'), no todo d.annotated. Los "Gastos Indirectos" (y los
+  // Impuestos) se reparten entre áreas con un % FIJO por rubro (hoja
+  // Matriz, bloque "Cuentas") -- un rubro indirecto que sube/baja en la
+  // empresa sube/baja ese mismo % en las 4 áreas a la vez, porque es el
+  // mismo número total multiplicado por una proporción constante. Esa
+  // variación "aparece" en cada área pero no es específica de ninguna --
+  // es un movimiento de la empresa entera, prorrateado. Solo las filas de
+  // "GASTOS DIRECTOS" (el costo propio de cada área, no un prorrateo) dan
+  // una variación genuinamente distinta por área, que es lo que esta
+  // apertura necesita mostrar. Se excluye además el padre de un grupo
+  // (_parentId sin _child, ej. "Sueldos y CS Directos", que ya es la suma
+  // de "Sueldos y CS Mesa" + "... BC" + "... FAs" + "... BP") para no
+  // contar cada rubro agrupado dos veces.
   const RUBRO_AREA_MONTO_MIN = 500;
-  function leafRows(mes) {
+  function directosLeafRows(mes) {
     const d = ST.mesData[mes];
     if (!d) return [];
-    return (d.annotated || []).filter(r =>
+    const rows = d.annotated || [];
+    const idxDirectos = rows.findIndex(r => r._kind === 'section' && /^GASTOS\s+DIRECTOS$/i.test((r._nom || '').trim()));
+    const idxSubtotal = rows.findIndex(r => r._kind === 'subtotal_dir');
+    if (idxDirectos < 0 || idxSubtotal < 0) return [];
+    return rows.slice(idxDirectos + 1, idxSubtotal).filter(r =>
       (r._kind === 'account' || r._kind === 'subaccount') && (!r._parentId || r._child));
   }
   let rubrosVariacionPorArea = {};
   if (mesAnterior) {
-    const leafActual = leafRows(mesActual);
-    const leafAnterior = leafRows(mesAnterior);
+    const leafActual = directosLeafRows(mesActual);
+    const leafAnterior = directosLeafRows(mesAnterior);
     AREAS_.forEach(area => {
       const montoActual = {};
       leafActual.forEach(r => { montoActual[r._nom] = (montoActual[r._nom] || 0) + getAreaVal(r, area); });
@@ -230,15 +245,33 @@ const APP = context.__APP__;
   // aunque el monto actual sí sea grande.
   const PROVEEDOR_MONTO_MIN = 500;
   let proveedores = [];
+  // Detalle COMPLETO por cuenta (sin el piso de USD 500 ni el filtro de
+  // "ambos meses > 0" de arriba) -- para el "Anexo" del reporte: cuando un
+  // rubro de "Top rubros" (general o por área) coincide por nombre con una
+  // cuenta de Gastos Fijos Detalle (ej. "Honorarios Profesionales"), el
+  // reporte puede mostrar de qué proveedores/conceptos se compone ese
+  // monto, no solo el número agregado -- qué se puede mostrar así depende
+  // de qué cuentas tengan desglose por proveedor cargado en el Sheet (no
+  // todos los rubros de "Clasificación de gastos" lo tienen: por ejemplo
+  // "Honorarios por Servicios" y "Honorarios Profesionales" son cuentas
+  // DISTINTAS, y solo la segunda tiene este detalle). Se decide qué cuenta
+  // mostrar en build_report.py (ahí vive la lista de qué rubros "llamaron
+  // la atención" este mes), no acá -- por eso se exporta todo.
+  let gastosFijosDetalleCuentas = {};
   const gfd = ST.gastosFijosDetalle;
   if (gfd && mesAnterior) {
     const idxActual = gfd.valCols.indexOf(mesActual);
     const idxAnterior = gfd.valCols.indexOf(mesAnterior);
     if (idxActual >= 0 && idxAnterior >= 0) {
       gfd.cuentas.forEach(cuenta => {
+        const detalle = [];
         cuenta.providers.forEach(p => {
-          proveedores.push({ nombre: p.nombre, cuenta: cuenta.nombre, anterior: p.vals[idxAnterior], actual: p.vals[idxActual] });
+          const anterior = p.vals[idxAnterior];
+          const actual = p.vals[idxActual];
+          proveedores.push({ nombre: p.nombre, cuenta: cuenta.nombre, anterior, actual });
+          if (anterior > 0 || actual > 0) detalle.push({ nombre: p.nombre, anterior, actual });
         });
+        gastosFijosDetalleCuentas[cuenta.nombre] = detalle.sort((a, b) => b.actual - a.actual);
       });
       proveedores = proveedores
         .filter(p => p.anterior > PROVEEDOR_MONTO_MIN && p.actual > PROVEEDOR_MONTO_MIN)
@@ -416,6 +449,7 @@ const APP = context.__APP__;
     rubrosVariacion,
     rubrosVariacionPorArea,
     proveedores,
+    gastosFijosDetalleCuentas,
     unitEconomics,
     unitEconomicsTrend,
     excepciones,

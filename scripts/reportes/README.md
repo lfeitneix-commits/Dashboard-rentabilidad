@@ -169,25 +169,51 @@ Dependencias de Python: `reportlab`, `svglib` (`pip install reportlab svglib`).
     default.
 14. "Top rubros que más subieron · por área" (debajo de la tabla general
     de rubros): una mini-tabla por área con su propio top 5 (mismo
-    criterio `deltaPct > 0`), se salta el área si no tuvo ninguno. Ojo:
-    sale de una fuente distinta a la tabla de arriba. La tabla general usa
+    criterio `deltaPct > 0`), se salta el área si no tuvo ninguno. Sale de
+    una fuente distinta a la tabla de arriba: la tabla general usa
     "Clasificación de gastos" (`rubrosVariacion`/`getClasifRubrosRanking`),
-    que es un total de TODA la empresa sin columna por área. Esta tabla
-    usa `rubrosVariacionPorArea` (en `extract_data.js`), armada a partir
-    de las filas "hoja" de `ST.mesData[mes].annotated` (cada una con su
-    propia columna por área, vía `getAreaVal`) -- por eso los nombres de
-    rubro y los montos de una tabla no cierran exactamente con la otra
-    (son dos clasificaciones de gastos distintas, cargadas en hojas
-    distintas del Sheet). "Filas hoja" excluye los rubros que son
-    "padre" de un grupo por área (`_parentId` sin `_child`, ej. "Sueldos
-    y CS Directos", que ya es la suma de "... Mesa" + "... BC" + "... FAs"
-    + "... BP") -- incluir el padre además de sus hijos contaría ese
-    rubro dos veces. Mismo piso de USD 500 en ambos meses que la tabla
-    general (`RUBRO_AREA_MONTO_MIN`) -- por eso "IVA No Computable" (que
-    en Julio tenía una base de apenas unos dólares en cada área) no
-    aparece acá aunque sí se explica aparte en el bullet de "Análisis
-    del mes" de Agosto 2026 (ahí se compara contra el promedio de 8
-    meses, no contra un piso fijo).
+    un total de TODA la empresa sin columna por área. Esta usa
+    `rubrosVariacionPorArea` (en `extract_data.js`, función
+    `directosLeafRows`), armada a partir de las filas de
+    `ST.mesData[mes].annotated` que sí tienen columna por área (vía
+    `getAreaVal`) -- por eso los nombres de rubro y los montos de una
+    tabla no cierran con la otra (dos clasificaciones de gastos
+    distintas). **Ojo, esto es importante**: solo se usan las filas de la
+    sección "GASTOS DIRECTOS" (entre el marcador `_kind` `'section'` con
+    ese nombre y el marcador `_kind` `'subtotal_dir'`), no todo
+    `d.annotated`. Los "Gastos Indirectos" (y los Impuestos) se reparten
+    entre áreas con un % FIJO por rubro (hoja Matriz, bloque "Cuentas") --
+    un rubro indirecto que sube/baja en la empresa sube/baja ese MISMO %
+    en las 4 áreas a la vez, porque es el mismo número total multiplicado
+    por una proporción constante (ej. "Honorarios Profesionales" daba
+    +33,2% en Mesa, FAs, Banca Corporativa y Banca Privada por igual,
+    antes de esta corrección). Esa variación "aparece" en cada área pero
+    no es específica de ninguna -- es un movimiento de la empresa entera,
+    prorrateado. Solo "GASTOS DIRECTOS" (el costo propio de cada área) da
+    una variación genuinamente distinta por área, que es lo que esta
+    apertura tiene que mostrar -- no reviertas este filtro a "toda
+    d.annotated" sin volver a chequear esto. Mismo piso de USD 500 en
+    ambos meses que la tabla general (`RUBRO_AREA_MONTO_MIN`).
+15. "Anexo · Detalle de cuentas" (al final, antes de "Notas de
+    metodología"): cuando un rubro de "Top rubros" (general o por área)
+    coincide por nombre con una "cuenta" de Gastos Fijos Detalle, muestra
+    de qué proveedores/conceptos se compone -- para responder "¿y qué es
+    esto?" sin inflar las tablas de arriba. Sale de
+    `gastosFijosDetalleCuentas` (en `extract_data.js`): a diferencia de
+    `proveedores`, exporta TODOS los proveedores de TODAS las cuentas,
+    sin el piso de USD 500 ni el filtro de "ambos meses > 0" -- la idea de
+    este anexo es completitud (de qué se compone), no destacar los
+    movimientos más grandes. `build_report.py` decide qué cuentas mostrar
+    (las que coinciden con un rubro visto en "Top rubros" ese mes
+    puntual) y arma una mini-tabla por cuenta con todos sus proveedores.
+    No todos los rubros de "Top rubros" tienen este desglose cargado en
+    el Sheet -- ojo con nombres parecidos: "Honorarios por Servicios" y
+    "Honorarios Profesionales" son cuentas DISTINTAS, y solo la segunda
+    tiene detalle por proveedor en Gastos Fijos Detalle. Si un rubro no
+    aparece en el Anexo, es porque el Sheet todavía no tiene ese desglose
+    cargado para esa cuenta puntual (no un bug de este script) -- cargarlo
+    en "Gastos Fijos Detalle", con el mismo formato que las cuentas que sí
+    lo tienen, lo habilitaría.
 
 ## Subirlo al dashboard
 
