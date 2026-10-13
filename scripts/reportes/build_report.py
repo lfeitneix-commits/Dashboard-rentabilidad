@@ -113,11 +113,16 @@ def usd2(n):
     return f"{sign}{integer.replace(',', '.')},{dec}"
 
 
+def slugify(texto):
+    # Solo ascii/dígitos/guion bajo, para no depender de cómo reportlab
+    # codifique tildes/espacios en un nombre de destino interno (clave de
+    # ancla PDF).
+    return re.sub(r'[^a-z0-9]+', '_', texto.strip().lower()).strip('_')
+
+
 def cuenta_slug(nombre):
-    # Clave de ancla PDF para el Anexo -- solo ascii/dígitos/guion bajo,
-    # para no depender de cómo reportlab codifique tildes/espacios en un
-    # nombre de destino interno.
-    return 'anexo_' + re.sub(r'[^a-z0-9]+', '_', nombre.strip().lower()).strip('_')
+    # Clave de ancla PDF para una cuenta del Anexo.
+    return 'anexo_' + slugify(nombre)
 
 
 class Anchor(Flowable):
@@ -641,23 +646,38 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # se sacó). ──
     cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
     ledger_detalle = data.get('gastosLedgerDetalle') or {}
-    nombres_vistos = {r['nombre'] for r in rubros_suben}
+    # Dónde aparece cada nombre de rubro -- para armar, en el Anexo, un
+    # link de "volver" preciso a CADA lugar donde ese rubro tiene su link
+    # de ida (puede ser más de uno: la tabla general Y la de su área).
+    # Un link fijo a un solo destino (se probó "volver arriba" a la
+    # página 1) no sirve -- no hay una única "página de origen". Esto sí
+    # apunta exacto, a la sección real de la que vino cada link.
+    fuentes_por_nombre = {}
+    for r in rubros_suben:
+        fuentes_por_nombre.setdefault(r['nombre'], []).append(('general', None))
     for area, suben_area in area_blocks:
-        nombres_vistos.update(r['nombre'] for r in suben_area)
+        for r in suben_area:
+            fuentes_por_nombre.setdefault(r['nombre'], []).append(('area', area))
+    nombres_vistos = set(fuentes_por_nombre.keys())
     cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
     ledger_por_nombre = {k.strip().lower(): k for k in ledger_detalle.keys()}
     anexo_entries = []
+    anexo_fuentes = {}
     vistos_lower = set()
     for n in sorted(nombres_vistos):
         nl = n.strip().lower()
         if nl in vistos_lower:
             continue
+        canon = None
         if nl in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[nl]):
-            anexo_entries.append((cuentas_por_nombre[nl], 'providers'))
-            vistos_lower.add(nl)
+            canon = cuentas_por_nombre[nl]
+            anexo_entries.append((canon, 'providers'))
         elif nl in ledger_por_nombre and ledger_detalle.get(ledger_por_nombre[nl]):
-            anexo_entries.append((ledger_por_nombre[nl], 'ledger'))
+            canon = ledger_por_nombre[nl]
+            anexo_entries.append((canon, 'ledger'))
+        if canon:
             vistos_lower.add(nl)
+            anexo_fuentes.setdefault(canon, []).extend(fuentes_por_nombre[n])
     anexo_entries.sort(key=lambda e: e[0])
     anexo_nombres = {e[0] for e in anexo_entries}
     nombre_style = ParagraphStyle('rubroNombre', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
@@ -672,9 +692,12 @@ def build(data, mes_label, out_path, bullets_extra=None):
             return Paragraph(html, nombre_style)
         return Paragraph(nombre, nombre_style)
 
-    # ── Top rubros que más subieron (rubros_suben calculado arriba) ──
+    # ── Top rubros que más subieron (rubros_suben calculado arriba) --
+    # el Anchor('sec_top_rubros') es el destino del link de "volver" que
+    # el Anexo pone para cada rubro que vino de ACÁ (ver anexo_fuentes). ──
     if rubros_suben:
         with keep_together():
+            story.append(Anchor('sec_top_rubros'))
             section_title("TOP RUBROS QUE MÁS SUBIERON")
             rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in rubros_suben]
             data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
@@ -684,6 +707,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
         with keep_together():
             if i == 0:
                 section_title("TOP RUBROS QUE MÁS SUBIERON · POR ÁREA")
+            # Ancla propia por área (no una sola para toda la sección):
+            # cada área puede caer en una página distinta, y el link de
+            # "volver" del Anexo tiene que apuntar a la de ESA área.
+            story.append(Anchor(f'sec_top_rubros_area_{slugify(area)}'))
             story.append(Paragraph(area, ParagraphStyle(f'areaRubroLabel{area}', fontName='DMSans-Bold', fontSize=9.5, textColor=AREA_COLOR[area])))
             story.append(Spacer(1, 2))
             rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in suben_area]
@@ -972,16 +999,17 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # ese link te manda, y mezclarlo con lo anterior en la misma página
     # rompería esa lectura.
     #
-    # No hay un link de "volver" propio acá -- un mismo rubro puede tener
-    # el link de ida desde más de un lugar (la tabla general Y la de su
-    # área), así que no hay una única "página de origen" fija a la que
-    # un link de vuelta pudiera apuntar. Los lectores de PDF ya resuelven
-    # esto mejor de lo que podríamos acá: cualquier link interno (como el
-    # de nombre_cell) empuja la vista actual a una pila de navegación, y
-    # "vista anterior" (Alt+Flecha izq. en Acrobat/Reader, el botón atrás
-    # del visor de Chrome/Firefox, Cmd+[ en Preview) te devuelve exactamente
-    # a la fila de la que viniste -- no a un destino fijo como esta página
-    # 1 (se probó un link "Volver arriba" acá y se sacó por esto mismo). ──
+    # Cada entrada del Anexo termina con un link "Volver" de vuelta a CADA
+    # lugar de donde realmente vino (anexo_fuentes, calculado arriba) --
+    # un rubro visto solo en la tabla general lleva un link; uno visto
+    # también en su área lleva dos. Nada de un destino fijo (se probó un
+    # único "Volver arriba" a la página 1 y no servía: un mismo rubro
+    # puede tener el link de ida desde más de un lugar, así que no hay una
+    # única "página de origen"). Cada "Volver" apunta al Anchor de esa
+    # sección puntual (sec_top_rubros / sec_top_rubros_area_<área>,
+    # creados más arriba, justo antes de section_title/el label del
+    # área), no al tope de la página 1. ──
+    volver_style = ParagraphStyle('anexoVolver', fontName='DMSans', fontSize=8, textColor=AZUL)
     if anexo_entries:
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
@@ -1036,6 +1064,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     ]))
                     story.append(t)
                     story.append(Spacer(1, 4))
+                for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
+                    if tipo_fuente == 'general':
+                        key, label = 'sec_top_rubros', 'Top rubros que más subieron'
+                    else:
+                        key, label = f'sec_top_rubros_area_{slugify(area_fuente)}', f'Top rubros · {area_fuente}'
+                    story.append(Paragraph(f'<a href="#{key}"><u>&#8593; Volver a "{label}"</u></a>', volver_style))
+                    story.append(Spacer(1, 1))
 
     # ── Notas de metodología: breve, al pie -- no repite todo el docstring
     # del módulo, solo lo que hace falta para leer los montos de este PDF
