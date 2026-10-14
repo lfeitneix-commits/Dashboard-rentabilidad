@@ -4545,12 +4545,9 @@ function rebuildQuant(){
   // período, por la devaluación entre un mes y otro.
   const usd=(ars,mes)=>QUANT_TC_MENSUAL[mes]?ars/QUANT_TC_MENSUAL[mes]:0;
   const sumCampo=campo=>mesesScope.reduce((s,m)=>s+(cl[m]&&cl[m][campo]!=null?usd(cl[m][campo],m):0),0);
-  const costoLaboralRows=[
-    {label:'Sueldo Bruto',val:sumCampo('SUELDO BRUTO')},
-    {label:'SAC',val:sumCampo('SAC')},
-    {label:'Costo Laboral',val:sumCampo('COSTO LABORAL')},
-    {label:'Plus',val:sumCampo('PLUS')},
-  ].filter(r=>r.val);
+  // Sueldo Bruto + SAC + Costo Laboral + Plus, unificados en una sola
+  // línea "SUELDOS Y CS" (sin desglose) -- antes se mostraba cada campo
+  // como subfila propia.
   const costoLaboralTotal=sumCampo('TOTAL');
 
   // Servicios de Infraestructura (QUANT_SERVICIOS, ya en Inversión Quant) --
@@ -4618,8 +4615,7 @@ function rebuildQuant(){
     <th style="width:35%;text-align:center;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-left:1px solid var(--border)">Quant (USD)</th>
   </tr></thead><tbody>`;
 
-  html+=secRow('COSTO LABORAL',costoLaboralTotal);
-  costoLaboralRows.forEach(r=>{ html+=subRow(r.label,r.val); });
+  html+=secRow('SUELDOS Y CS',costoLaboralTotal);
 
   html+=secRow('SERVICIOS DE INFRAESTRUCTURA',infraTotal);
   serviciosActivos.forEach(s=>{
