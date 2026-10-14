@@ -754,17 +754,21 @@ def build(data, mes_label, out_path, bullets_extra=None):
         plain_table(["Área", "Facturación"], rows, [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
                     signed_vals=[ing_area[a] for a in AREAS])
 
-    # ── Gastos totales + Impuestos por área: barra de % si todas > 0 ──
+    # ── Gastos totales por área: barra de % si todas > 0 -- NO suma
+    # Impuestos (fila aparte en el Sheet, "GASTOS TOTALES" ya es Directos +
+    # Indirectos prorrateados por sí sola). Antes se sumaba impuestosActual
+    # acá, a pedido se sacó: Impuestos no se cuenta como "gasto" en ninguna
+    # apertura por área de este reporte (mismo criterio que ya usaba Unit
+    # Economics, que nunca lo sumó). ──
     gt_area = data['gastosTotalesActual'] or {}
-    imp_area = data['impuestosActual'] or {}
-    gastos_area_abs = {a: (gt_area.get(a, 0) or 0) + (imp_area.get(a, 0) or 0) for a in AREAS}
+    gastos_area_abs = {a: (gt_area.get(a, 0) or 0) for a in AREAS}
     total_gastos_area = sum(gastos_area_abs.values())
     with keep_together():
-        section_title("GASTOS TOTALES + IMPUESTOS POR ÁREA")
+        section_title("GASTOS TOTALES POR ÁREA")
         if total_gastos_area > 0 and all(v >= 0 for v in gastos_area_abs.values()):
             area_bar_chart([(a, gastos_area_abs[a], gastos_area_abs[a] / total_gastos_area * 100) for a in AREAS])
         else:
-            plain_table(["Área", "Gastos + Impuestos"], [[a, usd(gastos_area_abs[a])] for a in AREAS],
+            plain_table(["Área", "Gastos Totales"], [[a, usd(gastos_area_abs[a])] for a in AREAS],
                         [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
                         signed_vals=[gastos_area_abs[a] for a in AREAS])
 
@@ -821,7 +825,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             else:
                 cell = ratio_cell(gasto / fact * 100)
             rows.append([a, usd(fact), usd(gasto), cell])
-        data_table(["Área", "Facturación", "Gastos + Impuestos", "Gastos / Facturación"], rows,
+        data_table(["Área", "Facturación", "Gastos Totales", "Gastos / Facturación"], rows,
                    [40 * mm, 38 * mm, 42 * mm, CONTENT_W - 40 * mm - 38 * mm - 42 * mm], var_colidx=3)
         if hubo_na:
             story.append(Paragraph(
