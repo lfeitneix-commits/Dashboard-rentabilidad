@@ -652,7 +652,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # se sacó). ──
     cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
     ledger_detalle = data.get('gastosLedgerDetalle') or {}
-    ledger_detalle_anterior = data.get('gastosLedgerDetalleAnterior') or {}
+    # Agrupado por proveedor/concepto (ya sumado por mes en
+    # extract_data.js) -- lo que se muestra en el Anexo para una cuenta
+    # "ledger"; ledger_detalle (movimiento por movimiento, sin agrupar)
+    # solo se usa más abajo para decidir SI la cuenta tiene algo que
+    # mostrar, no para la tabla en sí (ponerlos todos sueltos separaba un
+    # mismo proveedor recurrente -- ej. "Banco de Valores" -- en una fila
+    # por día/comprobante distinto).
+    ledger_agrupado = data.get('gastosLedgerAgrupado') or {}
     # Dónde aparece cada nombre de rubro -- para armar, en el Anexo, un
     # link de "volver" preciso a CADA lugar donde ese rubro tiene su link
     # de ida (puede ser más de uno: la tabla general Y la de su área).
@@ -1049,64 +1056,19 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
                                 [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 else:
-                    # No usa plain_table() -- su estilo alinea a la derecha
-                    # todas las columnas salvo la primera, pensado para
-                    # columnas numéricas; acá "Concepto" es texto libre
-                    # (puede ser largo) y necesita quedar a la izquierda y
-                    # envolver en Paragraph, no como string plano. ──
-                    concepto_style = ParagraphStyle('ledgerConcepto', fontName='DMSans', fontSize=9, textColor=GRAFITO, leading=11)
-                    col_fecha, col_monto = 22 * mm, 28 * mm
-
-                    def ledger_table(items):
-                        rows_ = [[item['fecha'], Paragraph(item['concepto'], concepto_style), num(item['montoUSD'])]
-                                 for item in items]
-                        t = Table([["Fecha", "Concepto", "Monto (USD)"]] + rows_,
-                                  colWidths=[col_fecha, CONTENT_W - col_fecha - col_monto, col_monto])
-                        t.setStyle(TableStyle([
-                            ('FONTNAME', (0, 0), (-1, -1), 'DMSans'),
-                            ('FONTNAME', (2, 1), (2, -1), 'DMMono-Medium'),
-                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EDEAE4')),
-                            ('FONTNAME', (0, 0), (-1, 0), 'DMSans-Bold'),
-                            ('FONTSIZE', (0, 0), (-1, -1), 9.5),
-                            ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
-                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, CREMA]),
-                            ('TOPPADDING', (0, 0), (-1, -1), 5.5),
-                            ('BOTTOMPADDING', (0, 0), (-1, -1), 5.5),
-                            ('LINEBELOW', (0, -1), (-1, -1), 0.6, BORDER),
-                            ('BOX', (0, 0), (-1, -1), 0.6, BORDER),
-                        ]))
-                        story.append(t)
-
-                    # Mismos dos meses que "providers" (mesAnterior y
-                    # mesActual) -- antes solo mostraba mesActual, sin nada
-                    # con qué compararlo, a diferencia de toda otra cuenta
-                    # del Anexo. Si no se pudo traer el mayor de mesAnterior
-                    # para esta cuenta (ej. falló esa consulta, o la cuenta
-                    # no tuvo movimientos ese mes), se avisa en vez de
-                    # omitir la comparación en silencio.
-                    items_anterior = ledger_detalle_anterior.get(nombre)
+                    # Agrupado por proveedor/concepto canónico (sin separar
+                    # por número de factura/comprobante -- varias compras al
+                    # mismo proveedor en distintos días del mes se suman en
+                    # una sola fila), mismo estilo de tabla que "providers".
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
                     story.append(Paragraph(
-                        "Sin cuenta propia en \"Gastos Fijos Detalle\" -- movimientos reales del mayor "
-                        "contable (convertidos de ARS a USD con el MEP de cada mes):",
+                        "Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
+                        "proveedor/concepto (convertidos de ARS a USD con el MEP de cada mes):",
                         styles['NotaChica'],
                     ))
-                    story.append(Spacer(1, 4))
-                    if items_anterior:
-                        story.append(Paragraph(data['mesAnterior'], ParagraphStyle('ledgerMesLbl', fontName='DMSans-Bold', fontSize=9, textColor=MUTED)))
-                        story.append(Spacer(1, 2))
-                        ledger_table(items_anterior)
-                        story.append(Spacer(1, 6))
-                    else:
-                        story.append(Paragraph(
-                            f"{data['mesAnterior']}: no se pudo traer el detalle del mayor contable de ese mes para esta cuenta.",
-                            styles['NotaChica'],
-                        ))
-                        story.append(Spacer(1, 4))
-                    story.append(Paragraph(data['mesActual'], ParagraphStyle('ledgerMesLbl2', fontName='DMSans-Bold', fontSize=9, textColor=MUTED)))
                     story.append(Spacer(1, 2))
-                    ledger_table(ledger_detalle[nombre])
-                    story.append(Spacer(1, 4))
+                    plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
+                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
                     if tipo_fuente == 'general':
                         key, label = 'sec_top_rubros', 'Top rubros que más subieron'
