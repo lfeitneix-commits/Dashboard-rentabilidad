@@ -581,7 +581,23 @@ def build(data, mes_label, out_path, bullets_extra=None):
             f"{top_rubro['nombre']} tuvo un salto atípico este mes: está {desvio_pct:.0f}% {direccion} de su "
             f"propio promedio histórico."
         )
+    kpi_sub = f"vs. {data['mesAnterior']}" if kpi_ant else None
+    kpis = Table(
+        [[kpi_card("Facturación bruta", usd(fact_act), fact_var, kpi_sub),
+          kpi_card("Gastos totales", usd(gastos_act), gastos_var, kpi_sub),
+          kpi_card("Resultado", usd(result_act), result_var, kpi_sub)]],
+        colWidths=[CONTENT_W / 3] * 3,
+    )
+    kpis.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    story.append(kpis)
+
+    # ── Alertas del mes: justo debajo de las 3 KPI cards de arriba -- se
+    # calculan más arriba (antes de armar `kpis`) combinando señales que el
+    # reporte ya computa en otro lado; acá solo se renderiza la caja. ──
     with keep_together():
+        story.append(Spacer(1, 6))
         alertas_t = Table([[Paragraph("ALERTAS DEL MES", styles['H2White'])]], colWidths=[CONTENT_W], rowHeights=[8 * mm])
         alertas_t.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), BORDEAUX if alertas else VERDE),
@@ -600,19 +616,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 "márgenes por área negativos.",
                 styles['BulletCustom'],
             ))
-        story.append(Spacer(1, 10))
-
-    kpi_sub = f"vs. {data['mesAnterior']}" if kpi_ant else None
-    kpis = Table(
-        [[kpi_card("Facturación bruta", usd(fact_act), fact_var, kpi_sub),
-          kpi_card("Gastos totales", usd(gastos_act), gastos_var, kpi_sub),
-          kpi_card("Resultado", usd(result_act), result_var, kpi_sub)]],
-        colWidths=[CONTENT_W / 3] * 3,
-    )
-    kpis.setStyle(TableStyle([
-        ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-    story.append(kpis)
 
     # ── Resultado acumulado del año en curso -- suma de los mismos
     # "resultado" por mes que ya arma kpiTrend para el gráfico de
