@@ -506,6 +506,43 @@ const APP = context.__APP__;
   const gastosLedgerDetalle = await ledgerDe(mesActual, dolarMEP);
   const gastosLedgerDetalleAnterior = mesAnterior ? await ledgerDe(mesAnterior, await mepDe(mesAnterior)) : {};
 
+  // Agrupado por proveedor/concepto -- el mayor contable trae un
+  // movimiento por línea (ej. una fila por día para un mismo débito
+  // bancario recurrente, cada una con su propio número de comprobante en
+  // el CONCEPTO), lo que separaba en decenas de filas algo que es
+  // conceptualmente el mismo proveedor pagado varias veces en el mes. Acá
+  // se agrupa por un nombre "canónico" (sacando el número de
+  // comprobante/factura y cualquier sufijo "TC: NNNN") y se suma el monto
+  // de cada mes, para que el Anexo compare "Banco de Valores" (un total
+  // por mes) contra sí mismo, igual que ya hace con los proveedores de
+  // Gastos Fijos Detalle -- no 15 filas sueltas por 15 días distintos.
+  function proveedorCanonico(concepto) {
+    const m = /^(COMPRAS|PAGOS)\s+(.+?)\s+\d{1,6}-\d{2,8}\b/i.exec(concepto);
+    if (m) return m[2].trim();
+    return concepto.replace(/\s*TC:\s*\d+.*$/i, '').trim() || concepto;
+  }
+  function agruparPorProveedor(itemsAnterior, itemsActual) {
+    const sumar = items => {
+      const m = {};
+      (items || []).forEach(it => {
+        const key = proveedorCanonico(it.concepto);
+        m[key] = (m[key] || 0) + it.montoUSD;
+      });
+      return m;
+    };
+    const sumAnt = sumar(itemsAnterior);
+    const sumAct = sumar(itemsActual);
+    const nombres = new Set([...Object.keys(sumAnt), ...Object.keys(sumAct)]);
+    return [...nombres]
+      .map(nombre => ({ nombre, anterior: sumAnt[nombre] || 0, actual: sumAct[nombre] || 0 }))
+      .sort((a, b) => Math.abs(b.actual) - Math.abs(a.actual));
+  }
+  const cuentasLedger = new Set([...Object.keys(gastosLedgerDetalle), ...Object.keys(gastosLedgerDetalleAnterior)]);
+  const gastosLedgerAgrupado = {};
+  cuentasLedger.forEach(cuenta => {
+    gastosLedgerAgrupado[cuenta] = agruparPorProveedor(gastosLedgerDetalleAnterior[cuenta], gastosLedgerDetalle[cuenta]);
+  });
+
   // Excepciones / no recurrentes DEL MES ACTUAL -- la hoja no tiene un flag
   // propio, se infiere de la nota de la cuenta. Solo el mes que se está
   // reportando, no el historial completo (el reporte de Agosto no debería
@@ -548,6 +585,7 @@ const APP = context.__APP__;
     gastosFijosDetalleCuentas,
     gastosLedgerDetalle,
     gastosLedgerDetalleAnterior,
+    gastosLedgerAgrupado,
     unitEconomics,
     unitEconomicsTrend,
     excepciones,
