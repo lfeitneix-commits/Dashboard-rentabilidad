@@ -156,6 +156,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
     styles.add(ParagraphStyle('VarCell', fontName='DMMono-Medium', fontSize=9.5, alignment=TA_CENTER))
     styles.add(ParagraphStyle('BulletCustom', fontName='DMSans', fontSize=9.5, leading=14, textColor=GRAFITO, leftIndent=4))
     styles.add(ParagraphStyle('NotaChica', fontName='DMSans', fontSize=8, textColor=MUTED, leftIndent=0))
+    styles.add(ParagraphStyle('AnexoCuenta', fontName='DMSans-Bold', fontSize=11.5, textColor=GRAFITO))
 
     def draw_header(canvas, _doc):
         canvas.saveState()
@@ -1048,9 +1049,22 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(Spacer(1, 4))
         for nombre, tipo in anexo_entries:
             with keep_together():
+                story.append(Spacer(1, 10))
                 story.append(Anchor(cuenta_slug(nombre)))
-                story.append(Paragraph(nombre, ParagraphStyle(f'anexoCuenta{nombre}', fontName='DMSans-Bold', fontSize=9.5, textColor=GRAFITO)))
-                story.append(Spacer(1, 2))
+                # Más grande y con una mini-barra lateral + fondo, como un
+                # section_title() pero más chico -- antes era un Paragraph
+                # bold del mismo tamaño que el texto de las tablas de abajo
+                # y se perdía entre una cuenta y la siguiente.
+                cuenta_t = Table([[Paragraph(nombre, styles['AnexoCuenta'])]], colWidths=[CONTENT_W], rowHeights=[7 * mm])
+                cuenta_t.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+                    ('LINEBEFORE', (0, 0), (0, 0), 3, BORDEAUX),
+                    ('LINEBELOW', (0, 0), (-1, 0), 0.6, BORDER),
+                    ('LEFTPADDING', (0, 0), (0, 0), 10),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                story.append(cuenta_t)
+                story.append(Spacer(1, 4))
                 if tipo == 'providers':
                     rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[nombre]]
                     plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
