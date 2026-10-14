@@ -608,6 +608,14 @@ const APP = context.__APP__;
     impuestosActual: areaVals(mesActual, 'impuestosRow'),
     ingresosPorAreaActual: ingresosPorArea(mesActual),
     resultadoPorAreaActual: resultadoPorArea(mesActual),
+    // Solo para detectar un área que PASA a margen negativo este mes (ver
+    // "ALERTAS DEL MES" en build_report.py) -- un área chica como Banca
+    // Corporativa o Banca Privada corre con margen negativo casi todos los
+    // meses por el prorrateo de indirectos, así que marcar "margen
+    // negativo" sin más repetiría lo mismo cada reporte. Comparando contra
+    // el mes anterior, la alerta solo dispara cuando es un cambio real.
+    ingresosPorAreaAnterior: mesAnterior ? ingresosPorArea(mesAnterior) : null,
+    resultadoPorAreaAnterior: mesAnterior ? resultadoPorArea(mesAnterior) : null,
     directosIndirectosActual,
     dolarMEP,
     rubrosVariacion,

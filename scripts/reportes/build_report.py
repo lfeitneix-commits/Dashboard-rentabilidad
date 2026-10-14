@@ -532,6 +532,76 @@ def build(data, mes_label, out_path, bullets_extra=None):
     else:
         fact_var = gastos_var = result_var = var_cell(0.0)
 
+    # ── Alertas del mes: ANTES de las KPI cards, para que lo más urgente se
+    # lea primero sin tener que llegar a las tablas de más abajo -- combina
+    # señales que el reporte ya calcula en otras secciones (resultado total
+    # negativo, áreas sin facturación, áreas con margen negativo, rubro con
+    # salto atípico vs. su propio historial) en una sola caja, en vez de
+    # agregar un chequeo nuevo. Si no hay ninguna, lo dice explícitamente
+    # (la caja no desaparece) para que "sin alertas" sea una lectura activa,
+    # no la ausencia de la sección -- y para que la barra de título, roja o
+    # verde, funcione como semáforo a simple vista. ──
+    alertas = []
+    if result_act < 0:
+        alertas.append(f"Resultado del mes fue negativo ({usd(result_act)}).")
+    ing_area_alert = data['ingresosPorAreaActual']
+    areas_sin_facturacion = [a for a in AREAS if ing_area_alert[a] <= 0]
+    if areas_sin_facturacion:
+        alertas.append(
+            f"{', '.join(areas_sin_facturacion)}: facturación bruta negativa o cero este mes "
+            f"(ratios de esa área salen N/D más abajo)."
+        )
+    # Área que PASA a margen negativo este mes -- no "tiene margen
+    # negativo" a secas, porque un área chica (Banca Corporativa, Banca
+    # Privada) corre así casi todos los meses por el prorrateo de
+    # indirectos, y repetir eso cada reporte sería ruido, no una alerta.
+    # Solo dispara cuando el mes anterior era positivo y este no.
+    resultado_area_alert = data.get('resultadoPorAreaActual') or {}
+    ing_area_ant_alert = data.get('ingresosPorAreaAnterior') or {}
+    resultado_area_ant_alert = data.get('resultadoPorAreaAnterior') or {}
+    areas_margen_nuevo_negativo = []
+    for a in AREAS:
+        fact, fact_ant = ing_area_alert[a], ing_area_ant_alert.get(a, 0)
+        if fact <= 0 or not fact_ant or fact_ant <= 0:
+            continue
+        margen_actual = resultado_area_alert.get(a, 0) / fact
+        margen_anterior = resultado_area_ant_alert.get(a, 0) / fact_ant
+        if margen_actual < 0 and margen_anterior >= 0:
+            areas_margen_nuevo_negativo.append(a)
+    if areas_margen_nuevo_negativo:
+        alertas.append(
+            f"{', '.join(areas_margen_nuevo_negativo)}: pasó a margen negativo este mes "
+            f"(el mes anterior había sido positivo)."
+        )
+    top_rubro = data['rubrosVariacion'][0] if data['rubrosVariacion'] else None
+    if top_rubro and top_rubro.get('esAtipico'):
+        direccion = 'por encima' if top_rubro['ratioVsHistorico'] > 1 else 'por debajo'
+        desvio_pct = abs(top_rubro['ratioVsHistorico'] - 1) * 100
+        alertas.append(
+            f"{top_rubro['nombre']} tuvo un salto atípico este mes: está {desvio_pct:.0f}% {direccion} de su "
+            f"propio promedio histórico."
+        )
+    with keep_together():
+        alertas_t = Table([[Paragraph("ALERTAS DEL MES", styles['H2White'])]], colWidths=[CONTENT_W], rowHeights=[8 * mm])
+        alertas_t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), BORDEAUX if alertas else VERDE),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (0, 0), 10),
+        ]))
+        story.append(alertas_t)
+        story.append(Spacer(1, 6))
+        if alertas:
+            for a in alertas:
+                story.append(Paragraph(f"•  {a}", styles['BulletCustom']))
+                story.append(Spacer(1, 3))
+        else:
+            story.append(Paragraph(
+                "Sin alertas relevantes este mes: no hubo rubros con saltos atípicos ni resultado o "
+                "márgenes por área negativos.",
+                styles['BulletCustom'],
+            ))
+        story.append(Spacer(1, 10))
+
     kpi_sub = f"vs. {data['mesAnterior']}" if kpi_ant else None
     kpis = Table(
         [[kpi_card("Facturación bruta", usd(fact_act), fact_var, kpi_sub),
