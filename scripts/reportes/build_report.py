@@ -593,9 +593,22 @@ def build(data, mes_label, out_path, bullets_extra=None):
     ]))
     story.append(kpis)
 
-    # ── Alertas del mes: justo debajo de las 3 KPI cards de arriba -- se
-    # calculan más arriba (antes de armar `kpis`) combinando señales que el
-    # reporte ya computa en otro lado; acá solo se renderiza la caja. ──
+    # ── Resultado acumulado del año en curso -- suma de los mismos
+    # "resultado" por mes que ya arma kpiTrend para el gráfico de
+    # Evolución (no una cuenta nueva). Se omite en el primer mes del año:
+    # ahí "acumulado" sería el mismo número que el KPI "Resultado" de
+    # arriba, no aporta nada. ──
+    if len(data['kpiTrend']) > 1:
+        resultado_acum = sum(m['resultado'] for m in data['kpiTrend'])
+        primer_mes = data['kpiTrend'][0]['mes']
+        with keep_together():
+            story.append(Spacer(1, 6))
+            story.append(accum_card(f"Resultado acumulado {primer_mes} - {data['mesActual']}", resultado_acum))
+
+    # ── Alertas del mes: debajo de las KPI cards y de "Resultado
+    # acumulado" -- se calculan más arriba (antes de armar `kpis`)
+    # combinando señales que el reporte ya computa en otro lado; acá solo
+    # se renderiza la caja. ──
     with keep_together():
         story.append(Spacer(1, 6))
         alertas_t = Table([[Paragraph("ALERTAS DEL MES", styles['H2White'])]], colWidths=[CONTENT_W], rowHeights=[8 * mm])
@@ -611,23 +624,18 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 story.append(Paragraph(f"•  {a}", styles['BulletCustom']))
                 story.append(Spacer(1, 3))
         else:
+            # No dice "sin márgenes negativos" a secas -- Banca Corporativa
+            # y Banca Privada corren con margen negativo casi todos los
+            # meses (ver el chequeo de arriba, que solo alerta en un
+            # cambio de signo real), así que esa frase sería falsa la
+            # mayoría de los meses sin alertas. "Sin áreas que hayan
+            # cambiado a margen negativo" es lo que efectivamente se
+            # chequeó.
             story.append(Paragraph(
-                "Sin alertas relevantes este mes: no hubo rubros con saltos atípicos ni resultado o "
-                "márgenes por área negativos.",
+                "Sin alertas relevantes este mes: no hubo rubros con saltos atípicos, resultado negativo, "
+                "áreas sin facturación, ni áreas que hayan pasado a margen negativo.",
                 styles['BulletCustom'],
             ))
-
-    # ── Resultado acumulado del año en curso -- suma de los mismos
-    # "resultado" por mes que ya arma kpiTrend para el gráfico de
-    # Evolución (no una cuenta nueva). Se omite en el primer mes del año:
-    # ahí "acumulado" sería el mismo número que el KPI "Resultado" de
-    # arriba, no aporta nada. ──
-    if len(data['kpiTrend']) > 1:
-        resultado_acum = sum(m['resultado'] for m in data['kpiTrend'])
-        primer_mes = data['kpiTrend'][0]['mes']
-        with keep_together():
-            story.append(Spacer(1, 6))
-            story.append(accum_card(f"Resultado acumulado {primer_mes} - {data['mesActual']}", resultado_acum))
 
     # ── Análisis del mes: arranca con lo mínimo verificable automáticamente
     # (mayor rubro que subió) y, si se pasaron --bullet por CLI, los suma en
