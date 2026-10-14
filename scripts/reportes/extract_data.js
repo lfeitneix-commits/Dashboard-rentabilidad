@@ -159,6 +159,36 @@ const APP = context.__APP__;
   // importe en términos absolutos (antes el piso era solo sobre el monto
   // actual, y un caso así pasaba el filtro).
   const RUBRO_MONTO_MIN = 500;
+
+  // Promedio histórico de un rubro (Clasificación de gastos) en los meses
+  // PREVIOS a mesActual -- para distinguir "el rubro que más subió en %"
+  // de uno que además es un salto atípico en términos absolutos. Un rubro
+  // puede dar +292% y aun así estar perfectamente en línea con su propio
+  // promedio si el mes base fue inusualmente bajo (caso real: "IVA No
+  // Computable" en Agosto 2026 dio +292,7% vs Julio, pero Agosto estaba en
+  // línea con el promedio de los 8 meses -- Julio fue el mes atípico, no
+  // Agosto). Antes esto se chequeaba a mano para escribir el bullet de
+  // "Análisis del mes" vía --bullet; ahora se calcula solo y se suma al
+  // bullet automático del rubro que más subió, sin reemplazar NOTAS_CUENTAS
+  // (esto es "¿es raro vs su propia historia?", no "por qué pasó").
+  const MESES_MIN_HISTORIAL = 3;
+  const UMBRAL_DESVIO_HISTORICO = 0.5; // más de 50% por encima/debajo del promedio
+  const mesesHistoria = mesesTrend.slice(0, -1); // antes de mesActual
+  const rankPorMesHistoria = mesesHistoria.map(m => {
+    const porNombre = {};
+    APP.getClasifRubrosRanking(m).forEach(r => { porNombre[r.nombre] = r.monto; });
+    return porNombre;
+  });
+  function historialRubro(nombre, actual) {
+    if (rankPorMesHistoria.length < MESES_MIN_HISTORIAL) return {};
+    const montos = rankPorMesHistoria.map(porNombre => porNombre[nombre] || 0);
+    const promedio = montos.reduce((s, v) => s + v, 0) / montos.length;
+    if (!promedio) return { historicoMesesCount: montos.length };
+    const ratio = actual / promedio;
+    const esAtipico = Math.abs(ratio - 1) > UMBRAL_DESVIO_HISTORICO;
+    return { promedioHistorico: promedio, ratioVsHistorico: ratio, esAtipico, historicoMesesCount: montos.length };
+  }
+
   let rubrosVariacion = [];
   if (mesAnterior) {
     const rankActual = APP.getClasifRubrosRanking(mesActual);
@@ -173,7 +203,8 @@ const APP = context.__APP__;
       .sort((a, b) => b.deltaPct - a.deltaPct)
       .map(r => {
         const nota = notaParaCuenta(r.nombre);
-        return nota ? { ...r, notaManual: nota.texto, notaMes: nota.mes } : r;
+        const conNota = nota ? { ...r, notaManual: nota.texto, notaMes: nota.mes } : r;
+        return { ...conNota, ...historialRubro(r.nombre, r.actual) };
       });
   }
 

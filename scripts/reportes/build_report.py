@@ -575,6 +575,27 @@ def build(data, mes_label, out_path, bullets_extra=None):
             )
             if top.get('notaManual'):
                 top_txt += f" Esto fue porque {top['notaManual']}."
+            # Detección automática de valor atípico: compara el monto de
+            # este mes contra el promedio histórico del mismo rubro en los
+            # meses previos (ver historialRubro() en extract_data.js) --
+            # antes había que chequear esto a mano para cada bullet; ahora
+            # se agrega solo, con al menos MESES_MIN_HISTORIAL de datos
+            # para que el promedio no sea un invento de 1-2 puntos.
+            if top.get('ratioVsHistorico') is not None:
+                n_hist = top['historicoMesesCount']
+                promedio_txt = num(top['promedioHistorico'])
+                desvio_pct = abs(top['ratioVsHistorico'] - 1) * 100
+                if top.get('esAtipico'):
+                    direccion = 'por encima' if top['ratioVsHistorico'] > 1 else 'por debajo'
+                    top_txt += (
+                        f" Es un salto atípico: está {desvio_pct:.0f}% {direccion} de su propio promedio "
+                        f"de los últimos {n_hist} meses ({promedio_txt})."
+                    )
+                else:
+                    top_txt += (
+                        f" Igual está en línea con su propio promedio de los últimos {n_hist} meses "
+                        f"({promedio_txt}) -- no es un salto atípico de este mes."
+                    )
             bullets.append(top_txt)
             ya_mencionado.add(top['nombre'])
         # Notas manuales para cualquier otro rubro/proveedor del top que
