@@ -405,25 +405,25 @@ const APP = context.__APP__;
   };
   const directosIndirectosActual = directosIndirectosPorArea(mesActual);
 
-  // Tipo de cambio (MEP) del mes -- fila "DÓLAR AL <fecha>", que el loader
+  // Tipo de cambio (MEP) de un mes -- fila "DÓLAR AL <fecha>", que el loader
   // del dashboard corta a propósito (todo lo que sigue a "GASTOS TOTALES"
   // en la hoja es contable/de caja, no entra a ST.mesData). Se vuelve a
-  // pedir la hoja cruda de este mes nomás para sacar ese único valor.
-  let dolarMEP = null;
-  {
-    const sheetInfo = APP.SHEETS.find(s => s.mes === mesActual);
-    if (sheetInfo) {
-      try {
-        const res = await fetch(APP.BASE + sheetInfo.gid);
-        const text = await res.text();
-        const { rows } = APP.parseCSV(text);
-        const dolarRow = rows.find(r => /^D[OÓ]LAR/i.test(String(Object.values(r)[0] || '').trim()));
-        if (dolarRow) dolarMEP = parseNum(Object.values(dolarRow)[1]);
-      } catch (e) {
-        console.error('No se pudo obtener el tipo de cambio (no bloqueante):', e.message);
-      }
+  // pedir la hoja cruda de ese mes nomás para sacar ese único valor.
+  async function mepDe(mes) {
+    const sheetInfo = APP.SHEETS.find(s => s.mes === mes);
+    if (!sheetInfo) return null;
+    try {
+      const res = await fetch(APP.BASE + sheetInfo.gid);
+      const text = await res.text();
+      const { rows } = APP.parseCSV(text);
+      const dolarRow = rows.find(r => /^D[OÓ]LAR/i.test(String(Object.values(r)[0] || '').trim()));
+      return dolarRow ? parseNum(Object.values(dolarRow)[1]) : null;
+    } catch (e) {
+      console.error(`No se pudo obtener el tipo de cambio de ${mes} (no bloqueante):`, e.message);
+      return null;
     }
   }
+  const dolarMEP = await mepDe(mesActual);
 
   // Mayor contable detallado (hojas "Gastos MM.26", una por mes -- gid fijo
   // por mes, no cambia) -- fuente más granular que "Gastos Fijos Detalle"
@@ -443,58 +443,68 @@ const APP = context.__APP__;
   // nada; igual para rubros con desglose por área en el mayor, ej.
   // "Capacitacion y Cursos" = "Capacit. y Cursos Mesa" + "... BC" + "...
   // Neix", tampoco se agregan). Los montos del mayor están en ARS -- se
-  // convierten a USD con el MEP de mesActual (dolarMEP, de arriba); si no
-  // se pudo obtener ese tipo de cambio, se omite esta sección entera (no
-  // se adivina un monto en USD sin saber el tipo de cambio real de ese
-  // mes). El monto de cada movimiento sale de la diferencia de SALDO
-  // entre filas (no de sumar DEBE/HABER a mano): es exactamente lo que
-  // ya calculó la hoja, con cualquier convención de signo que use.
+  // convierten a USD con el MEP del mes correspondiente; si no se pudo
+  // obtener ese tipo de cambio, se omite esta sección para ese mes (no
+  // se adivina un monto en USD sin saber el tipo de cambio real). El
+  // monto de cada movimiento sale de la diferencia de SALDO entre filas
+  // (no de sumar DEBE/HABER a mano): es exactamente lo que ya calculó la
+  // hoja, con cualquier convención de signo que use.
+  //
+  // Se trae mesActual Y mesAnterior (antes solo mesActual) -- para que
+  // una cuenta "ledger" (sin fila propia en Gastos Fijos Detalle, ej.
+  // "Honorarios por Servicios"/"Gastos Bancarios") pueda mostrar la
+  // misma comparación de dos meses que ya tienen las cuentas "providers"
+  // en el Anexo, en vez de solo el detalle de mesActual sin nada con qué
+  // compararlo.
   const GASTOS_LEDGER_GID = {
     Enero: '504407038', Febrero: '1383245355', Marzo: '460907963', Abril: '617795229',
     Mayo: '1112341850', Junio: '1053178830', Julio: '937435377', Agosto: '373585666',
   };
-  let gastosLedgerDetalle = {};
-  if (dolarMEP) {
-    const ledgerGid = GASTOS_LEDGER_GID[mesActual];
-    if (ledgerGid) {
-      try {
-        const res = await fetch(APP.BASE + ledgerGid);
-        const text = await res.text();
-        const { rows } = APP.parseCSV(text);
-        let cuentaActual = null;
-        let saldoPrevio = 0;
-        rows.forEach(r => {
-          const v = Object.values(r);
-          const col0 = String(v[0] || '').trim();
-          const concepto = String(v[3] || '').trim();
-          const mCta = /^Cta:\s*[\d.]+\s+(.+)$/.exec(col0);
-          if (mCta) {
-            cuentaActual = mCta[1].trim();
-            if (!gastosLedgerDetalle[cuentaActual]) gastosLedgerDetalle[cuentaActual] = [];
-            saldoPrevio = parseNum(v[6]);
-            return;
-          }
-          if (!cuentaActual) return;
-          if (!concepto || concepto === 'TOTALES DEL PERIODO') {
-            cuentaActual = null;
-            return;
-          }
-          const saldo = parseNum(v[6]);
-          const montoArs = saldo - saldoPrevio;
-          saldoPrevio = saldo;
-          if (montoArs !== 0) {
-            gastosLedgerDetalle[cuentaActual].push({
-              fecha: String(v[1] || '').trim(),
-              concepto,
-              montoUSD: montoArs / dolarMEP,
-            });
-          }
-        });
-      } catch (e) {
-        console.error('No se pudo obtener el mayor contable (no bloqueante):', e.message);
-      }
+  async function ledgerDe(mes, mep) {
+    const detalle = {};
+    if (!mep) return detalle;
+    const ledgerGid = GASTOS_LEDGER_GID[mes];
+    if (!ledgerGid) return detalle;
+    try {
+      const res = await fetch(APP.BASE + ledgerGid);
+      const text = await res.text();
+      const { rows } = APP.parseCSV(text);
+      let cuentaActual = null;
+      let saldoPrevio = 0;
+      rows.forEach(r => {
+        const v = Object.values(r);
+        const col0 = String(v[0] || '').trim();
+        const concepto = String(v[3] || '').trim();
+        const mCta = /^Cta:\s*[\d.]+\s+(.+)$/.exec(col0);
+        if (mCta) {
+          cuentaActual = mCta[1].trim();
+          if (!detalle[cuentaActual]) detalle[cuentaActual] = [];
+          saldoPrevio = parseNum(v[6]);
+          return;
+        }
+        if (!cuentaActual) return;
+        if (!concepto || concepto === 'TOTALES DEL PERIODO') {
+          cuentaActual = null;
+          return;
+        }
+        const saldo = parseNum(v[6]);
+        const montoArs = saldo - saldoPrevio;
+        saldoPrevio = saldo;
+        if (montoArs !== 0) {
+          detalle[cuentaActual].push({
+            fecha: String(v[1] || '').trim(),
+            concepto,
+            montoUSD: montoArs / mep,
+          });
+        }
+      });
+    } catch (e) {
+      console.error(`No se pudo obtener el mayor contable de ${mes} (no bloqueante):`, e.message);
     }
+    return detalle;
   }
+  const gastosLedgerDetalle = await ledgerDe(mesActual, dolarMEP);
+  const gastosLedgerDetalleAnterior = mesAnterior ? await ledgerDe(mesAnterior, await mepDe(mesAnterior)) : {};
 
   // Excepciones / no recurrentes DEL MES ACTUAL -- la hoja no tiene un flag
   // propio, se infiere de la nota de la cuenta. Solo el mes que se está
@@ -537,6 +547,7 @@ const APP = context.__APP__;
     proveedores,
     gastosFijosDetalleCuentas,
     gastosLedgerDetalle,
+    gastosLedgerDetalleAnterior,
     unitEconomics,
     unitEconomicsTrend,
     excepciones,
