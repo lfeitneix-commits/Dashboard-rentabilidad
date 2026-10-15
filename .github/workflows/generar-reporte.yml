@@ -1,0 +1,106 @@
+name: Generar reporte mensual
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generar-reporte
+  cancel-in-progress: false
+
+jobs:
+  generar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias Python
+        run: pip install reportlab
+
+      - name: Extraer datos del Sheet
+        id: extract
+        run: |
+          cd scripts/reportes
+          if ! node extract_data.js ../../index.html real_data.json; then
+            echo "Sin acceso al Sheet o sin datos -- no hay nada para generar esta corrida."
+            echo "ok=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=si" >> "$GITHUB_OUTPUT"
+
+      - name: Detectar mes pendiente
+        id: detectar
+        if: steps.extract.outputs.ok == 'si'
+        run: |
+          cd scripts/reportes
+          PENDIENTE=$(node mes_pendiente.js real_data.json ../../index.html)
+          echo "pendiente=$PENDIENTE" >> "$GITHUB_OUTPUT"
+          if [ -z "$PENDIENTE" ]; then
+            echo "No hay mes pendiente -- el Sheet todavía no tiene un mes nuevo sin reporte."
+          else
+            echo "Mes pendiente: $PENDIENTE"
+          fi
+
+      - name: Generar PDF
+        id: generar
+        if: steps.detectar.outputs.pendiente != ''
+        run: |
+          cd scripts/reportes
+          MES=$(node -e "console.log(JSON.parse(process.env.PENDIENTE).mes)")
+          NN=$(node -e "console.log(JSON.parse(process.env.PENDIENTE).nn)")
+          SLUG=$(node -e "console.log(JSON.parse(process.env.PENDIENTE).slug)")
+          OUT="reportes/2026-${NN}-reporte-${SLUG}.pdf"
+          python3 build_report.py --data real_data.json --out "../../$OUT" --mes-label "${MES} 2026"
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+          echo "mes=$MES" >> "$GITHUB_OUTPUT"
+          echo "fecha=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        env:
+          PENDIENTE: ${{ steps.detectar.outputs.pendiente }}
+
+      - name: Chequeo básico del PDF generado
+        if: steps.detectar.outputs.pendiente != ''
+        run: |
+          OUT="${{ steps.generar.outputs.out }}"
+          if [ ! -s "$OUT" ]; then
+            echo "El PDF no se generó o quedó vacío ($OUT)."
+            exit 1
+          fi
+          if grep -a -q "Completar a mano" "$OUT"; then
+            echo "El PDF quedó con un placeholder sin completar -- no se sube."
+            exit 1
+          fi
+
+      - name: Registrar el reporte en index.html
+        if: steps.detectar.outputs.pendiente != ''
+        run: |
+          node -e "
+            const fs = require('fs');
+            const mes = process.env.MES, archivo = process.env.OUT, fecha = process.env.FECHA;
+            let html = fs.readFileSync('index.html', 'utf-8');
+            const fila = \`  {mes:'\${mes} 2026',archivo:'\${archivo}',generado:'\${fecha}'},\n\`;
+            html = html.replace(/(const REPORTES_MENSUALES=\[[\s\S]*?)(\];)/, (_, cuerpo, cierre) => cuerpo + fila + cierre);
+            fs.writeFileSync('index.html', html);
+          "
+        env:
+          MES: ${{ steps.generar.outputs.mes }}
+          OUT: ${{ steps.generar.outputs.out }}
+          FECHA: ${{ steps.generar.outputs.fecha }}
+
+      - name: Commitear y subir a main
+        if: steps.detectar.outputs.pendiente != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html "${{ steps.generar.outputs.out }}"
+          git commit -m "Generar reporte automático de ${{ steps.generar.outputs.mes }} 2026"
+          git push origin HEAD:main

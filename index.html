@@ -3500,28 +3500,52 @@ function getMesesPendientesReporte(){
   const generados=new Set(REPORTES_MENSUALES.map(r=>r.mes.split(' ')[0].toLowerCase()));
   return (ST.meses||[]).filter(m=>!generados.has(String(m).toLowerCase()));
 }
-// El botón no puede correr extract_data.js/build_report.py desde el
-// navegador (son scripts de Node/Python, no hay backend acá) -- lo que sí
-// puede hacer solo mirando el Sheet es decirte CUÁL mes te falta, así no
-// hay que fijarse a mano comparando contra la tabla de abajo. Al
-// clickearlo copia al portapapeles el pedido listo para pasarle a Claude.
+// El click dispara el GitHub Action ".github/workflows/generar-reporte.yml"
+// (extract_data.js + build_report.py, corre del lado de GitHub, no acá) via
+// la API de "workflow dispatch". El token de abajo está acotado SOLO a
+// "Actions: read and write" sobre este repo -- no puede leer ni escribir
+// contenido del repo. Si alguien lo copia del código fuente, lo peor que
+// puede hacer es disparar corridas de más, nunca tocar archivos. Si la
+// llamada falla (red, CORS, token revocado, etc.) cae al comportamiento
+// anterior: copiar al portapapeles el pedido para pasarle a Claude.
+const GH_ACTIONS_TOKEN='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';
+const GH_OWNER='lfeitneix-commits', GH_REPO='Dashboard-rentabilidad', GH_WORKFLOW='generar-reporte.yml';
 function generarReporteClick(){
   const pendientes=getMesesPendientesReporte();
   if(!pendientes.length) return;
   const mes=pendientes[0];
-  const prompt=`Generá el reporte mensual de ${mes} 2026 (extract_data.js + build_report.py), con el mismo proceso de siempre.`;
   const btn=document.getElementById('generar-reporte-btn');
   const original=btn?btn.innerHTML:null;
-  const marcarCopiado=()=>{
-    if(!btn)return;
-    btn.innerHTML='Copiado al portapapeles ✓';
-    setTimeout(()=>{ if(btn&&original!==null) btn.innerHTML=original; },2000);
+  const restaurar=(ms)=>setTimeout(()=>{ if(btn&&original!==null) btn.innerHTML=original; },ms);
+  const copiarComoFallback=()=>{
+    const prompt=`Generá el reporte mensual de ${mes} 2026 (extract_data.js + build_report.py), con el mismo proceso de siempre.`;
+    const marcarCopiado=()=>{ if(btn){ btn.innerHTML='Copiado al portapapeles ✓'; restaurar(2500); } };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(prompt).then(marcarCopiado).catch(marcarCopiado);
+    } else {
+      marcarCopiado();
+    }
   };
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(prompt).then(marcarCopiado).catch(marcarCopiado);
-  } else {
-    marcarCopiado();
-  }
+  if(btn){ btn.innerHTML='Disparando…'; btn.disabled=true; }
+  fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,{
+    method:'POST',
+    headers:{
+      'Authorization':`Bearer ${GH_ACTIONS_TOKEN}`,
+      'Accept':'application/vnd.github+json',
+      'Content-Type':'application/json',
+    },
+    body:JSON.stringify({ref:'main'}),
+  }).then(r=>{
+    if(btn)btn.disabled=false;
+    if(r.ok){
+      if(btn){ btn.innerHTML='Generando, puede tardar unos minutos ⏳'; restaurar(5000); }
+    } else {
+      copiarComoFallback();
+    }
+  }).catch(()=>{
+    if(btn)btn.disabled=false;
+    copiarComoFallback();
+  });
 }
 function renderReportes(){
   document.getElementById('topbar-title').textContent='Reportes Mensuales';
