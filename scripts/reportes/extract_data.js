@@ -552,11 +552,25 @@ const APP = context.__APP__;
     if (m) return m[2].trim();
     return concepto.replace(/\s*TC:\s*\d+.*$/i, '').trim() || concepto;
   }
-  function agruparPorProveedor(itemsAnterior, itemsActual) {
+  // Para cuentas donde lo que importa es el MOTIVO del gasto, no a quién se
+  // le pagó (ej. "Gastos de Representación": ver FOOD CO. S.A. más abajo,
+  // el mismo proveedor aparece posteado también en "IVA No Computable" con
+  // otro monto -- agrupar por proveedor ahí generaba confusión, como si se
+  // mezclaran las dos cuentas). "COMPRAS FOOD CO. S.A. 8-6948 Cena BP -
+  // Woman" -> "Cena BP - Woman" (lo que sigue después del N° de
+  // comprobante), no "FOOD CO. S.A.". Si no hay nada después del N° de
+  // comprobante (o el concepto no tiene ese formato), cae al proveedor
+  // igual que antes -- más vale eso que una fila vacía.
+  function notaCanonica(concepto) {
+    const m = /^(COMPRAS|PAGOS)\s+.+?\s+\d{1,6}-\d{2,8}\b\s*(.*)$/i.exec(concepto);
+    if (m && m[2].trim()) return m[2].trim();
+    return proveedorCanonico(concepto);
+  }
+  function agruparPorProveedor(itemsAnterior, itemsActual, keyFn = proveedorCanonico) {
     const sumar = items => {
       const m = {};
       (items || []).forEach(it => {
-        const key = proveedorCanonico(it.concepto);
+        const key = keyFn(it.concepto);
         m[key] = (m[key] || 0) + it.montoUSD;
       });
       return m;
@@ -587,23 +601,25 @@ const APP = context.__APP__;
   // "en qué se gastó", no solo "en qué área se gastó" (eso ya se ve,
   // aparte, en "Top rubros · por área").
   //
-  // "Gastos de Representación" quedó afuera a propósito (decisión del
-  // usuario): su cuenta de "Eventos Empresariales" trae la misma factura
+  // "Gastos de Representación" agrupa por NOTA (notaCanonica), no por
+  // proveedor: su cuenta "Eventos Empresariales" trae la misma factura
   // posteada también en "IVA No Computable" (ej. FOOD CO. S.A., factura
-  // 8-6886, en las dos cuentas con montos muy distintos -- el neto en una,
-  // el IVA no computable en la otra), y un desglose por proveedor ahí
-  // confundía más de lo que explicaba. Para ese rubro se muestra solo el
-  // total del mes, igual que Impuestos/Sueldos y CS/Comisiones Productores.
+  // 8-6886/8-6948, en las dos cuentas con montos muy distintos -- el neto
+  // en una, el IVA no computable en la otra). Agrupar por proveedor ahí
+  // mostraba "FOOD CO. S.A." sin más contexto, como si se mezclaran las
+  // dos cuentas; agrupar por el motivo del gasto ("Cena BP - Woman", "Box
+  // de Autor") evita esa confusión y encima es más legible.
   const RUBRO_LEDGER_PREFIJOS = {
-    'Capacitacion y Cursos': /^Capacit\.?\s*y\s*Cursos\b/i,
+    'Gastos de Representación': { re: /^(Gastos\s+Representacion|Eventos\s+Empresariales)\b/i, keyFn: notaCanonica },
+    'Capacitacion y Cursos': { re: /^Capacit\.?\s*y\s*Cursos\b/i },
   };
-  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, re]) => {
+  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn }]) => {
     const cuentasMatch = [...cuentasLedger].filter(c => re.test(c));
     if (!cuentasMatch.length) return;
     const itemsAnt = cuentasMatch.flatMap(c => gastosLedgerDetalleAnterior[c] || []);
     const itemsAct = cuentasMatch.flatMap(c => gastosLedgerDetalle[c] || []);
     if (!itemsAct.length && !itemsAnt.length) return;
-    gastosLedgerAgrupado[canonico] = agruparPorProveedor(itemsAnt, itemsAct);
+    gastosLedgerAgrupado[canonico] = agruparPorProveedor(itemsAnt, itemsAct, keyFn);
     // Solo para que build_report.py detecte que el rubro SÍ tiene Anexo
     // (ver ledger_por_nombre ahí) -- lo que se muestra es lo de arriba.
     gastosLedgerDetalle[canonico] = itemsAct;
