@@ -147,6 +147,11 @@ class Anchor(Flowable):
 
 
 def build(data, mes_label, out_path, bullets_extra=None):
+    # Rubros donde la detección automática de "salto atípico" no es
+    # confiable y se apaga a propósito (decisión del usuario) -- "Gastos de
+    # Representación" es gasto puntual por evento, no algo con un
+    # promedio histórico que tenga sentido comparar mes a mes.
+    RUBROS_SIN_ANALISIS_ATIPICO = {'Gastos de Representación'}
     story = []
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle('H2White', fontName='DMSans-Bold', fontSize=11.5, textColor=colors.white))
@@ -271,7 +276,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
         # Nada de ⚠/▲/▼ acá: VarCell usa DMMono-Medium, que no tiene esos
         # glyphs (salían como tofu boxes). Mismo signo +/- que usa el resto
         # del reporte para arriba/abajo (ver var_cell), no símbolos nuevos.
-        if r.get('ratioVsHistorico') is None:
+        if r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO or r.get('ratioVsHistorico') is None:
             return Paragraph(f'<font color="{MUTED_HEX}">N/D</font>', styles['VarCell'])
         if not r.get('esAtipico'):
             return Paragraph(f'<font color="{MUTED_HEX}">en línea</font>', styles['VarCell'])
@@ -590,7 +595,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             f"(el mes anterior había sido positivo)."
         )
     top_rubro = data['rubrosVariacion'][0] if data['rubrosVariacion'] else None
-    if top_rubro and top_rubro.get('esAtipico'):
+    if top_rubro and top_rubro['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO and top_rubro.get('esAtipico'):
         direccion = 'por encima' if top_rubro['ratioVsHistorico'] > 1 else 'por debajo'
         desvio_pct = abs(top_rubro['ratioVsHistorico'] - 1) * 100
         alertas.append(
@@ -667,7 +672,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # extract_data.js), con al menos MESES_MIN_HISTORIAL de datos para que
     # el promedio no sea un invento de 1-2 puntos.
     def nota_historico(r):
-        if r.get('ratioVsHistorico') is None:
+        if r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO or r.get('ratioVsHistorico') is None:
             return ''
         n_hist = r['historicoMesesCount']
         promedio_txt = num(r['promedioHistorico'])
@@ -724,7 +729,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
         # de cosa que esta sección existe para no dejar pasar.
         atipicos_extra = [
             r for r in data['rubrosVariacion']
-            if r['nombre'] not in ya_mencionado and r.get('esAtipico')
+            if r['nombre'] not in ya_mencionado and r['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO
+            and r.get('esAtipico')
         ]
         for item in atipicos_extra:
             ya_mencionado.add(item['nombre'])
@@ -1177,12 +1183,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # creados más arriba, justo antes de section_title/el label del
     # área), no al tope de la página 1. ──
     volver_style = ParagraphStyle('anexoVolver', fontName='DMSans', fontSize=8, textColor=AZUL)
-    # Rubros cuyo agrupado "ledger" es por MOTIVO del gasto (notaCanonica en
-    # extract_data.js), no por proveedor -- ver RUBRO_LEDGER_PREFIJOS ahí.
-    # El título/columna de la tabla tiene que avisar cuál es cuál, si no
-    # queda "Proveedor / Concepto" encabezando filas que en realidad son
-    # "Cena BP - Woman", "Box de Autor", etc.
-    RUBROS_AGRUPADOS_POR_MOTIVO = {'Gastos de Representación'}
     if anexo_entries:
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
@@ -1221,29 +1221,15 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     # por número de factura/comprobante -- varias compras al
                     # mismo proveedor en distintos días del mes se suman en
                     # una sola fila), mismo estilo de tabla que "providers".
-                    # Salvo los rubros de RUBROS_AGRUPADOS_POR_MOTIVO, que en
-                    # vez de agrupar por A QUIÉN se le pagó agrupan por EN
-                    # QUÉ se gastó (ver notaCanonica en extract_data.js).
-                    por_motivo = nombre in RUBROS_AGRUPADOS_POR_MOTIVO
-                    agrupado_por = "motivo del gasto" if por_motivo else "proveedor/concepto"
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
                     story.append(Paragraph(
-                        f"Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
-                        f"{agrupado_por} (convertidos de ARS a USD con el MEP de cada mes):",
+                        "Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
+                        "proveedor/concepto (convertidos de ARS a USD con el MEP de cada mes):",
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
-                    if por_motivo:
-                        # Sin columna de mes anterior: cada evento es puntual,
-                        # no tiene sentido comparar "Cena BP - Woman" contra
-                        # el mes pasado -- obvio que no hubo el mismo evento.
-                        rows = [[p['nombre'], num(p['actual'])] for p in ledger_agrupado[nombre] if p['actual']]
-                        plain_table(["Motivo del gasto", data['mesActual']], rows,
-                                    [CONTENT_W - 32 * mm, 32 * mm])
-                    else:
-                        columna = "Proveedor / Concepto"
-                        rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
-                        plain_table([columna, data['mesAnterior'], data['mesActual']], rows,
-                                    [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                    plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
+                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
                     if tipo_fuente == 'general':
                         key, label = 'sec_top_rubros', 'Top rubros que más subieron'
