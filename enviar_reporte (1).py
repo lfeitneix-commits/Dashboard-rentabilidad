@@ -11,14 +11,14 @@ from playwright.sync_api import sync_playwright
 
 # ---------- CONFIG ----------
 URL = os.environ.get("CDC_URL", "https://dashboard-rentabilidad-neix.vercel.app")
-BTN_PDF = os.environ.get("CDC_BTN_PDF", "#btn-pdf")  # selector del botón que genera el PDF
+BTN_PDF = os.environ.get("CDC_BTN_PDF", "#generar-reporte-btn")  # selector del botón que genera el PDF
 
 # "antes": clicks a hacer antes de apretar el botón (ej. elegir el área/tab).
 # Si el botón ya exporta todo de una, dejá un solo reporte con "antes": [].
 REPORTES = [
-    {"area": "Mesa",           "antes": ["text=Mesa"],           "para": ["nacho@neix.com.ar"]},
-    {"area": "Banca Privada",  "antes": ["text=Banca Privada"],  "para": ["nicanor@neix.com.ar"]},
-    {"area": "FAs",            "antes": ["text=FAs"],            "para": ["sole@neix.com.ar"]},
+    {"area": "Mesa",           "antes": ["text=Mesa"],           "para": ["lfeit@neix.com.ar"]},
+    {"area": "Banca Privada",  "antes": ["text=Banca Privada"],  "para": ["mupon@neix.com.ar"]},
+    {"area": "FAs",            "antes": ["text=FAs"],            "para": ["fgilges@neix.com.ar"]},
 ]
 CC = [x for x in os.environ.get("MAIL_CC", "").split(",") if x]
 
