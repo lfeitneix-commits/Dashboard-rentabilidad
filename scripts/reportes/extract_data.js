@@ -562,8 +562,20 @@ const APP = context.__APP__;
   // comprobante (o el concepto no tiene ese formato), cae al proveedor
   // igual que antes -- más vale eso que una fila vacía.
   function notaCanonica(concepto) {
-    const m = /^(COMPRAS|PAGOS)\s+.+?\s+\d{1,6}-\d{2,8}\b\s*(.*)$/i.exec(concepto);
+    // Formato típico "COMPRAS/PAGOS <proveedor> <N° de factura N-NNNN>
+    // <nota>" -- el motivo es lo que sigue al N° de factura.
+    let m = /^(COMPRAS|PAGOS)\s+.+?\s+\d{1,6}-\d{2,8}\b\s*(.*)$/i.exec(concepto);
     if (m && m[2].trim()) return m[2].trim();
+    // Pagos internos sin "proveedor" propio: "PAGOS <nota> Cpte.NNNNN" --
+    // acá la nota va ANTES del número de comprobante, no después.
+    m = /^(COMPRAS|PAGOS)\s+(.+?)\s*Cpte\.?\s*\d+\s*$/i.exec(concepto);
+    if (m && m[2].trim()) return m[2].trim();
+    // La hoja trunca el concepto a cierto largo -- en ese caso el N° de
+    // comprobante queda afuera y el texto se repite dos veces ("PAGOS
+    // <nota corta> PAGO <misma nota más larga, truncada>"). Mejor la nota
+    // corta (al menos está completa) que la cadena entera sin procesar.
+    m = /^PAGOS\s+(.+?)\s+PAGO\s+/i.exec(concepto);
+    if (m && m[1].trim()) return m[1].trim();
     return proveedorCanonico(concepto);
   }
   function agruparPorProveedor(itemsAnterior, itemsActual, keyFn = proveedorCanonico) {
@@ -609,17 +621,50 @@ const APP = context.__APP__;
   // mostraba "FOOD CO. S.A." sin más contexto, como si se mezclaran las
   // dos cuentas; agrupar por el motivo del gasto ("Cena BP - Woman", "Box
   // de Autor") evita esa confusión y encima es más legible.
+  // Una reversión/corrección en el mayor contable postea el mismo monto
+  // dos veces con signo contrario, pero con una nota de texto DISTINTA
+  // cada vez (ej. "ANULA FC 1510" / "CONFERENCIA", o "EVENTO VIÑA COBOS" /
+  // "RESERVA CANCHA") -- agrupado por motivo (no por proveedor, que sí las
+  // hubiera fundido en una sola fila en $0), esas dos notas aparecían como
+  // dos gastos grandes sin relación entre sí en vez de, en neto, no ser
+  // nada. Si dos filas suman ~cero, se sacan las dos: no aportan nada al
+  // total real y confunden más de lo que explican.
+  function netearReversiones(filas) {
+    const EPS = 0.02;
+    const usados = new Set();
+    const resultado = [];
+    for (let i = 0; i < filas.length; i++) {
+      if (usados.has(i)) continue;
+      let pareja = -1;
+      for (let j = i + 1; j < filas.length; j++) {
+        if (usados.has(j)) continue;
+        if (Math.abs(filas[i].actual) > EPS && Math.abs(filas[i].actual + filas[j].actual) < EPS) {
+          pareja = j;
+          break;
+        }
+      }
+      if (pareja >= 0) {
+        usados.add(i);
+        usados.add(pareja);
+      } else {
+        resultado.push(filas[i]);
+      }
+    }
+    return resultado;
+  }
   const RUBRO_LEDGER_PREFIJOS = {
-    'Gastos de Representación': { re: /^(Gastos\s+Representacion|Eventos\s+Empresariales)\b/i, keyFn: notaCanonica },
+    'Gastos de Representación': { re: /^(Gastos\s+Representacion|Eventos\s+Empresariales)\b/i, keyFn: notaCanonica, netear: true },
     'Capacitacion y Cursos': { re: /^Capacit\.?\s*y\s*Cursos\b/i },
   };
-  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn }]) => {
+  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn, netear }]) => {
     const cuentasMatch = [...cuentasLedger].filter(c => re.test(c));
     if (!cuentasMatch.length) return;
     const itemsAnt = cuentasMatch.flatMap(c => gastosLedgerDetalleAnterior[c] || []);
     const itemsAct = cuentasMatch.flatMap(c => gastosLedgerDetalle[c] || []);
     if (!itemsAct.length && !itemsAnt.length) return;
-    gastosLedgerAgrupado[canonico] = agruparPorProveedor(itemsAnt, itemsAct, keyFn);
+    let agrupado = agruparPorProveedor(itemsAnt, itemsAct, keyFn);
+    if (netear) agrupado = netearReversiones(agrupado);
+    gastosLedgerAgrupado[canonico] = agrupado;
     // Solo para que build_report.py detecte que el rubro SÍ tiene Anexo
     // (ver ledger_por_nombre ahí) -- lo que se muestra es lo de arriba.
     gastosLedgerDetalle[canonico] = itemsAct;
