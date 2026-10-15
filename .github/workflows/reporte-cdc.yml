@@ -1,0 +1,21 @@
+name: Reporte Centro de Costos
+
+on:
+  schedule:
+    - cron: "0 12 5 * *"   # día 5 de cada mes, 9:00 hora Argentina (UTC-3)
+  workflow_dispatch:        # botón para correrlo a mano desde la pestaña Actions
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright && playwright install --with-deps chromium
+      - run: python enviar_reporte.py
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_CC:   ${{ secrets.MAIL_CC }}
