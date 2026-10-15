@@ -16,9 +16,9 @@ BTN_PDF = os.environ.get("CDC_BTN_PDF", "#btn-pdf")  # selector del botón que g
 # "antes": clicks a hacer antes de apretar el botón (ej. elegir el área/tab).
 # Si el botón ya exporta todo de una, dejá un solo reporte con "antes": [].
 REPORTES = [
-    {"area": "Mesa",           "antes": ["text=Mesa"],           "para": ["nacho@neix.com.ar"]},
-    {"area": "Banca Privada",  "antes": ["text=Banca Privada"],  "para": ["nicanor@neix.com.ar"]},
-    {"area": "FAs",            "antes": ["text=FAs"],            "para": ["sole@neix.com.ar"]},
+    {"area": "Mesa",           "antes": ["text=Mesa"],           "para": ["lfeit@neix.com.ar"]},
+    {"area": "Banca Privada",  "antes": ["text=Banca Privada"],  "para": ["lfeit@neix.com.ar"]},
+    {"area": "FAs",            "antes": ["text=FAs"],            "para": ["lfeit@neix.com.ar"]},
 ]
 CC = [x for x in os.environ.get("MAIL_CC", "").split(",") if x]
 
