@@ -721,17 +721,21 @@ def build(data, mes_label, out_path, bullets_extra=None):
             )
         # Cualquier otro rubro (suba o baja, no solo el #1) que sea un
         # salto atípico vs. su propio historial se llama la atención acá,
-        # tenga o no una nota manual cargada -- es el "¿hay algún gasto que
-        # llame la atención este mes?" respondido en automático, sobre
-        # TODO el ranking (data['rubrosVariacion']), no solo los que subieron.
-        # Sin tope: si hay 11 atípicos ese mes, van los 11 -- un atípico que
-        # quedara afuera por un límite arbitrario sería justamente el tipo
-        # de cosa que esta sección existe para no dejar pasar.
-        atipicos_extra = [
-            r for r in data['rubrosVariacion']
-            if r['nombre'] not in ya_mencionado and r['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO
-            and r.get('esAtipico')
-        ]
+        # tenga o no una nota manual cargada. Un mes puede tener 10+ rubros
+        # "atípicos" en términos estadísticos (más de 50% fuera de su
+        # propio promedio) pero la mayoría son cuentas chicas moviéndose
+        # unos pocos cientos de USD -- bullet por cada uno diluye lo que
+        # importa de verdad en una lista repetitiva. Se ordena por el
+        # delta en USD (no el % ni el orden de rubrosVariacion) y se
+        # muestran los 3 más grandes en plata -- eso sí es "relevante".
+        ATIPICOS_EXTRA_TOP_N = 3
+        atipicos_extra = sorted(
+            (r for r in data['rubrosVariacion']
+             if r['nombre'] not in ya_mencionado and r['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO
+             and r.get('esAtipico')),
+            key=lambda r: abs(r['actual'] - r['anterior']),
+            reverse=True,
+        )[:ATIPICOS_EXTRA_TOP_N]
         for item in atipicos_extra:
             ya_mencionado.add(item['nombre'])
             signo = 'subió' if item['deltaPct'] >= 0 else 'bajó'
