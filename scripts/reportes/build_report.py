@@ -695,8 +695,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
             )
         if bullets_extra:
             bullets.extend(bullets_extra)
-        else:
-            bullets.append("[Completar a mano: por qué pasó lo de arriba, y cualquier otra cosa llamativa de este mes.]")
         for b in bullets:
             story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
             story.append(Spacer(1, 4))
@@ -1230,7 +1228,7 @@ if __name__ == '__main__':
     ap.add_argument('--anio', default=None)
     ap.add_argument('--bullet', action='append', default=[],
                      help='Línea de "Análisis del mes" escrita a mano (repetible, 1-3 veces). '
-                          'Si no se pasa ninguna, queda el placeholder "[Completar a mano: ...]".')
+                          'Si no se pasa ninguna, el análisis queda solo con lo que se detecta automáticamente.')
     args = ap.parse_args()
 
     with open(args.data, encoding='utf-8') as f:
