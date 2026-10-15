@@ -574,6 +574,34 @@ const APP = context.__APP__;
     gastosLedgerAgrupado[cuenta] = agruparPorProveedor(gastosLedgerDetalleAnterior[cuenta], gastosLedgerDetalle[cuenta]);
   });
 
+  // Algunos rubros de "Clasificación de gastos" no tienen una cuenta
+  // propia en el mayor contable -- están repartidos en una cuenta POR
+  // ÁREA, y encima con sufijos que ni siquiera son consistentes de un mes
+  // a otro (ej. "Gastos Representacion Neix" un mes, "Gastos
+  // Representacion N" otro). Sin esto esos rubros no tenían NINGÚN
+  // desglose en el Anexo. Acá se juntan los movimientos de TODAS las
+  // cuentas de un mismo rubro (sea cual sea el área/mes) bajo el nombre
+  // canónico del rubro, y se agrupan por PROVEEDOR real (mismo criterio
+  // que cualquier otra cuenta del Anexo) -- no por área: el Sheet no
+  // identifica acá un "proveedor" por área, así que agrupar por a quién
+  // se le pagó es lo que explica "en qué se gastó", no solo "en qué área
+  // se gastó" (eso ya se ve, aparte, en "Top rubros · por área").
+  const RUBRO_LEDGER_PREFIJOS = {
+    'Gastos de Representación': /^Gastos\s+Representacion\b/i,
+    'Capacitacion y Cursos': /^Capacit\.?\s*y\s*Cursos\b/i,
+  };
+  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, re]) => {
+    const cuentasMatch = [...cuentasLedger].filter(c => re.test(c));
+    if (!cuentasMatch.length) return;
+    const itemsAnt = cuentasMatch.flatMap(c => gastosLedgerDetalleAnterior[c] || []);
+    const itemsAct = cuentasMatch.flatMap(c => gastosLedgerDetalle[c] || []);
+    if (!itemsAct.length && !itemsAnt.length) return;
+    gastosLedgerAgrupado[canonico] = agruparPorProveedor(itemsAnt, itemsAct);
+    // Solo para que build_report.py detecte que el rubro SÍ tiene Anexo
+    // (ver ledger_por_nombre ahí) -- lo que se muestra es lo de arriba.
+    gastosLedgerDetalle[canonico] = itemsAct;
+  });
+
   // Excepciones / no recurrentes DEL MES ACTUAL -- la hoja no tiene un flag
   // propio, se infiere de la nota de la cuenta. Solo el mes que se está
   // reportando, no el historial completo (el reporte de Agosto no debería
