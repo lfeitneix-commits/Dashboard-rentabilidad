@@ -587,7 +587,9 @@ const APP = context.__APP__;
   // se le pagó es lo que explica "en qué se gastó", no solo "en qué área
   // se gastó" (eso ya se ve, aparte, en "Top rubros · por área").
   const RUBRO_LEDGER_PREFIJOS = {
-    'Gastos de Representación': /^Gastos\s+Representacion\b/i,
+    // "Eventos Empresariales" confirmado a mano (usuario) como parte de
+    // este rubro, no una cuenta propia aparte.
+    'Gastos de Representación': /^(Gastos\s+Representacion|Eventos\s+Empresariales)\b/i,
     'Capacitacion y Cursos': /^Capacit\.?\s*y\s*Cursos\b/i,
   };
   Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, re]) => {
