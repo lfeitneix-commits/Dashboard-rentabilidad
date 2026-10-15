@@ -577,19 +577,24 @@ const APP = context.__APP__;
   // Algunos rubros de "Clasificación de gastos" no tienen una cuenta
   // propia en el mayor contable -- están repartidos en una cuenta POR
   // ÁREA, y encima con sufijos que ni siquiera son consistentes de un mes
-  // a otro (ej. "Gastos Representacion Neix" un mes, "Gastos
-  // Representacion N" otro). Sin esto esos rubros no tenían NINGÚN
-  // desglose en el Anexo. Acá se juntan los movimientos de TODAS las
-  // cuentas de un mismo rubro (sea cual sea el área/mes) bajo el nombre
-  // canónico del rubro, y se agrupan por PROVEEDOR real (mismo criterio
-  // que cualquier otra cuenta del Anexo) -- no por área: el Sheet no
-  // identifica acá un "proveedor" por área, así que agrupar por a quién
-  // se le pagó es lo que explica "en qué se gastó", no solo "en qué área
-  // se gastó" (eso ya se ve, aparte, en "Top rubros · por área").
+  // a otro (ej. "Capacit. y Cursos BC" un mes, "Capacit. y Cursos Mesa"
+  // otro). Sin esto esos rubros no tenían NINGÚN desglose en el Anexo.
+  // Acá se juntan los movimientos de TODAS las cuentas de un mismo rubro
+  // (sea cual sea el área/mes) bajo el nombre canónico del rubro, y se
+  // agrupan por PROVEEDOR real (mismo criterio que cualquier otra cuenta
+  // del Anexo) -- no por área: el Sheet no identifica acá un "proveedor"
+  // por área, así que agrupar por a quién se le pagó es lo que explica
+  // "en qué se gastó", no solo "en qué área se gastó" (eso ya se ve,
+  // aparte, en "Top rubros · por área").
+  //
+  // "Gastos de Representación" quedó afuera a propósito (decisión del
+  // usuario): su cuenta de "Eventos Empresariales" trae la misma factura
+  // posteada también en "IVA No Computable" (ej. FOOD CO. S.A., factura
+  // 8-6886, en las dos cuentas con montos muy distintos -- el neto en una,
+  // el IVA no computable en la otra), y un desglose por proveedor ahí
+  // confundía más de lo que explicaba. Para ese rubro se muestra solo el
+  // total del mes, igual que Impuestos/Sueldos y CS/Comisiones Productores.
   const RUBRO_LEDGER_PREFIJOS = {
-    // "Eventos Empresariales" confirmado a mano (usuario) como parte de
-    // este rubro, no una cuenta propia aparte.
-    'Gastos de Representación': /^(Gastos\s+Representacion|Eventos\s+Empresariales)\b/i,
     'Capacitacion y Cursos': /^Capacit\.?\s*y\s*Cursos\b/i,
   };
   Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, re]) => {
