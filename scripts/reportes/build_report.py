@@ -672,21 +672,21 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # extract_data.js), con al menos MESES_MIN_HISTORIAL de datos para que
     # el promedio no sea un invento de 1-2 puntos.
     def nota_historico(r):
+        # Fragmento corto, no una oración aparte -- se pega al final del
+        # bullet principal en vez de sumar una segunda frase.
         if r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO or r.get('ratioVsHistorico') is None:
             return ''
         n_hist = r['historicoMesesCount']
         promedio_txt = num(r['promedioHistorico'])
         desvio_pct = abs(r['ratioVsHistorico'] - 1) * 100
         if r.get('esAtipico'):
-            direccion = 'por encima' if r['ratioVsHistorico'] > 1 else 'por debajo'
-            return (
-                f"Es un salto atípico: está {desvio_pct:.0f}% {direccion} de su propio promedio "
-                f"de los últimos {n_hist} meses ({promedio_txt})."
-            )
-        return (
-            f"Igual está en línea con su propio promedio de los últimos {n_hist} meses "
-            f"({promedio_txt}) -- no es un salto atípico de este mes."
-        )
+            direccion = 'sobre' if r['ratioVsHistorico'] > 1 else 'bajo'
+            return f" Atípico: {desvio_pct:.0f}% {direccion} su promedio de {n_hist} meses ({promedio_txt})."
+        return f" En línea con su promedio de {n_hist} meses ({promedio_txt})."
+
+    def variacion_cell_txt(item):
+        signo = '+' if item['deltaPct'] >= 0 else ''
+        return f"{signo}{item['deltaPct']:.1f}% ({num(item['anterior'])} → {num(item['actual'])})"
 
     with keep_together():
         section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
@@ -694,15 +694,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ya_mencionado = set()
         if data['rubrosVariacion']:
             top = data['rubrosVariacion'][0]
-            top_txt = (
-                f"{top['nombre']} fue el rubro que más subió ({'+' if top['deltaPct'] >= 0 else ''}{top['deltaPct']:.1f}%, "
-                f"de {num(top['anterior'])} a {num(top['actual'])})."
-            )
+            top_txt = f"{top['nombre']}, el que más subió: {variacion_cell_txt(top)}."
             if top.get('notaManual'):
-                top_txt += f" Esto fue porque {top['notaManual']}."
-            nota_hist = nota_historico(top)
-            if nota_hist:
-                top_txt += f" {nota_hist}"
+                top_txt += f" {top['notaManual']}."
+            top_txt += nota_historico(top)
             bullets.append(top_txt)
             ya_mencionado.add(top['nombre'])
         # Notas manuales para cualquier otro rubro/proveedor del top que
@@ -714,11 +709,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             if not nota or item['nombre'] in ya_mencionado:
                 continue
             ya_mencionado.add(item['nombre'])
-            signo = 'subió' if item['deltaPct'] >= 0 else 'bajó'
-            pct = f"{'+' if item['deltaPct'] >= 0 else ''}{item['deltaPct']:.1f}%"
-            bullets.append(
-                f"{item['nombre']} {signo} {pct} (de {num(item['anterior'])} a {num(item['actual'])}) porque {nota}."
-            )
+            bullets.append(f"{item['nombre']}: {variacion_cell_txt(item)} -- {nota}.")
         # Cualquier otro rubro (suba o baja, no solo el #1) que sea un
         # salto atípico vs. su propio historial se llama la atención acá,
         # tenga o no una nota manual cargada. Un mes puede tener 10+ rubros
@@ -738,12 +729,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
         )[:ATIPICOS_EXTRA_TOP_N]
         for item in atipicos_extra:
             ya_mencionado.add(item['nombre'])
-            signo = 'subió' if item['deltaPct'] >= 0 else 'bajó'
-            pct = f"{'+' if item['deltaPct'] >= 0 else ''}{item['deltaPct']:.1f}%"
-            bullets.append(
-                f"{item['nombre']} también llama la atención: {signo} {pct} vs. el mes anterior "
-                f"(de {num(item['anterior'])} a {num(item['actual'])}). {nota_historico(item)}"
-            )
+            bullets.append(f"{item['nombre']}: {variacion_cell_txt(item)}.{nota_historico(item)}")
         if bullets_extra:
             bullets.extend(bullets_extra)
         for b in bullets:
