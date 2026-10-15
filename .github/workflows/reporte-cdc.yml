@@ -13,15 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install playwright && playwright install --with-deps chromium
       - run: python enviar_reporte.py
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_CC:   ${{ secrets.MAIL_CC }}
-          DASH_PASS: ${{ secrets.DASH_PASS }}
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: capturas
-          path: pdfs/
