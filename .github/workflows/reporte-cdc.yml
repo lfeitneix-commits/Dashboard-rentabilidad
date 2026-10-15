@@ -19,3 +19,4 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_CC:   ${{ secrets.MAIL_CC }}
+          DASH_PASS:   ${{ secrets.DASH_PASS }}
