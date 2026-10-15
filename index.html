@@ -3491,13 +3491,53 @@ function clearReportesSearch(){
   if(el) el.value='';
   filterReportes('');
 }
+// Mes(es) ya cargados en el Sheet (ST.meses) que todavía no tienen fila en
+// REPORTES_MENSUALES -- compara por nombre de mes nomás (REPORTES_MENSUALES
+// guarda "Enero 2026", ST.meses solo "Enero"), ignorando el año. El botón
+// de "Generar Reporte" usa el primero (el más viejo pendiente, que es el
+// que corresponde armar a continuación).
+function getMesesPendientesReporte(){
+  const generados=new Set(REPORTES_MENSUALES.map(r=>r.mes.split(' ')[0].toLowerCase()));
+  return (ST.meses||[]).filter(m=>!generados.has(String(m).toLowerCase()));
+}
+// El botón no puede correr extract_data.js/build_report.py desde el
+// navegador (son scripts de Node/Python, no hay backend acá) -- lo que sí
+// puede hacer solo mirando el Sheet es decirte CUÁL mes te falta, así no
+// hay que fijarse a mano comparando contra la tabla de abajo. Al
+// clickearlo copia al portapapeles el pedido listo para pasarle a Claude.
+function generarReporteClick(){
+  const pendientes=getMesesPendientesReporte();
+  if(!pendientes.length) return;
+  const mes=pendientes[0];
+  const prompt=`Generá el reporte mensual de ${mes} 2026 (extract_data.js + build_report.py), con el mismo proceso de siempre.`;
+  const btn=document.getElementById('generar-reporte-btn');
+  const original=btn?btn.innerHTML:null;
+  const marcarCopiado=()=>{
+    if(!btn)return;
+    btn.innerHTML='Copiado al portapapeles ✓';
+    setTimeout(()=>{ if(btn&&original!==null) btn.innerHTML=original; },2000);
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(prompt).then(marcarCopiado).catch(marcarCopiado);
+  } else {
+    marcarCopiado();
+  }
+}
 function renderReportes(){
   document.getElementById('topbar-title').textContent='Reportes Mensuales';
   const q=ST.reportesSearchQuery||'';
   const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const pendientes=getMesesPendientesReporte();
+  const mesPendiente=pendientes[0]||null;
+  const generarBtnHTML=mesPendiente
+    ?`<button class="export-btn" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
+    :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
   return`<div class="sec-hd"><div class="sec-title">Reportes Mensuales</div><div class="sec-sub">Generados automáticamente con IA</div></div>
     <div class="tc"><div class="tc-hd">Reportes
-      <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="reportes-search" type="text" placeholder="Buscar mes…" autocomplete="off" value="${qAttr}" oninput="filterReportes(this.value)"/><div class="search-clear" id="reportes-search-clear${q.length>0?' visible':''}" onclick="clearReportesSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${generarBtnHTML}
+        <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="reportes-search" type="text" placeholder="Buscar mes…" autocomplete="off" value="${qAttr}" oninput="filterReportes(this.value)"/><div class="search-clear" id="reportes-search-clear${q.length>0?' visible':''}" onclick="clearReportesSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
+      </div>
     </div>
       <div id="reportes-table-wrap">${buildReportesTableHTML(q)}</div>
     </div>`;
