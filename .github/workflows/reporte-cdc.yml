@@ -2,7 +2,7 @@ name: Reporte Centro de Costos
  
 on:
   schedule:
-    - cron: "0 12 5 * *"   # día 5 de cada mes, 9:00 hora Argentina (UTC-3)
+    - cron: "30 12 1 * *"   # día 1 de cada mes, 9:30 hora Argentina (UTC-3)
   workflow_dispatch:        # botón para correrlo a mano desde la pestaña Actions
  
 jobs:
