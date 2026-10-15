@@ -263,6 +263,22 @@ def build(data, mes_label, out_path, bullets_extra=None):
     def na_cell():
         return Paragraph(f'<font color="{MUTED_HEX}">N/D</font>', styles['VarCell']), MUTED_TINT
 
+    def historico_cell(r):
+        # Marca, en la tabla de "Top rubros", cuáles de ellos son además un
+        # salto atípico vs. su propio promedio histórico (ver
+        # historialRubro() en extract_data.js) -- no solo el #1, que es el
+        # único que ya se explicaba en "Análisis del mes".
+        # Nada de ⚠/▲/▼ acá: VarCell usa DMMono-Medium, que no tiene esos
+        # glyphs (salían como tofu boxes). Mismo signo +/- que usa el resto
+        # del reporte para arriba/abajo (ver var_cell), no símbolos nuevos.
+        if r.get('ratioVsHistorico') is None:
+            return Paragraph(f'<font color="{MUTED_HEX}">N/D</font>', styles['VarCell'])
+        if not r.get('esAtipico'):
+            return Paragraph(f'<font color="{MUTED_HEX}">en línea</font>', styles['VarCell'])
+        desvio_pct = (r['ratioVsHistorico'] - 1) * 100
+        signo = '+' if desvio_pct >= 0 else ''
+        return Paragraph(f'<font color="{BORDEAUX_HEX}">atípico {signo}{desvio_pct:.0f}%</font>', styles['VarCell'])
+
     @contextmanager
     def keep_together():
         # Agrupa todo lo que se agregue a `story` dentro del `with` en un
@@ -518,11 +534,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # ============================================================
     kpi_act, kpi_ant = data['kpiActual'], data['kpiAnterior']
     fact_act, gastos_act, result_act = kpi_act['ingresos'], kpi_act['egresos'], kpi_act['resultado']
-    # Rubros que efectivamente subieron (deltaPct > 0), tope 10 -- usado acá
-    # y en "Análisis del mes" para que ambos miren la misma lista; si se
-    # completara con bajas solo para llegar a 10 contradiría el título de
-    # la sección de abajo.
-    rubros_suben = [r for r in data['rubrosVariacion'] if r['deltaPct'] > 0][:10]
+    # TODOS los rubros que efectivamente subieron (deltaPct > 0), sin tope --
+    # usado acá y en "Análisis del mes" para que ambos miren la misma lista;
+    # si se completara con bajas solo para llegar a un número fijo
+    # contradiría el título de la sección de abajo.
+    rubros_suben = [r for r in data['rubrosVariacion'] if r['deltaPct'] > 0]
 
     if kpi_ant:
         fact_ant, gastos_ant, result_ant = kpi_ant['ingresos'], kpi_ant['egresos'], kpi_ant['resultado']
@@ -644,6 +660,29 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # mano (el "por qué", no repetir números que ya están en las tablas;
     # si citás un monto puntual, sumale el promedio histórico para que se
     # note si es un valor atípico de este mes o no). ──
+    # Frase de detección automática de valor atípico, reutilizada tanto para
+    # el rubro #1 como para cualquier otro rubro que llame la atención más
+    # abajo: compara el monto de este mes contra el promedio histórico del
+    # mismo rubro en los meses previos (ver historialRubro() en
+    # extract_data.js), con al menos MESES_MIN_HISTORIAL de datos para que
+    # el promedio no sea un invento de 1-2 puntos.
+    def nota_historico(r):
+        if r.get('ratioVsHistorico') is None:
+            return ''
+        n_hist = r['historicoMesesCount']
+        promedio_txt = num(r['promedioHistorico'])
+        desvio_pct = abs(r['ratioVsHistorico'] - 1) * 100
+        if r.get('esAtipico'):
+            direccion = 'por encima' if r['ratioVsHistorico'] > 1 else 'por debajo'
+            return (
+                f"Es un salto atípico: está {desvio_pct:.0f}% {direccion} de su propio promedio "
+                f"de los últimos {n_hist} meses ({promedio_txt})."
+            )
+        return (
+            f"Igual está en línea con su propio promedio de los últimos {n_hist} meses "
+            f"({promedio_txt}) -- no es un salto atípico de este mes."
+        )
+
     with keep_together():
         section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
         bullets = []
@@ -656,27 +695,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
             )
             if top.get('notaManual'):
                 top_txt += f" Esto fue porque {top['notaManual']}."
-            # Detección automática de valor atípico: compara el monto de
-            # este mes contra el promedio histórico del mismo rubro en los
-            # meses previos (ver historialRubro() en extract_data.js) --
-            # antes había que chequear esto a mano para cada bullet; ahora
-            # se agrega solo, con al menos MESES_MIN_HISTORIAL de datos
-            # para que el promedio no sea un invento de 1-2 puntos.
-            if top.get('ratioVsHistorico') is not None:
-                n_hist = top['historicoMesesCount']
-                promedio_txt = num(top['promedioHistorico'])
-                desvio_pct = abs(top['ratioVsHistorico'] - 1) * 100
-                if top.get('esAtipico'):
-                    direccion = 'por encima' if top['ratioVsHistorico'] > 1 else 'por debajo'
-                    top_txt += (
-                        f" Es un salto atípico: está {desvio_pct:.0f}% {direccion} de su propio promedio "
-                        f"de los últimos {n_hist} meses ({promedio_txt})."
-                    )
-                else:
-                    top_txt += (
-                        f" Igual está en línea con su propio promedio de los últimos {n_hist} meses "
-                        f"({promedio_txt}) -- no es un salto atípico de este mes."
-                    )
+            nota_hist = nota_historico(top)
+            if nota_hist:
+                top_txt += f" {nota_hist}"
             bullets.append(top_txt)
             ya_mencionado.add(top['nombre'])
         # Notas manuales para cualquier otro rubro/proveedor del top que
@@ -692,6 +713,26 @@ def build(data, mes_label, out_path, bullets_extra=None):
             pct = f"{'+' if item['deltaPct'] >= 0 else ''}{item['deltaPct']:.1f}%"
             bullets.append(
                 f"{item['nombre']} {signo} {pct} (de {num(item['anterior'])} a {num(item['actual'])}) porque {nota}."
+            )
+        # Cualquier otro rubro (suba o baja, no solo el #1) que sea un
+        # salto atípico vs. su propio historial se llama la atención acá,
+        # tenga o no una nota manual cargada -- es el "¿hay algún gasto que
+        # llame la atención este mes?" respondido en automático, sobre
+        # TODO el ranking (data['rubrosVariacion']), no solo los que subieron.
+        # Sin tope: si hay 11 atípicos ese mes, van los 11 -- un atípico que
+        # quedara afuera por un límite arbitrario sería justamente el tipo
+        # de cosa que esta sección existe para no dejar pasar.
+        atipicos_extra = [
+            r for r in data['rubrosVariacion']
+            if r['nombre'] not in ya_mencionado and r.get('esAtipico')
+        ]
+        for item in atipicos_extra:
+            ya_mencionado.add(item['nombre'])
+            signo = 'subió' if item['deltaPct'] >= 0 else 'bajó'
+            pct = f"{'+' if item['deltaPct'] >= 0 else ''}{item['deltaPct']:.1f}%"
+            bullets.append(
+                f"{item['nombre']} también llama la atención: {signo} {pct} vs. el mes anterior "
+                f"(de {num(item['anterior'])} a {num(item['actual'])}). {nota_historico(item)}"
             )
         if bullets_extra:
             bullets.extend(bullets_extra)
@@ -814,9 +855,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
         with keep_together():
             story.append(Anchor('sec_top_rubros'))
             section_title("TOP RUBROS QUE MÁS SUBIERON")
-            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in rubros_suben]
-            data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación"], rows,
-                       [55 * mm, 28 * mm, 28 * mm, CONTENT_W - 55 * mm - 56 * mm], var_colidx=3)
+            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct']), historico_cell(r)] for r in rubros_suben]
+            data_table(["Rubro", data['mesAnterior'], data['mesActual'], "Variación", "vs. Histórico"], rows,
+                       [48 * mm, 24 * mm, 24 * mm, 28 * mm, CONTENT_W - 48 * mm - 24 * mm - 24 * mm - 28 * mm], var_colidx=3)
 
     for i, (area, suben_area) in enumerate(area_blocks):
         with keep_together():
