@@ -1,10 +1,10 @@
 name: Reporte Centro de Costos
-
+ 
 on:
   schedule:
     - cron: "0 12 5 * *"   # día 5 de cada mes, 9:00 hora Argentina (UTC-3)
   workflow_dispatch:        # botón para correrlo a mano desde la pestaña Actions
-
+ 
 jobs:
   enviar:
     runs-on: ubuntu-latest
@@ -19,4 +19,9 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_CC:   ${{ secrets.MAIL_CC }}
-          DASH_PASS:   ${{ secrets.DASH_PASS }}
+          DASH_PASS: ${{ secrets.DASH_PASS }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas
+          path: pdfs/
