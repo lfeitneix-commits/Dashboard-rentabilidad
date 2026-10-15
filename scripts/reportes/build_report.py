@@ -1177,6 +1177,12 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # creados más arriba, justo antes de section_title/el label del
     # área), no al tope de la página 1. ──
     volver_style = ParagraphStyle('anexoVolver', fontName='DMSans', fontSize=8, textColor=AZUL)
+    # Rubros cuyo agrupado "ledger" es por MOTIVO del gasto (notaCanonica en
+    # extract_data.js), no por proveedor -- ver RUBRO_LEDGER_PREFIJOS ahí.
+    # El título/columna de la tabla tiene que avisar cuál es cuál, si no
+    # queda "Proveedor / Concepto" encabezando filas que en realidad son
+    # "Cena BP - Woman", "Box de Autor", etc.
+    RUBROS_AGRUPADOS_POR_MOTIVO = {'Gastos de Representación'}
     if anexo_entries:
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
@@ -1215,14 +1221,20 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     # por número de factura/comprobante -- varias compras al
                     # mismo proveedor en distintos días del mes se suman en
                     # una sola fila), mismo estilo de tabla que "providers".
+                    # Salvo los rubros de RUBROS_AGRUPADOS_POR_MOTIVO, que en
+                    # vez de agrupar por A QUIÉN se le pagó agrupan por EN
+                    # QUÉ se gastó (ver notaCanonica en extract_data.js).
+                    por_motivo = nombre in RUBROS_AGRUPADOS_POR_MOTIVO
                     rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
+                    agrupado_por = "motivo del gasto" if por_motivo else "proveedor/concepto"
                     story.append(Paragraph(
-                        "Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
-                        "proveedor/concepto (convertidos de ARS a USD con el MEP de cada mes):",
+                        f"Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
+                        f"{agrupado_por} (convertidos de ARS a USD con el MEP de cada mes):",
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
-                    plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
+                    columna = "Motivo del gasto" if por_motivo else "Proveedor / Concepto"
+                    plain_table([columna, data['mesAnterior'], data['mesActual']], rows,
                                 [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
                     if tipo_fuente == 'general':
