@@ -1225,7 +1225,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     # vez de agrupar por A QUIÉN se le pagó agrupan por EN
                     # QUÉ se gastó (ver notaCanonica en extract_data.js).
                     por_motivo = nombre in RUBROS_AGRUPADOS_POR_MOTIVO
-                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
                     agrupado_por = "motivo del gasto" if por_motivo else "proveedor/concepto"
                     story.append(Paragraph(
                         f"Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
@@ -1233,9 +1232,18 @@ def build(data, mes_label, out_path, bullets_extra=None):
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
-                    columna = "Motivo del gasto" if por_motivo else "Proveedor / Concepto"
-                    plain_table([columna, data['mesAnterior'], data['mesActual']], rows,
-                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                    if por_motivo:
+                        # Sin columna de mes anterior: cada evento es puntual,
+                        # no tiene sentido comparar "Cena BP - Woman" contra
+                        # el mes pasado -- obvio que no hubo el mismo evento.
+                        rows = [[p['nombre'], num(p['actual'])] for p in ledger_agrupado[nombre] if p['actual']]
+                        plain_table(["Motivo del gasto", data['mesActual']], rows,
+                                    [CONTENT_W - 32 * mm, 32 * mm])
+                    else:
+                        columna = "Proveedor / Concepto"
+                        rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
+                        plain_table([columna, data['mesAnterior'], data['mesActual']], rows,
+                                    [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
                     if tipo_fuente == 'general':
                         key, label = 'sec_top_rubros', 'Top rubros que más subieron'
