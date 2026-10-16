@@ -247,6 +247,33 @@ const APP = context.__APP__;
     return rows.slice(idxDirectos + 1, idxSubtotal).filter(r =>
       (r._kind === 'account' || r._kind === 'subaccount') && (!r._parentId || r._child));
   }
+  // Promedio histórico de un rubro DIRECTO de un área puntual, en los meses
+  // previos a mesActual -- mismo criterio que historialRubro() arriba, pero
+  // armado desde directosLeafRows (la fuente de rubrosVariacionPorArea) en
+  // vez de getClasifRubrosRanking (que es un total de toda la empresa, sin
+  // apertura por área). Sirve para el "Análisis del mes" de los reportes
+  // por área (build_report_area.py): no solo "qué rubro directo subió más
+  // en el área", sino "¿es un salto raro para ESE rubro en ESA área, o ya
+  // viene así hace rato?".
+  const rankPorMesHistoriaPorArea = {};
+  AREAS_.forEach(area => {
+    rankPorMesHistoriaPorArea[area] = mesesHistoria.map(m => {
+      const porNombre = {};
+      directosLeafRows(m).forEach(r => { porNombre[r._nom] = (porNombre[r._nom] || 0) + getAreaVal(r, area); });
+      return porNombre;
+    });
+  });
+  function historialRubroArea(area, nombre, actual) {
+    const historial = rankPorMesHistoriaPorArea[area];
+    if (historial.length < MESES_MIN_HISTORIAL) return {};
+    const montos = historial.map(porNombre => porNombre[nombre] || 0);
+    const promedio = montos.reduce((s, v) => s + v, 0) / montos.length;
+    if (!promedio) return { historicoMesesCount: montos.length };
+    const ratio = actual / promedio;
+    const esAtipico = Math.abs(ratio - 1) > UMBRAL_DESVIO_HISTORICO;
+    return { promedioHistorico: promedio, ratioVsHistorico: ratio, esAtipico, historicoMesesCount: montos.length };
+  }
+
   let rubrosVariacionPorArea = {};
   if (mesAnterior) {
     const leafActual = directosLeafRows(mesActual);
@@ -262,7 +289,7 @@ const APP = context.__APP__;
         const anterior = montoAnterior[nombre] || 0;
         const actual = montoActual[nombre] || 0;
         if (anterior > RUBRO_AREA_MONTO_MIN && actual > RUBRO_AREA_MONTO_MIN) {
-          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100 });
+          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialRubroArea(area, nombre, actual) });
         }
       });
       lista.sort((a, b) => b.deltaPct - a.deltaPct);
