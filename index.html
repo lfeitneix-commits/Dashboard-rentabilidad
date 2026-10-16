@@ -3521,8 +3521,8 @@ const REPORTES_MENSUALES_AREA={
 // completo, y también el de Banca Privada (mismo criterio que las
 // pestañas "EERR Capital N"/"Análisis Capital N", ya habilitadas para esa
 // área en aplicarRestriccionesDeRol -- ver 'permitidas' en el login). Se
-// muestra como una tabla aparte debajo de la principal en
-// renderReportes(), nunca en REPORTES_MENSUALES_AREA.
+// accede con el botón "Capital N" en renderReportes() (ST.reportesVista),
+// no como una tabla aparte -- nunca se mezcla con REPORTES_MENSUALES_AREA.
 const REPORTES_MENSUALES_CAPN=[
   {mes:'Enero 2026',archivo:'reportes/capn/2026-01-reporte-enero-capital-n.pdf',generado:'2026-10-16'},
   {mes:'Febrero 2026',archivo:'reportes/capn/2026-02-reporte-febrero-capital-n.pdf',generado:'2026-10-16'},
@@ -3535,17 +3535,21 @@ const REPORTES_MENSUALES_CAPN=[
 ];
 // Un login de área (ST.role==='lideres', ST.area seteado) ve solo los
 // reportes de SU área; el login completo ve el consolidado de siempre.
+// Si está en la "vista Capital N" (botón en renderReportes(), solo
+// disponible para el login completo y el de Banca Privada), se listan esos
+// en vez de los propios -- mismo buscador/tabla, sin duplicar lógica.
+function puedeVerReportesCapN(){
+  const esArea=ST.role==='lideres'&&ST.area;
+  return !esArea||ST.area==='Banca Privada';
+}
 function listaReportesActual(){
+  if(puedeVerReportesCapN()&&ST.reportesVista==='capn') return REPORTES_MENSUALES_CAPN;
   return (ST.role==='lideres'&&ST.area)?(REPORTES_MENSUALES_AREA[ST.area]||[]):REPORTES_MENSUALES;
 }
-function buildReportesTableHTMLLista(lista){
-  const rows=[...lista].reverse().map(r=>`<tr>
-    <td>${r.mes}</td>
-    <td style="color:var(--muted);font-size:12px">${r.generado}</td>
-    <td class="r"><a href="${r.archivo}" target="_blank" class="export-btn" style="text-decoration:none;display:inline-flex">Ver PDF</a></td>
-  </tr>`).join('');
-  const body=rows||`<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Todavía no hay reportes generados</td></tr>`;
-  return`<table><thead><tr><th>Mes</th><th>Generado</th><th class="r">Archivo</th></tr></thead><tbody>${body}</tbody></table>`;
+function switchReportesVista(v){
+  ST.reportesVista=v;
+  ST.reportesSearchQuery='';
+  renderCurrentTab();
 }
 function buildReportesTableHTML(query){
   const lista=listaReportesActual();
@@ -3629,33 +3633,40 @@ function generarReporteClick(){
 }
 function renderReportes(){
   const esArea=ST.role==='lideres'&&ST.area;
-  const titulo=esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales';
+  const vistaCapN=puedeVerReportesCapN()&&ST.reportesVista==='capn';
+  const titulo=vistaCapN?'Reportes Mensuales · Capital N':(esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales');
   document.getElementById('topbar-title').textContent=titulo;
   const q=ST.reportesSearchQuery||'';
   const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   // El botón de "Generar Reporte" dispara el Action del consolidado -- no
-  // hay uno equivalente para reportes por área todavía, así que acá solo
-  // se ven los ya generados, sin botón.
+  // hay uno equivalente para reportes por área (ni Capital N) todavía, así
+  // que en esas vistas solo se ven los ya generados, sin botón.
   let generarBtnHTML='';
-  if(!esArea){
+  if(!esArea&&!vistaCapN){
     const pendientes=getMesesPendientesReporte();
     const mesPendiente=pendientes[0]||null;
     generarBtnHTML=mesPendiente
       ?`<button class="export-btn" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
       :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
   }
+  // Botón para ir/volver de la vista Capital N -- en vez de mostrar esos
+  // reportes como una tabla aparte, siempre visible, abajo de todo.
+  let capnBtnHTML='';
+  if(puedeVerReportesCapN()){
+    capnBtnHTML=vistaCapN
+      ?`<button class="export-btn" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`
+      :`<button class="export-btn" onclick="switchReportesVista('capn')">Capital N<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+  }
   return`<div class="sec-hd"><div class="sec-title">${titulo}</div><div class="sec-sub">Generados automáticamente con IA</div></div>
     <div class="tc"><div class="tc-hd">Reportes
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${generarBtnHTML}
+        ${capnBtnHTML}
         <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="reportes-search" type="text" placeholder="Buscar mes…" autocomplete="off" value="${qAttr}" oninput="filterReportes(this.value)"/><div class="search-clear" id="reportes-search-clear${q.length>0?' visible':''}" onclick="clearReportesSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
       </div>
     </div>
       <div id="reportes-table-wrap">${buildReportesTableHTML(q)}</div>
-    </div>
-    ${(!esArea||ST.area==='Banca Privada')?`<div class="tc" style="margin-top:20px"><div class="tc-hd">Capital N</div>
-      ${buildReportesTableHTMLLista(REPORTES_MENSUALES_CAPN)}
-    </div>`:''}`;
+    </div>`;
 }
 
 function buildMatrizTable(title,rowNames,tableKey,showDetalle=false){
