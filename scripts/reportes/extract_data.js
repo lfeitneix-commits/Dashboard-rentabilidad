@@ -109,6 +109,12 @@ const APP = context.__APP__;
     const tR = AREAS_.reduce((s, a) => s + d.agg[a].resultado, 0);
     return { ingresos: tI, egresos: tE, resultado: tR };
   };
+  const kpiForArea = (mes, area) => {
+    const d = ST.mesData[mes];
+    if (!d) return null;
+    const { ingresos, egresos, resultado } = d.agg[area];
+    return { ingresos, egresos, resultado };
+  };
   const areaVals = (mes, rowKey) => {
     const d = ST.mesData[mes];
     if (!d || !d[rowKey]) return null;
@@ -637,6 +643,10 @@ const APP = context.__APP__;
     kpiActual: kpiFor(mesActual),
     kpiAnterior: mesAnterior ? kpiFor(mesAnterior) : null,
     kpiTrend: mesesTrend.map(m => ({ mes: m, ...kpiFor(m) })),
+    // Mismo kpiTrend pero por área -- para los reportes por área (uno por
+    // área y por mes, ver build_report_area.py). Clave = nombre del área,
+    // mismo formato que kpiTrend (lista de {mes, ingresos, egresos, resultado}).
+    kpiTrendPorArea: Object.fromEntries(AREAS_.map(a => [a, mesesTrend.map(m => ({ mes: m, ...kpiForArea(m, a) }))])),
     gastosTotalesActual: areaVals(mesActual, 'gastosTotalesRow'),
     gastosTotalesAnterior: mesAnterior ? areaVals(mesAnterior, 'gastosTotalesRow') : null,
     impuestosActual: areaVals(mesActual, 'impuestosRow'),
