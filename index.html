@@ -3468,9 +3468,62 @@ const REPORTES_MENSUALES=[
   {mes:'Julio 2026',archivo:'reportes/2026-07-reporte-julio.pdf',generado:'2026-10-09'},
   {mes:'Agosto 2026',archivo:'reportes/2026-08-reporte-agosto.pdf',generado:'2026-10-09'},
 ];
+// Mismo formato que REPORTES_MENSUALES, pero uno por área (ver
+// scripts/reportes/build_report_area.py) -- clave = nombre de área tal
+// cual aparece en AREAS/ST.area. Reportes más chicos: KPIs, evolución,
+// top rubros y Unit Economics de esa área puntual, sin Anexo ni Análisis
+// del mes (esas secciones necesitan datos que no están abiertos por área).
+const REPORTES_MENSUALES_AREA={
+  'Mesa':[
+    {mes:'Enero 2026',archivo:'reportes/area/2026-01-reporte-enero-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Febrero 2026',archivo:'reportes/area/2026-02-reporte-febrero-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Marzo 2026',archivo:'reportes/area/2026-03-reporte-marzo-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Abril 2026',archivo:'reportes/area/2026-04-reporte-abril-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Mayo 2026',archivo:'reportes/area/2026-05-reporte-mayo-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Junio 2026',archivo:'reportes/area/2026-06-reporte-junio-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Julio 2026',archivo:'reportes/area/2026-07-reporte-julio-mesa.pdf',generado:'2026-10-16'},
+    {mes:'Agosto 2026',archivo:'reportes/area/2026-08-reporte-agosto-mesa.pdf',generado:'2026-10-16'},
+  ],
+  'FAs':[
+    {mes:'Enero 2026',archivo:'reportes/area/2026-01-reporte-enero-fas.pdf',generado:'2026-10-16'},
+    {mes:'Febrero 2026',archivo:'reportes/area/2026-02-reporte-febrero-fas.pdf',generado:'2026-10-16'},
+    {mes:'Marzo 2026',archivo:'reportes/area/2026-03-reporte-marzo-fas.pdf',generado:'2026-10-16'},
+    {mes:'Abril 2026',archivo:'reportes/area/2026-04-reporte-abril-fas.pdf',generado:'2026-10-16'},
+    {mes:'Mayo 2026',archivo:'reportes/area/2026-05-reporte-mayo-fas.pdf',generado:'2026-10-16'},
+    {mes:'Junio 2026',archivo:'reportes/area/2026-06-reporte-junio-fas.pdf',generado:'2026-10-16'},
+    {mes:'Julio 2026',archivo:'reportes/area/2026-07-reporte-julio-fas.pdf',generado:'2026-10-16'},
+    {mes:'Agosto 2026',archivo:'reportes/area/2026-08-reporte-agosto-fas.pdf',generado:'2026-10-16'},
+  ],
+  'Banca Corporativa':[
+    {mes:'Enero 2026',archivo:'reportes/area/2026-01-reporte-enero-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Febrero 2026',archivo:'reportes/area/2026-02-reporte-febrero-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Marzo 2026',archivo:'reportes/area/2026-03-reporte-marzo-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Abril 2026',archivo:'reportes/area/2026-04-reporte-abril-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Mayo 2026',archivo:'reportes/area/2026-05-reporte-mayo-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Junio 2026',archivo:'reportes/area/2026-06-reporte-junio-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Julio 2026',archivo:'reportes/area/2026-07-reporte-julio-banca-corporativa.pdf',generado:'2026-10-16'},
+    {mes:'Agosto 2026',archivo:'reportes/area/2026-08-reporte-agosto-banca-corporativa.pdf',generado:'2026-10-16'},
+  ],
+  'Banca Privada':[
+    {mes:'Enero 2026',archivo:'reportes/area/2026-01-reporte-enero-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Febrero 2026',archivo:'reportes/area/2026-02-reporte-febrero-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Marzo 2026',archivo:'reportes/area/2026-03-reporte-marzo-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Abril 2026',archivo:'reportes/area/2026-04-reporte-abril-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Mayo 2026',archivo:'reportes/area/2026-05-reporte-mayo-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Junio 2026',archivo:'reportes/area/2026-06-reporte-junio-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Julio 2026',archivo:'reportes/area/2026-07-reporte-julio-banca-privada.pdf',generado:'2026-10-16'},
+    {mes:'Agosto 2026',archivo:'reportes/area/2026-08-reporte-agosto-banca-privada.pdf',generado:'2026-10-16'},
+  ],
+};
+// Un login de área (ST.role==='lideres', ST.area seteado) ve solo los
+// reportes de SU área; el login completo ve el consolidado de siempre.
+function listaReportesActual(){
+  return (ST.role==='lideres'&&ST.area)?(REPORTES_MENSUALES_AREA[ST.area]||[]):REPORTES_MENSUALES;
+}
 function buildReportesTableHTML(query){
+  const lista=listaReportesActual();
   const q=normSearch(query||'');
-  const filtered=q?REPORTES_MENSUALES.filter(r=>normSearch(r.mes).includes(q)):REPORTES_MENSUALES;
+  const filtered=q?lista.filter(r=>normSearch(r.mes).includes(q)):lista;
   const rows=[...filtered].reverse().map(r=>`<tr>
     <td>${r.mes}</td>
     <td style="color:var(--muted);font-size:12px">${r.generado}</td>
@@ -3548,15 +3601,23 @@ function generarReporteClick(){
   });
 }
 function renderReportes(){
-  document.getElementById('topbar-title').textContent='Reportes Mensuales';
+  const esArea=ST.role==='lideres'&&ST.area;
+  const titulo=esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales';
+  document.getElementById('topbar-title').textContent=titulo;
   const q=ST.reportesSearchQuery||'';
   const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  const pendientes=getMesesPendientesReporte();
-  const mesPendiente=pendientes[0]||null;
-  const generarBtnHTML=mesPendiente
-    ?`<button class="export-btn" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
-    :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
-  return`<div class="sec-hd"><div class="sec-title">Reportes Mensuales</div><div class="sec-sub">Generados automáticamente con IA</div></div>
+  // El botón de "Generar Reporte" dispara el Action del consolidado -- no
+  // hay uno equivalente para reportes por área todavía, así que acá solo
+  // se ven los ya generados, sin botón.
+  let generarBtnHTML='';
+  if(!esArea){
+    const pendientes=getMesesPendientesReporte();
+    const mesPendiente=pendientes[0]||null;
+    generarBtnHTML=mesPendiente
+      ?`<button class="export-btn" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
+      :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
+  }
+  return`<div class="sec-hd"><div class="sec-title">${titulo}</div><div class="sec-sub">Generados automáticamente con IA</div></div>
     <div class="tc"><div class="tc-hd">Reportes
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${generarBtnHTML}
@@ -5488,7 +5549,7 @@ document.getElementById('auth-form').addEventListener('submit',e=>{
       ST.role='lideres';
       ST.area=cfg.area;
       AREAS.length=0;AREAS.push(cfg.area);
-      let permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','analisis','capn','analisis_capn']:['por-mes','detalle','analisis'];
+      let permitidas=cfg.area==='Banca Privada'?['por-mes','detalle','analisis','capn','analisis_capn','reportes']:['por-mes','detalle','analisis','reportes'];
       if(cfg.area==='Mesa') permitidas=[...permitidas,'quant'];
       aplicarRestriccionesDeRol(permitidas);
     }
