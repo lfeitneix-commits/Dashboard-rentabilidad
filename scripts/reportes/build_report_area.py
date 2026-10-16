@@ -7,22 +7,25 @@ Uso:
         --out reporte_mesa.pdf --mes-label "Junio 2026"
 
 Es un reporte más chico que el de build_report.py (ese es el consolidado
-de toda la empresa) -- acá va solo lo que ya está calculado por área en
-real_data.json: KPIs, evolución de los últimos meses, los rubros que más
-subieron en esa área puntual, y Unit Economics de esa área. Sin Anexo, sin
-Análisis del mes automático ni ALERTAS -- esas features son del reporte
-consolidado y dependen de datos que no están abiertos por área (el mayor
-contable, los proveedores, etc.).
+de toda la empresa), pero con el mismo tipo de análisis, aplicado a esta
+área puntual: KPIs, evolución de los últimos meses EN GRÁFICO, el rubro
+DIRECTO que más subió con su propio chequeo de salto atípico vs. historial
+(mismo criterio que historialRubro() en extract_data.js, pero calculado
+por área -- ver historialRubroArea() ahí), y Unit Economics. Sin Anexo ni
+ALERTAS -- esas dos sí dependen de datos que no están abiertos por área
+(el mayor contable, los proveedores).
 """
 import argparse
 import json
+from contextlib import contextmanager
 
 from reportlab.lib.units import mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.graphics import renderPDF
+from reportlab.graphics.shapes import Drawing, String, Line, Circle
 
 from build_report import (
     num, usd, usd2, AREA_COLOR, AREAS,
@@ -104,6 +107,15 @@ def build_area(data, area, mes_label, out_path):
         if anterior == 0:
             return var_cell_delta(actual - anterior)
         return var_cell((actual - anterior) / abs(anterior) * 100)
+
+    @contextmanager
+    def keep_together():
+        start = len(story)
+        yield
+        block = story[start:]
+        del story[start:]
+        if block:
+            story.append(KeepTogether(block))
 
     def section_title(title):
         story.append(Spacer(1, 16))
@@ -192,6 +204,74 @@ def build_area(data, area, mes_label, out_path):
         story.append(t)
         story.append(Spacer(1, 4))
 
+    def historico_cell(r):
+        # Mismo criterio que historico_cell() del reporte consolidado: si
+        # el rubro es un salto atípico vs. su propio promedio histórico
+        # (ver historialRubroArea() en extract_data.js), marcarlo acá en
+        # vez de en una columna de "variación" que ya muestra otra cosa.
+        if r.get('ratioVsHistorico') is None:
+            return Paragraph('<font color="#9A8E7D">N/D</font>', styles['VarCell'])
+        if not r.get('esAtipico'):
+            return Paragraph('<font color="#9A8E7D">en línea</font>', styles['VarCell'])
+        desvio_pct = (r['ratioVsHistorico'] - 1) * 100
+        signo = '+' if desvio_pct >= 0 else ''
+        return Paragraph(f'<font color="#AB1930">atípico {signo}{desvio_pct:.0f}%</font>', styles['VarCell'])
+
+    # Gráfico de línea (Facturación/Gastos/Resultado por mes) -- mismo
+    # trend_chart() que usa el reporte consolidado en "Evolución últimos
+    # meses", copiado acá (esa función vive anidada en build() allá, no es
+    # importable tal cual).
+    def trend_chart(meses, series, fmt_axis=None):
+        if fmt_axis is None:
+            fmt_axis = lambda v: f"{v/1000:,.0f}k".replace(',', '.')
+        chart_w = CONTENT_W
+        chart_h = 52 * mm
+        pad_l, pad_r, pad_t, pad_b = 16 * mm, 4 * mm, 4 * mm, 8 * mm
+        plot_w = chart_w - pad_l - pad_r
+        plot_h = chart_h - pad_t - pad_b
+        all_vals = [v for _, _, vals in series for v in vals]
+        raw_min, raw_max = min(all_vals), max(all_vals)
+        pad = (raw_max - raw_min) * 0.1 or abs(raw_max) * 0.1 or 1
+        vmin, vmax = raw_min - pad, raw_max + pad
+        d = Drawing(chart_w, chart_h)
+        for frac in (0, 0.25, 0.5, 0.75, 1.0):
+            y = pad_b + plot_h * frac
+            val = vmin + (vmax - vmin) * frac
+            d.add(Line(pad_l, y, pad_l + plot_w, y, strokeColor=BORDER, strokeWidth=0.5))
+            d.add(String(pad_l - 3, y - 2.5, fmt_axis(val), fontName='DMMono', fontSize=6.5, fillColor=MUTED, textAnchor='end'))
+        if vmin < 0 < vmax:
+            y0 = pad_b + (0 - vmin) / (vmax - vmin) * plot_h
+            d.add(Line(pad_l, y0, pad_l + plot_w, y0, strokeColor=MUTED, strokeWidth=0.75, strokeDashArray=[2, 2]))
+        n = len(meses)
+        step_x = plot_w / (n - 1) if n > 1 else 0
+        for _label, color, vals in series:
+            pts = []
+            for i, v in enumerate(vals):
+                x = pad_l + i * step_x
+                y = pad_b + (v - vmin) / (vmax - vmin) * plot_h
+                pts.append((x, y))
+            for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+                d.add(Line(x1, y1, x2, y2, strokeColor=color, strokeWidth=2))
+            for x, y in pts:
+                d.add(Circle(x, y, 2.4, fillColor=color, strokeColor=colors.white, strokeWidth=0.8))
+        for i, mesname in enumerate(meses):
+            x = pad_l + i * step_x
+            d.add(String(x, 0, mesname, fontName='DMSans', fontSize=7.5, fillColor=MUTED, textAnchor='middle'))
+        story.append(d)
+        legend_cells = []
+        for label, color, _ in series:
+            sw = Table([['']], colWidths=[3 * mm], rowHeights=[3 * mm])
+            sw.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), color)]))
+            legend_cells.append(sw)
+            legend_cells.append(Paragraph(label, ParagraphStyle('leg', fontName='DMSans', fontSize=8.5, textColor=GRAFITO)))
+        leg = Table([legend_cells], colWidths=[4 * mm, 28 * mm] * len(series))
+        leg.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2), ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        story.append(leg)
+        story.append(Spacer(1, 4))
+
     # ============================================================
     # Contenido
     # ============================================================
@@ -218,30 +298,59 @@ def build_area(data, area, mes_label, out_path):
     story.append(Spacer(1, 4))
     story.append(kpis)
 
-    # ── Evolución últimos meses (tabla, no gráfico -- este reporte es más
-    # chico que el consolidado) ──
-    if len(trend) > 1:
-        section_title("EVOLUCIÓN ÚLTIMOS MESES")
-        rows = [[m['mes'], usd(m['ingresos']), usd(m['egresos']), usd(m['resultado'])] for m in trend]
-        plain_table(["Mes", "Facturación", "Gastos", "Resultado"], rows,
-                    [CONTENT_W - 3 * 40 * mm, 40 * mm, 40 * mm, 40 * mm])
-
-    # ── Top rubros que más subieron en esta área (ya calculado por
-    # extract_data.js en rubrosVariacionPorArea -- solo gastos directos del
-    # área, ver el comentario de esa variable ahí para el porqué). ──
     rubros_area = (data.get('rubrosVariacionPorArea') or {}).get(area) or []
     rubros_suben_area = [r for r in rubros_area if r['deltaPct'] is not None and r['deltaPct'] > 0]
+
+    # ── Análisis del mes: mismo criterio que el reporte consolidado --
+    # el rubro DIRECTO del área que más subió, con el chequeo de salto
+    # atípico vs. su propio historial (historialRubroArea en
+    # extract_data.js). Una sola línea, mismo formato breve que el
+    # consolidado. ──
     if rubros_suben_area:
-        section_title("TOP RUBROS QUE MÁS SUBIERON")
-        mes_ant_label = anterior['mes'] if anterior else ''
-        mes_act_label = actual['mes']
-        rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct'])] for r in rubros_suben_area]
-        data_table(["Rubro", mes_ant_label, mes_act_label, "Variación"], rows,
-                   [CONTENT_W - 28 * mm - 28 * mm - 55 * mm, 28 * mm, 28 * mm, 55 * mm], var_colidx=3)
-        story.append(Paragraph(
-            "Solo gastos directos del área (no incluye indirectos prorrateados entre las 4 áreas).",
-            styles['NotaChica'],
-        ))
+        with keep_together():
+            section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
+            top = rubros_suben_area[0]
+            signo = '+' if top['deltaPct'] >= 0 else ''
+            bullet = f"{top['nombre']}, el rubro directo que más subió: {signo}{top['deltaPct']:.1f}% ({num(top['anterior'])} → {num(top['actual'])})."
+            if top.get('ratioVsHistorico') is not None:
+                n_hist = top['historicoMesesCount']
+                promedio_txt = num(top['promedioHistorico'])
+                desvio_pct = abs(top['ratioVsHistorico'] - 1) * 100
+                if top.get('esAtipico'):
+                    direccion = 'sobre' if top['ratioVsHistorico'] > 1 else 'bajo'
+                    bullet += f" Atípico: {desvio_pct:.0f}% {direccion} su promedio de {n_hist} meses ({promedio_txt})."
+                else:
+                    bullet += f" En línea con su promedio de {n_hist} meses ({promedio_txt})."
+            story.append(Paragraph(f"•  {bullet}", ParagraphStyle('BulletArea', fontName='DMSans', fontSize=9.5, leading=14, textColor=GRAFITO, leftIndent=4)))
+            story.append(Spacer(1, 4))
+
+    # ── Evolución últimos meses, en gráfico (Facturación/Gastos/Resultado) ──
+    if len(trend) > 1:
+        with keep_together():
+            section_title("EVOLUCIÓN ÚLTIMOS MESES")
+            meses_trend = [m['mes'][:3] for m in trend]
+            series = [
+                ("Facturación", AZUL, [m['ingresos'] for m in trend]),
+                ("Gastos", BORDEAUX, [m['egresos'] for m in trend]),
+                ("Resultado", VERDE, [m['resultado'] for m in trend]),
+            ]
+            trend_chart(meses_trend, series)
+
+    # ── Top rubros DIRECTOS que más subieron en esta área (ya calculado
+    # por extract_data.js en rubrosVariacionPorArea), con la misma columna
+    # "vs. Histórico" que el reporte consolidado. ──
+    if rubros_suben_area:
+        with keep_together():
+            section_title("TOP RUBROS DIRECTOS QUE MÁS SUBIERON")
+            mes_ant_label = anterior['mes'] if anterior else ''
+            mes_act_label = actual['mes']
+            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct']), historico_cell(r)] for r in rubros_suben_area]
+            data_table(["Rubro", mes_ant_label, mes_act_label, "Variación", "vs. Histórico"], rows,
+                       [CONTENT_W - 24 * mm - 24 * mm - 28 * mm - 44 * mm, 24 * mm, 24 * mm, 28 * mm, 44 * mm], var_colidx=3)
+            story.append(Paragraph(
+                "Solo gastos directos del área (no incluye indirectos prorrateados entre las 4 áreas).",
+                styles['NotaChica'],
+            ))
 
     # ── Unit Economics de esta área (comitentes, empleados, facturación y
     # costo por comitente/empleado) -- mismos datos que el reporte
@@ -249,29 +358,30 @@ def build_area(data, area, mes_label, out_path):
     ue = data.get('unitEconomics')
     ue_area = next((a for a in (ue or {}).get('porArea', []) if a['area'] == area), None) if ue else None
     if ue_area:
-        section_title("UNIT ECONOMICS")
-        story.append(Paragraph(
-            f"Comitentes: cuentas abiertas de {ue['mes']} (Matriz) &nbsp;·&nbsp; Empleados: Matriz (fijo) "
-            f"&nbsp;·&nbsp; Facturación y Costo total: datos de {ue['mes']}",
-            styles['NotaChica'],
-        ))
-        story.append(Spacer(1, 4))
-        col_a, col_rest = 48 * mm, (CONTENT_W - 48 * mm) / 2
-        comit, emp = ue_area['comitentes'], ue_area['empleados']
-        rows = [[
-            num(comit) if comit else '—',
-            usd2(ue_area['facturacionMes'] / comit) if comit else '—',
-            usd2(ue_area['gastoTotal'] / comit) if comit else '—',
-        ]]
-        plain_table(["Comitentes", "Facturación / comitente", "Costo total / comitente"], rows,
-                    [col_a, col_rest, col_rest])
-        rows = [[
-            num(emp) if emp else '—',
-            usd2(ue_area['facturacionMes'] / emp) if emp else '—',
-            usd2(ue_area['gastoTotal'] / emp) if emp else '—',
-        ]]
-        plain_table(["Empleados", "Facturación / empleado", "Costo total / empleado"], rows,
-                    [col_a, col_rest, col_rest])
+        with keep_together():
+            section_title("UNIT ECONOMICS")
+            story.append(Paragraph(
+                f"Comitentes: cuentas abiertas de {ue['mes']} (Matriz) &nbsp;·&nbsp; Empleados: Matriz (fijo) "
+                f"&nbsp;·&nbsp; Facturación y Costo total: datos de {ue['mes']}",
+                styles['NotaChica'],
+            ))
+            story.append(Spacer(1, 4))
+            col_a, col_rest = 48 * mm, (CONTENT_W - 48 * mm) / 2
+            comit, emp = ue_area['comitentes'], ue_area['empleados']
+            rows = [[
+                num(comit) if comit else '—',
+                usd2(ue_area['facturacionMes'] / comit) if comit else '—',
+                usd2(ue_area['gastoTotal'] / comit) if comit else '—',
+            ]]
+            plain_table(["Comitentes", "Facturación / comitente", "Costo total / comitente"], rows,
+                        [col_a, col_rest, col_rest])
+            rows = [[
+                num(emp) if emp else '—',
+                usd2(ue_area['facturacionMes'] / emp) if emp else '—',
+                usd2(ue_area['gastoTotal'] / emp) if emp else '—',
+            ]]
+            plain_table(["Empleados", "Facturación / empleado", "Costo total / empleado"], rows,
+                        [col_a, col_rest, col_rest])
 
     doc = SimpleDocTemplate(
         out_path, pagesize=(PAGE_W, PAGE_H),
