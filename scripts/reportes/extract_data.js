@@ -71,7 +71,7 @@ let code = extractScript(indexPath);
 code += `
 this.__APP__ = {
   ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy, parseNum,
-  BASE, SHEETS, parseCSV,
+  BASE, SHEETS, parseCSV, getCapNAgg,
 };`;
 const context = vm.createContext(sandbox);
 vm.runInContext(code, context, { filename: 'index.html#script' });
@@ -306,6 +306,82 @@ const APP = context.__APP__;
       rubrosVariacionPorArea[area] = lista;
     });
   }
+
+  // "Capital N" -- entidad propia (hoja separada, ST.capnData), distinta de
+  // las 4 áreas de staff, para el reporte scripts/reportes/build_report_capn.py.
+  // getCapNAgg() ya existe en index.html (pestaña "EERR Capital N") y se
+  // reusa tal cual para ingresos/egresos/resultado, sin reimplementar la
+  // lógica -- igual que con el resto del dashboard.
+  //
+  // calcFijosVariablesCapN() (pestaña "Análisis Capital N") NO se reusa acá:
+  // su regex de exclusión (/^(FACTURACI|GASTOS|RESULTADO)/i) no excluye las
+  // filas "Aranceles ..." (el desglose de FACTURACIÓN BRUTA por bróker --
+  // WSC, Insigneo, IBKR, MS, EM, CP -- que entre todas suman exactamente la
+  // Facturación Bruta del mes), así que esas filas de INGRESO caen en el
+  // bucket "variables" como si fueran gasto, inflándolo por un orden de
+  // magnitud (visto en Enero: "variables" daba ~160k vs. GASTOS real de
+  // ~30k). Achicado acá con el filtro correcto (capnConceptos, abajo), que
+  // además excluye "Otros Aranceles"/"Aranceles por Sociedades" por el mismo
+  // motivo.
+  const capnData = ST.capnData;
+  const CAPN_MONTO_MIN = 300;
+  const CAPN_FIJOS = new Set(['Alquiler', 'Sueldos y CS', 'Contabilidad', 'MTI']);
+  const capnMesesCols = (capnData && capnData.headers)
+    ? capnData.headers.filter(h => h && h !== '' && !/consolidado/i.test(h) && h !== 'Neix Banca Privada')
+    : [];
+  function capnConceptos(mes) {
+    if (!capnData || !capnData.rows) return {};
+    const out = {};
+    capnData.rows.forEach(r => {
+      const nom = String(r[''] || '').trim();
+      if (!nom || /^(FACTURACI|GASTOS|RESULTADO|Aranceles|Otros Ar)/i.test(nom)) return;
+      out[nom] = (out[nom] || 0) + APP.parseNum(r[mes] || '');
+    });
+    return out;
+  }
+  function capnFijosVariables(mes) {
+    const conceptos = capnConceptos(mes);
+    let fijos = 0, variables = 0;
+    Object.entries(conceptos).forEach(([nombre, v]) => {
+      if (CAPN_FIJOS.has(nombre)) fijos += v; else variables += v;
+    });
+    return { fijos, variables };
+  }
+  const capnConceptosPorMesHistoria = mesesHistoria.filter(m => capnMesesCols.includes(m)).map(capnConceptos);
+  function historialCapN(nombre, actual) {
+    if (capnConceptosPorMesHistoria.length < MESES_MIN_HISTORIAL) return {};
+    const montos = capnConceptosPorMesHistoria.map(porNombre => porNombre[nombre] || 0);
+    const promedio = montos.reduce((s, v) => s + v, 0) / montos.length;
+    if (!promedio) return { historicoMesesCount: montos.length };
+    const ratio = actual / promedio;
+    const esAtipico = Math.abs(ratio - 1) > UMBRAL_DESVIO_HISTORICO;
+    return { promedioHistorico: promedio, ratioVsHistorico: ratio, esAtipico, historicoMesesCount: montos.length };
+  }
+  let capnRubrosVariacion = [];
+  if (mesAnterior && capnMesesCols.includes(mesActual) && capnMesesCols.includes(mesAnterior)) {
+    const montoActual = capnConceptos(mesActual);
+    const montoAnterior = capnConceptos(mesAnterior);
+    const nombres = new Set([...Object.keys(montoActual), ...Object.keys(montoAnterior)]);
+    nombres.forEach(nombre => {
+      const anterior = montoAnterior[nombre] || 0;
+      const actual = montoActual[nombre] || 0;
+      if (anterior > CAPN_MONTO_MIN && actual > CAPN_MONTO_MIN) {
+        capnRubrosVariacion.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialCapN(nombre, actual) });
+      }
+    });
+    capnRubrosVariacion.sort((a, b) => b.deltaPct - a.deltaPct);
+  }
+  const capn = capnData ? {
+    trend: capnMesesCols.length
+      ? mesesTrend.filter(m => capnMesesCols.includes(m)).map(m => ({ mes: m, ...APP.getCapNAgg(m) }))
+      : [],
+    fijosVariablesTrend: mesesTrend.filter(m => capnMesesCols.includes(m)).map(m => ({ mes: m, ...capnFijosVariables(m) })),
+    rubrosVariacion: capnRubrosVariacion,
+    // Monto por concepto del mes actual (no depende de mesAnterior, a
+    // diferencia de rubrosVariacion) -- usado para ratios tipo
+    // Sueldos/Facturación en build_report_capn.py.
+    conceptosActual: capnMesesCols.includes(mesActual) ? capnConceptos(mesActual) : {},
+  } : null;
 
   // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --
   // ordenado por |variación %|, no por monto absoluto, para que salten a la
@@ -718,6 +794,7 @@ const APP = context.__APP__;
     unitEconomics,
     unitEconomicsTrend,
     excepciones,
+    capn,
   };
   fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
   console.error(`OK. Mes actual: ${mesActual}${mesAnterior ? ', anterior: ' + mesAnterior : ' (sin mes anterior -- es el primero cargado)'}. Guardado en ${outPath}`);
