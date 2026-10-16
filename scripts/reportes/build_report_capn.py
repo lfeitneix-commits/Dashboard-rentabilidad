@@ -35,7 +35,7 @@ from build_report import (
     PAGE_W, PAGE_H, HEADER_H, MARGIN, CONTENT_W, logo, logo_target_h,
 )
 
-CAPN_COLOR = colors.HexColor('#8C6B2F')  # dorado/bronce -- distingue a Capital N de las 4 áreas (AZUL/MUTED/BORDEAUX/VERDE)
+CAPN_COLOR = BORDEAUX  # bordó -- a pedido, mismo tono que usa Banca Corporativa en AREA_COLOR
 FIJOS_COLOR = colors.HexColor('#476785')  # mismo celeste que "Fijos" en el gráfico de barras de index.html
 VARIABLES_COLOR = colors.HexColor('#9A8E7D')  # mismo tono que "Variables" en index.html
 
