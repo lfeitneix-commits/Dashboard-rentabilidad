@@ -15,8 +15,8 @@ REPO = Path(__file__).parent
 LIDERES = {
     "Mesa":              {"nombre": "Nacho",   "mail": "lfeit@neix.com.ar"},
     "FAs":               {"nombre": "Sole",    "mail": "lfeit@neix.com.ar"},
-    "Banca Corporativa": {"nombre": "NOMBRE",  "mail": "lfeit@neix.com.ar"},
-    "Banca Privada":     {"nombre": "Nicanor", "mail": "lfeit@neix.com.ar"},
+    "Banca Corporativa": {"nombre": "Facu",  "mail": "lfeit@neix.com.ar"},
+    "Banca Privada":     {"nombre": "Nica", "mail": "lfeit@neix.com.ar"},
 }
 # ---------------------------------------------------------------
 CC = [x for x in os.environ.get("MAIL_CC", "").split(",") if x]
