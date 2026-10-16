@@ -553,25 +553,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
     else:
         fact_var = gastos_var = result_var = var_cell(0.0)
 
-    # ── Alertas del mes: ANTES de las KPI cards, para que lo más urgente se
-    # lea primero sin tener que llegar a las tablas de más abajo -- combina
-    # señales que el reporte ya calcula en otras secciones (resultado total
-    # negativo, áreas sin facturación, áreas con margen negativo, rubro con
-    # salto atípico vs. su propio historial) en una sola caja, en vez de
-    # agregar un chequeo nuevo. Si no hay ninguna, lo dice explícitamente
-    # (la caja no desaparece) para que "sin alertas" sea una lectura activa,
-    # no la ausencia de la sección -- y para que la barra de título, roja o
-    # verde, funcione como semáforo a simple vista. ──
-    alertas = []
-    if result_act < 0:
-        alertas.append(f"Resultado del mes fue negativo ({usd(result_act)}).")
+    # ── Señales críticas (ex "Alertas del mes"): ya no tienen su propia
+    # caja -- se calculan acá y se insertan con máxima prioridad dentro de
+    # "Análisis del mes" (ver más abajo), para que el pantallazo de 5
+    # bullets nunca se quede sin lo más urgente aunque haya mucho rubro
+    # material compitiendo por un lugar. ──
     ing_area_alert = data['ingresosPorAreaActual']
     areas_sin_facturacion = [a for a in AREAS if ing_area_alert[a] <= 0]
-    if areas_sin_facturacion:
-        alertas.append(
-            f"{', '.join(areas_sin_facturacion)}: facturación bruta negativa o cero este mes "
-            f"(ratios de esa área salen N/D más abajo)."
-        )
     # Área que PASA a margen negativo este mes -- no "tiene margen
     # negativo" a secas, porque un área chica (Banca Corporativa, Banca
     # Privada) corre así casi todos los meses por el prorrateo de
@@ -589,19 +577,6 @@ def build(data, mes_label, out_path, bullets_extra=None):
         margen_anterior = resultado_area_ant_alert.get(a, 0) / fact_ant
         if margen_actual < 0 and margen_anterior >= 0:
             areas_margen_nuevo_negativo.append(a)
-    if areas_margen_nuevo_negativo:
-        alertas.append(
-            f"{', '.join(areas_margen_nuevo_negativo)}: pasó a margen negativo este mes "
-            f"(el mes anterior había sido positivo)."
-        )
-    top_rubro = data['rubrosVariacion'][0] if data['rubrosVariacion'] else None
-    if top_rubro and top_rubro['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO and top_rubro.get('esAtipico'):
-        direccion = 'por encima' if top_rubro['ratioVsHistorico'] > 1 else 'por debajo'
-        desvio_pct = abs(top_rubro['ratioVsHistorico'] - 1) * 100
-        alertas.append(
-            f"{top_rubro['nombre']} tuvo un salto atípico este mes: está {desvio_pct:.0f}% {direccion} de su "
-            f"propio promedio histórico."
-        )
     kpi_sub = f"vs. {data['mesAnterior']}" if kpi_ant else None
     kpis = Table(
         [[kpi_card("Facturación bruta", usd(fact_act), fact_var, kpi_sub),
@@ -626,45 +601,17 @@ def build(data, mes_label, out_path, bullets_extra=None):
             story.append(Spacer(1, 6))
             story.append(accum_card(f"Resultado acumulado {primer_mes} - {data['mesActual']}", resultado_acum))
 
-    # ── Alertas del mes: debajo de las KPI cards y de "Resultado
-    # acumulado" -- se calculan más arriba (antes de armar `kpis`)
-    # combinando señales que el reporte ya computa en otro lado; acá solo
-    # se renderiza la caja. ──
-    with keep_together():
-        story.append(Spacer(1, 6))
-        alertas_t = Table([[Paragraph("ALERTAS DEL MES", styles['H2White'])]], colWidths=[CONTENT_W], rowHeights=[8 * mm])
-        alertas_t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), BORDEAUX if alertas else VERDE),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (0, 0), 10),
-        ]))
-        story.append(alertas_t)
-        story.append(Spacer(1, 6))
-        if alertas:
-            for a in alertas:
-                story.append(Paragraph(f"•  {a}", styles['BulletCustom']))
-                story.append(Spacer(1, 3))
-        else:
-            # No dice "sin márgenes negativos" a secas -- Banca Corporativa
-            # y Banca Privada corren con margen negativo casi todos los
-            # meses (ver el chequeo de arriba, que solo alerta en un
-            # cambio de signo real), así que esa frase sería falsa la
-            # mayoría de los meses sin alertas. "Sin áreas que hayan
-            # cambiado a margen negativo" es lo que efectivamente se
-            # chequeó.
-            story.append(Paragraph(
-                "Sin alertas relevantes este mes: no hubo rubros con saltos atípicos, resultado negativo, "
-                "áreas sin facturación, ni áreas que hayan pasado a margen negativo.",
-                styles['BulletCustom'],
-            ))
-
-    # ── Análisis del mes: arranca con lo mínimo verificable automáticamente
-    # (mayor rubro que subió) y, si se pasaron --bullet por CLI, los suma en
-    # vez del placeholder genérico -- ver docstring del módulo y el README
-    # de este directorio para el criterio de cuándo conviene escribir uno a
-    # mano (el "por qué", no repetir números que ya están en las tablas;
-    # si citás un monto puntual, sumale el promedio histórico para que se
-    # note si es un valor atípico de este mes o no). ──
+    # ── Análisis del mes: reemplaza a "Alertas del mes" + el análisis
+    # anterior -- EXACTAMENTE hasta 5 bullets (no una lista abierta), armados
+    # en orden de prioridad para que, leyendo solo estos 5, alcance como
+    # pantallazo completo del mes sin tener que bajar al resto del reporte.
+    # Orden: (1) señales críticas (ex "Alertas del mes": resultado negativo,
+    # áreas sin facturación, áreas a margen negativo) -- siempre primero, se
+    # queden o no afuera del corte de 5; (2) bullets manuales (--bullet);
+    # (3) panorama base (facturación, acumulado, rubro que más sube); (4)
+    # relleno por materialidad (notas manuales, otros rubros atípicos) solo
+    # si sobra lugar. Nunca se "completa" a la fuerza: si hay menos de 5
+    # candidatos genuinos, se muestran menos. ──
     # Frase de detección automática de valor atípico, reutilizada tanto para
     # el rubro #1 como para cualquier otro rubro que llame la atención más
     # abajo: compara el monto de este mes contra el promedio histórico del
@@ -688,50 +635,87 @@ def build(data, mes_label, out_path, bullets_extra=None):
         signo = '+' if item['deltaPct'] >= 0 else ''
         return f"{signo}{item['deltaPct']:.1f}% ({num(item['anterior'])} → {num(item['actual'])})"
 
+    def variacion_kpi_txt(actual, anterior):
+        # Mismo criterio de signo que pct_or_delta (% sobre la base en
+        # valor absoluto), pero en texto plano para un bullet en vez de una
+        # celda de tabla.
+        if anterior is None:
+            return ''
+        if anterior == 0:
+            delta = actual - anterior
+            signo = '+' if delta >= 0 else ''
+            return f" ({signo}USD {num(delta)} vs. {data['mesAnterior']})"
+        pct = (actual - anterior) / abs(anterior) * 100
+        signo = '+' if pct >= 0 else ''
+        return f" ({signo}{pct:.1f}% vs. {data['mesAnterior']})"
+
+    MAX_BULLETS = 5
+    candidatos = []
+    ya_mencionado = set()
+
+    # (1) Señales críticas -- máxima prioridad.
+    if result_act < 0:
+        candidatos.append(f"Resultado del mes fue negativo: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
+    else:
+        candidatos.append(f"Resultado del mes: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
+    if areas_sin_facturacion:
+        candidatos.append(
+            f"{', '.join(areas_sin_facturacion)}: facturación bruta negativa o cero este mes "
+            f"(ratios de esa área salen N/D más abajo)."
+        )
+    if areas_margen_nuevo_negativo:
+        candidatos.append(
+            f"{', '.join(areas_margen_nuevo_negativo)}: pasó a margen negativo este mes "
+            f"(el mes anterior había sido positivo)."
+        )
+
+    # (2) Bullets manuales (--bullet) -- después de las señales críticas,
+    # antes del panorama base: un humano decidió que esto importa.
+    if bullets_extra:
+        candidatos.extend(bullets_extra)
+
+    # (3) Panorama base: facturación, acumulado, rubro que más sube.
+    candidatos.append(f"Facturación del mes: {usd(fact_act)}{variacion_kpi_txt(fact_act, fact_ant if kpi_ant else None)}.")
+    if len(data['kpiTrend']) > 1:
+        resultado_acum = sum(m['resultado'] for m in data['kpiTrend'])
+        primer_mes = data['kpiTrend'][0]['mes']
+        candidatos.append(f"Resultado acumulado {primer_mes} - {data['mesActual']}: {usd(resultado_acum)}.")
+    if data['rubrosVariacion']:
+        top = data['rubrosVariacion'][0]
+        top_txt = f"{top['nombre']}, el rubro que más subió: {variacion_cell_txt(top)}."
+        if top.get('notaManual'):
+            top_txt += f" {top['notaManual']}."
+        top_txt += nota_historico(top)
+        candidatos.append(top_txt)
+        ya_mencionado.add(top['nombre'])
+
+    # (4) Relleno por materialidad -- solo entra si sobra lugar en los 5.
+    # Notas manuales para cualquier otro rubro/proveedor del top que tenga
+    # un "por qué" cargado (ver NOTAS_CUENTAS en extract_data.js).
+    for item in rubros_suben + data['proveedores'][:PROVEEDORES_TOP_N]:
+        nota = item.get('notaManual')
+        if not nota or item['nombre'] in ya_mencionado:
+            continue
+        ya_mencionado.add(item['nombre'])
+        candidatos.append(f"{item['nombre']}: {variacion_cell_txt(item)} -- {nota}.")
+    # Cualquier otro rubro (suba o baja, no solo el #1) que sea un salto
+    # atípico vs. su propio historial, ordenado por delta en USD (no el %)
+    # -- eso sí es "relevante" en plata, no solo en términos relativos.
+    ATIPICOS_EXTRA_TOP_N = 3
+    atipicos_extra = sorted(
+        (r for r in data['rubrosVariacion']
+         if r['nombre'] not in ya_mencionado and r['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO
+         and r.get('esAtipico')),
+        key=lambda r: abs(r['actual'] - r['anterior']),
+        reverse=True,
+    )[:ATIPICOS_EXTRA_TOP_N]
+    for item in atipicos_extra:
+        ya_mencionado.add(item['nombre'])
+        candidatos.append(f"{item['nombre']}: {variacion_cell_txt(item)}.{nota_historico(item)}")
+
+    bullets = candidatos[:MAX_BULLETS]
     with keep_together():
         section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
-        bullets = []
-        ya_mencionado = set()
-        if data['rubrosVariacion']:
-            top = data['rubrosVariacion'][0]
-            top_txt = f"{top['nombre']}, el que más subió: {variacion_cell_txt(top)}."
-            if top.get('notaManual'):
-                top_txt += f" {top['notaManual']}."
-            top_txt += nota_historico(top)
-            bullets.append(top_txt)
-            ya_mencionado.add(top['nombre'])
-        # Notas manuales para cualquier otro rubro/proveedor del top que
-        # tenga un "por qué" cargado (ver NOTAS_CUENTAS en extract_data.js)
-        # y no se haya mencionado ya arriba -- esto es lo que hace que el
-        # análisis explique, no solo liste números.
-        for item in rubros_suben + data['proveedores'][:PROVEEDORES_TOP_N]:
-            nota = item.get('notaManual')
-            if not nota or item['nombre'] in ya_mencionado:
-                continue
-            ya_mencionado.add(item['nombre'])
-            bullets.append(f"{item['nombre']}: {variacion_cell_txt(item)} -- {nota}.")
-        # Cualquier otro rubro (suba o baja, no solo el #1) que sea un
-        # salto atípico vs. su propio historial se llama la atención acá,
-        # tenga o no una nota manual cargada. Un mes puede tener 10+ rubros
-        # "atípicos" en términos estadísticos (más de 50% fuera de su
-        # propio promedio) pero la mayoría son cuentas chicas moviéndose
-        # unos pocos cientos de USD -- bullet por cada uno diluye lo que
-        # importa de verdad en una lista repetitiva. Se ordena por el
-        # delta en USD (no el % ni el orden de rubrosVariacion) y se
-        # muestran los 3 más grandes en plata -- eso sí es "relevante".
-        ATIPICOS_EXTRA_TOP_N = 3
-        atipicos_extra = sorted(
-            (r for r in data['rubrosVariacion']
-             if r['nombre'] not in ya_mencionado and r['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO
-             and r.get('esAtipico')),
-            key=lambda r: abs(r['actual'] - r['anterior']),
-            reverse=True,
-        )[:ATIPICOS_EXTRA_TOP_N]
-        for item in atipicos_extra:
-            ya_mencionado.add(item['nombre'])
-            bullets.append(f"{item['nombre']}: {variacion_cell_txt(item)}.{nota_historico(item)}")
-        if bullets_extra:
-            bullets.extend(bullets_extra)
         for b in bullets:
             story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
             story.append(Spacer(1, 4))
