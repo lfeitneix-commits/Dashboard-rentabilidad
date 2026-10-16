@@ -368,9 +368,44 @@ def build_capn(data, mes_label, out_path):
         signo = '+' if pct >= 0 else ''
         return f" ({signo}{pct:.1f}% vs. {anterior['mes']})"
 
-    def margen_bullet(result_actual, fact_actual, result_anterior, fact_anterior, mes_anterior_label):
-        # Margen neto (Resultado/Facturación) + variación en PUNTOS
-        # PORCENTUALES (no %) vs. el mes anterior.
+    def racha_tendencia(valores):
+        # valores: lista de (mes, valor) en orden cronológico. Devuelve
+        # (dirección, [valores de la racha]) si el valor viene moviéndose
+        # en la MISMA dirección al menos 2 meses seguidos (3 puntos de
+        # datos) terminando en el mes actual, o None si no hay tal racha.
+        if len(valores) < 3:
+            return None
+        streak = [valores[-1]]
+        direccion = None
+        for i in range(len(valores) - 1, 0, -1):
+            cur, prev = valores[i][1], valores[i - 1][1]
+            if cur == prev:
+                break
+            d = 'subiendo' if cur > prev else 'bajando'
+            if direccion is None:
+                direccion = d
+            elif d != direccion:
+                break
+            streak.insert(0, valores[i - 1])
+        if len(streak) < 3:
+            return None
+        return direccion, streak
+
+    def racha_resultado_negativo(trend_list, result_key):
+        streak = 0
+        for m in reversed(trend_list):
+            if m[result_key] < 0:
+                streak += 1
+            else:
+                break
+        return streak
+
+    def margen_bullet(result_actual, fact_actual, result_anterior, fact_anterior, mes_anterior_label, margenes_trend):
+        # Margen neto (Resultado/Facturación). Si viene en una racha de
+        # varios meses seguidos subiendo o bajando, ESE es el dato que
+        # importa (tendencia, no una foto de un solo mes) -- si no, el %
+        # del mes + variación en PUNTOS PORCENTUALES (no %) vs. el mes
+        # anterior.
         # Facturación <= 0 hace que el ratio sea indefinido o, peor, que
         # dé un % positivo y "sano" cuando resultado y facturación son
         # negativos a la vez (negativo / negativo) -- en vez de omitir el
@@ -380,6 +415,11 @@ def build_capn(data, mes_label, out_path):
         if not fact_actual or fact_actual <= 0:
             return "Margen neto del mes: no es un dato significativo (facturación negativa o cero este mes)."
         margen_actual = result_actual / fact_actual * 100
+        racha = racha_tendencia(margenes_trend) if margenes_trend else None
+        if racha:
+            direccion, streak = racha
+            valores_txt = ' → '.join(f"{v:.1f}%" for _, v in streak)
+            return f"Margen neto viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
         if fact_anterior and fact_anterior > 0:
             margen_anterior = result_anterior / fact_anterior * 100
             delta_pp = margen_actual - margen_anterior
@@ -393,11 +433,16 @@ def build_capn(data, mes_label, out_path):
 
     # (1) Señales críticas.
     if actual['resultado'] < 0:
-        candidatos.append(f"Resultado del mes fue negativo: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
+        racha_neg = racha_resultado_negativo(trend, 'resultado')
+        if racha_neg >= 2:
+            candidatos.append(f"Resultado negativo por {racha_neg}º mes consecutivo: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
+        else:
+            candidatos.append(f"Resultado del mes fue negativo: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
+    margenes_trend = [(m['mes'], m['resultado'] / m['ingresos'] * 100) for m in trend if m['ingresos'] > 0]
     margen_txt = margen_bullet(
         actual['resultado'], actual['ingresos'],
         anterior['resultado'] if anterior else None, anterior['ingresos'] if anterior else None,
-        anterior['mes'] if anterior else None,
+        anterior['mes'] if anterior else None, margenes_trend,
     )
     if margen_txt:
         candidatos.append(margen_txt)

@@ -654,11 +654,47 @@ def build(data, mes_label, out_path, bullets_extra=None):
         signo = '+' if pct >= 0 else ''
         return f" ({signo}{pct:.1f}% vs. {data['mesAnterior']})"
 
-    def margen_bullet(result_actual, fact_actual, result_anterior, fact_anterior, mes_anterior_label):
-        # Margen neto (Resultado/Facturación) + variación en PUNTOS
-        # PORCENTUALES (no %) vs. el mes anterior -- restar dos porcentajes
-        # da directamente cuánto mejoró/empeoró el margen, sin el ruido de
-        # expresar esa diferencia como "% de variación de un %".
+    def racha_tendencia(valores):
+        # valores: lista de (mes, valor) en orden cronológico. Devuelve
+        # (dirección, [valores de la racha]) si el valor viene moviéndose
+        # en la MISMA dirección (siempre subiendo o siempre bajando) al
+        # menos 2 meses seguidos (3 puntos de datos) terminando en el mes
+        # actual, o None si no hay una racha así -- "mirar tendencias de
+        # varios meses, no el último dato solo" fue el pedido explícito.
+        if len(valores) < 3:
+            return None
+        streak = [valores[-1]]
+        direccion = None
+        for i in range(len(valores) - 1, 0, -1):
+            cur, prev = valores[i][1], valores[i - 1][1]
+            if cur == prev:
+                break
+            d = 'subiendo' if cur > prev else 'bajando'
+            if direccion is None:
+                direccion = d
+            elif d != direccion:
+                break
+            streak.insert(0, valores[i - 1])
+        if len(streak) < 3:
+            return None
+        return direccion, streak
+
+    def racha_resultado_negativo(trend, result_key):
+        # Meses consecutivos (terminando en el actual) con resultado < 0.
+        streak = 0
+        for m in reversed(trend):
+            if m[result_key] < 0:
+                streak += 1
+            else:
+                break
+        return streak
+
+    def margen_bullet(result_actual, fact_actual, result_anterior, fact_anterior, mes_anterior_label, margenes_trend):
+        # Margen neto (Resultado/Facturación). Si viene en una racha de
+        # varios meses seguidos subiendo o bajando, ESE es el dato que
+        # importa (tendencia, no una foto de un solo mes) -- si no, el %
+        # del mes + variación en PUNTOS PORCENTUALES (no %) vs. el mes
+        # anterior.
         # Facturación <= 0 hace que el ratio sea indefinido o, peor, que
         # dé un % positivo y "sano" cuando resultado y facturación son
         # negativos a la vez (negativo / negativo) -- en vez de omitir el
@@ -668,6 +704,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
         if not fact_actual or fact_actual <= 0:
             return "Margen neto del mes: no es un dato significativo (facturación bruta negativa o cero este mes)."
         margen_actual = result_actual / fact_actual * 100
+        racha = racha_tendencia(margenes_trend) if margenes_trend else None
+        if racha:
+            direccion, streak = racha
+            valores_txt = ' → '.join(f"{v:.1f}%" for _, v in streak)
+            return f"Margen neto viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
         if fact_anterior and fact_anterior > 0:
             margen_anterior = result_anterior / fact_anterior * 100
             delta_pp = margen_actual - margen_anterior
@@ -688,8 +729,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # bullet no es informar el número (ya visible) sino dar la señal de
     # alerta, que antes vivía en la caja de "Alertas del mes".
     if result_act < 0:
-        candidatos.append(f"Resultado del mes fue negativo: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
-    margen_txt = margen_bullet(result_act, fact_act, result_ant if kpi_ant else None, fact_ant if kpi_ant else None, data['mesAnterior'] if kpi_ant else None)
+        racha_neg = racha_resultado_negativo(data['kpiTrend'], 'resultado')
+        if racha_neg >= 2:
+            candidatos.append(f"Resultado negativo por {racha_neg}º mes consecutivo: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
+        else:
+            candidatos.append(f"Resultado del mes fue negativo: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
+    margenes_trend = [(m['mes'], m['resultado'] / m['ingresos'] * 100) for m in data['kpiTrend'] if m['ingresos'] > 0]
+    margen_txt = margen_bullet(result_act, fact_act, result_ant if kpi_ant else None, fact_ant if kpi_ant else None, data['mesAnterior'] if kpi_ant else None, margenes_trend)
     if margen_txt:
         candidatos.append(margen_txt)
     if areas_sin_facturacion:
