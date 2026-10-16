@@ -247,6 +247,16 @@ const APP = context.__APP__;
     return rows.slice(idxDirectos + 1, idxSubtotal).filter(r =>
       (r._kind === 'account' || r._kind === 'subaccount') && (!r._parentId || r._child));
   }
+  // Total de gastos DIRECTOS de un área en un mes (suma de TODAS las filas
+  // de directosLeafRows, no solo las que superan RUBRO_AREA_MONTO_MIN como
+  // rubrosVariacionPorArea) -- para el reporte por área: un líder de área
+  // no controla el prorrateo de indirectos entre las 4 áreas, así que
+  // "Resultado" ahí tiene más sentido como Facturación menos SOLO lo que
+  // esa área gasta directamente, no Facturación menos Gastos Totales
+  // (Directos + Indirectos prorrateados, que es lo que usa kpiForArea).
+  function gastoDirectoPorArea(mes, area) {
+    return directosLeafRows(mes).reduce((s, r) => s + getAreaVal(r, area), 0);
+  }
   // Promedio histórico de un rubro DIRECTO de un área puntual, en los meses
   // previos a mesActual -- mismo criterio que historialRubro() arriba, pero
   // armado desde directosLeafRows (la fuente de rubrosVariacionPorArea) en
@@ -672,8 +682,17 @@ const APP = context.__APP__;
     kpiTrend: mesesTrend.map(m => ({ mes: m, ...kpiFor(m) })),
     // Mismo kpiTrend pero por área -- para los reportes por área (uno por
     // área y por mes, ver build_report_area.py). Clave = nombre del área,
-    // mismo formato que kpiTrend (lista de {mes, ingresos, egresos, resultado}).
-    kpiTrendPorArea: Object.fromEntries(AREAS_.map(a => [a, mesesTrend.map(m => ({ mes: m, ...kpiForArea(m, a) }))])),
+    // lista de {mes, ingresos, egresos, resultado, gastosDirectos,
+    // resultadoDirecto}. "egresos"/"resultado" son Gastos Totales (Directos
+    // + Indirectos prorrateados, igual que en el resto del dashboard);
+    // "gastosDirectos"/"resultadoDirecto" son SOLO lo que esa área gasta
+    // directamente (gastoDirectoPorArea), sin el prorrateo de indirectos
+    // entre las 4 áreas -- el reporte por área usa esta segunda versión.
+    kpiTrendPorArea: Object.fromEntries(AREAS_.map(a => [a, mesesTrend.map(m => {
+      const base = kpiForArea(m, a);
+      const gastosDirectos = gastoDirectoPorArea(m, a);
+      return { mes: m, ...base, gastosDirectos, resultadoDirecto: base.ingresos - gastosDirectos };
+    })])),
     gastosTotalesActual: areaVals(mesActual, 'gastosTotalesRow'),
     gastosTotalesAnterior: mesAnterior ? areaVals(mesAnterior, 'gastosTotalesRow') : null,
     impuestosActual: areaVals(mesActual, 'impuestosRow'),
