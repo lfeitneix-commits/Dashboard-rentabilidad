@@ -9,12 +9,12 @@ Capital N es una entidad propia (hoja separada del Sheet, ST.capnData en
 index.html), no una de las 4 áreas de staff -- tiene su propio
 Facturación/Gastos/Resultado, sin prorrateo de indirectos (no aplica acá:
 es una sola entidad, no hay nada que repartir entre áreas). Mismo tipo de
-reporte que build_report_area.py (KPIs, Resultado Acumulado, ALERTAS DEL
-MES, Análisis del mes, evolución en gráfico), pero con "FIJOS VS.
-VARIABLES" en vez de Unit Economics -- Capital N no tiene datos de
-comitentes/empleados propios en el Sheet. Sin Anexo ni
-"Excepciones/No recurrentes" (dependen del mayor contable, que Capital N
-no tiene).
+reporte que build_report_area.py (KPIs, Resultado Acumulado, Análisis del
+mes -- hasta 5 bullets priorizados, ya no hay caja de "Alertas del mes"
+aparte -- evolución en gráfico), pero con "FIJOS VS. VARIABLES" en vez de
+Unit Economics -- Capital N no tiene datos de comitentes/empleados
+propios en el Sheet. Sin Anexo ni "Excepciones/No recurrentes" (dependen
+del mayor contable, que Capital N no tiene).
 """
 import argparse
 import json
@@ -351,78 +351,75 @@ def build_capn(data, mes_label, out_path):
             story.append(Spacer(1, 6))
             story.append(accum_card(f"Resultado acumulado {primer_mes} - {actual['mes']} · Capital N", resultado_acum))
 
-    # ── Alertas del mes ──
-    alertas = []
+    # ── Análisis del mes: reemplaza a "Alertas del mes" + el análisis
+    # anterior -- EXACTAMENTE hasta 5 bullets, en orden de prioridad, mismo
+    # criterio que el consolidado y los reportes por área (ver
+    # build_report.py): (1) señales críticas (ex "Alertas del mes"), (2)
+    # panorama base (facturación, resultado, acumulado, rubro que más
+    # sube), (3) relleno por materialidad solo si sobra lugar. ──
+    def variacion_kpi_txt(valor_actual, valor_anterior):
+        if valor_anterior is None:
+            return ''
+        if valor_anterior == 0:
+            delta = valor_actual - valor_anterior
+            signo = '+' if delta >= 0 else ''
+            return f" ({signo}USD {num(delta)} vs. {anterior['mes']})"
+        pct = (valor_actual - valor_anterior) / abs(valor_anterior) * 100
+        signo = '+' if pct >= 0 else ''
+        return f" ({signo}{pct:.1f}% vs. {anterior['mes']})"
+
+    MAX_BULLETS = 5
+    candidatos = []
+    ya_mencionado = set()
+
+    # (1) Señales críticas.
     if actual['resultado'] < 0:
-        alertas.append(f"Resultado del mes fue negativo ({usd(actual['resultado'])}).")
+        candidatos.append(f"Resultado del mes fue negativo: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
     if actual['ingresos'] <= 0:
-        alertas.append("Sin facturación (o facturación negativa) este mes.")
+        candidatos.append("Sin facturación (o facturación negativa) este mes.")
     if anterior and actual['ingresos'] > 0 and anterior['ingresos'] > 0:
         margen_actual = actual['resultado'] / actual['ingresos']
         margen_anterior = anterior['resultado'] / anterior['ingresos']
         if margen_actual < 0 and margen_anterior >= 0:
-            alertas.append("Pasó a margen negativo este mes (el mes anterior había sido positivo).")
-    if rubros_suben and rubros_suben[0].get('esAtipico'):
-        top_alerta = rubros_suben[0]
-        direccion = 'por encima' if top_alerta['ratioVsHistorico'] > 1 else 'por debajo'
-        desvio_pct = abs(top_alerta['ratioVsHistorico'] - 1) * 100
-        alertas.append(
-            f"{top_alerta['nombre']} tuvo un salto atípico este mes: está {desvio_pct:.0f}% {direccion} de su "
-            f"propio promedio histórico."
-        )
-    with keep_together():
-        story.append(Spacer(1, 6))
-        alertas_t = Table([[Paragraph("ALERTAS DEL MES", styles['H2White'])]], colWidths=[CONTENT_W], rowHeights=[8 * mm])
-        alertas_t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), BORDEAUX if alertas else VERDE),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (0, 0), 10),
-        ]))
-        story.append(alertas_t)
-        story.append(Spacer(1, 6))
-        if alertas:
-            for a in alertas:
-                story.append(Paragraph(f"•  {a}", styles['BulletCustom']))
-                story.append(Spacer(1, 3))
-        else:
-            story.append(Paragraph(
-                "Sin alertas relevantes este mes para Capital N: resultado positivo, hubo facturación, sin cambio "
-                "a margen negativo ni rubros con saltos atípicos.",
-                styles['BulletCustom'],
-            ))
+            candidatos.append("Pasó a margen negativo este mes (el mes anterior había sido positivo).")
 
-    # ── Análisis del mes: igual criterio que los reportes por área -- el
-    # rubro que más subió en % + hasta 3 rubros atípicos adicionales por
-    # materialidad (USD), sin repetir el mismo dos veces. ──
+    # (2) Panorama base.
+    candidatos.append(f"Facturación del mes: {usd(actual['ingresos'])}{variacion_kpi_txt(actual['ingresos'], anterior['ingresos'] if anterior else None)}.")
+    if actual['resultado'] >= 0:
+        candidatos.append(f"Resultado del mes: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
+    if len(trend) > 1:
+        resultado_acum = sum(m['resultado'] for m in trend)
+        primer_mes = trend[0]['mes']
+        candidatos.append(f"Resultado acumulado {primer_mes} - {actual['mes']}: {usd(resultado_acum)}.")
+    if rubros_suben:
+        top = rubros_suben[0]
+        signo = '+' if top['deltaPct'] >= 0 else ''
+        bullet = f"{top['nombre']}, el rubro que más subió: {signo}{top['deltaPct']:.1f}% ({num(top['anterior'])} → {num(top['actual'])})."
+        bullet += nota_historico(top)
+        candidatos.append(bullet)
+        ya_mencionado.add(top['nombre'])
+
+    # (3) Relleno por materialidad -- otros rubros atípicos, ordenados por
+    # delta en USD, solo si sobra lugar en los 5.
     atipicos = sorted(
-        (r for r in rubros if r.get('esAtipico')),
+        (r for r in rubros if r['nombre'] not in ya_mencionado and r.get('esAtipico')),
         key=lambda r: abs(r['actual'] - r['anterior']),
         reverse=True,
     )[:3]
-    if rubros_suben or atipicos:
-        with keep_together():
-            section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
-            bullets = []
-            ya_mencionado = set()
-            if rubros_suben:
-                top = rubros_suben[0]
-                signo = '+' if top['deltaPct'] >= 0 else ''
-                bullet = f"{top['nombre']}, el rubro que más subió: {signo}{top['deltaPct']:.1f}% ({num(top['anterior'])} → {num(top['actual'])})."
-                bullet += nota_historico(top)
-                bullets.append(bullet)
-                ya_mencionado.add(top['nombre'])
-            for item in atipicos:
-                if item['nombre'] in ya_mencionado:
-                    continue
-                ya_mencionado.add(item['nombre'])
-                signo = '+' if item['deltaPct'] >= 0 else ''
-                bullets.append(
-                    f"{item['nombre']}: {signo}{item['deltaPct']:.1f}% ({num(item['anterior'])} → {num(item['actual'])})."
-                    f"{nota_historico(item)}"
-                )
-            for b in bullets:
-                story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
-                story.append(Spacer(1, 4))
+    for item in atipicos:
+        ya_mencionado.add(item['nombre'])
+        signo = '+' if item['deltaPct'] >= 0 else ''
+        candidatos.append(
+            f"{item['nombre']}: {signo}{item['deltaPct']:.1f}% ({num(item['anterior'])} → {num(item['actual'])})."
+            f"{nota_historico(item)}"
+        )
+
+    bullets = candidatos[:MAX_BULLETS]
+    with keep_together():
+        section_title(f"ANÁLISIS DEL MES · {mes_label.upper()}")
+        for b in bullets:
+            story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
+            story.append(Spacer(1, 4))
 
     # ── Evolución últimos meses, en gráfico ──
     if len(trend) > 1:
