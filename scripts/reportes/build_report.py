@@ -679,15 +679,15 @@ def build(data, mes_label, out_path, bullets_extra=None):
             return None
         return direccion, streak
 
-    def rubro_racha_subiendo(rubros, excluidos):
+    def rubro_racha(rubros, excluidos, direccion):
         # Entre los rubros con serie completa (mesesTrend), busca el que
-        # venga SUBIENDO de forma sostenida varios meses seguidos (mismo
-        # criterio que racha_tendencia, aplicado al monto en vez del %) --
-        # "rubros que vienen subiendo varios meses" fue el pedido
-        # explícito, distinto de "qué rubro subió más este mes" (que ya
-        # cubre el bullet de arriba, y puede ser un salto de un solo mes).
-        # Entre los que califican, se elige el de mayor suba EN PLATA a lo
-        # largo de la racha (no el de racha más larga ni el de mayor %).
+        # venga SUBIENDO o BAJANDO (según `direccion`) de forma sostenida
+        # varios meses seguidos (mismo criterio que racha_tendencia,
+        # aplicado al monto en vez del %) -- distinto de "qué rubro subió
+        # más este mes" (que ya cubre el bullet de arriba, y puede ser un
+        # salto de un solo mes). Entre los que califican, se elige el de
+        # mayor cambio EN PLATA a lo largo de la racha (no el de racha más
+        # larga ni el de mayor %).
         mejor = None
         for r in rubros:
             if r['nombre'] in excluidos or r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO:
@@ -696,17 +696,17 @@ def build(data, mes_label, out_path, bullets_extra=None):
             if not serie:
                 continue
             racha = racha_tendencia([(p['mes'], p['monto']) for p in serie])
-            if not racha or racha[0] != 'subiendo':
+            if not racha or racha[0] != direccion:
                 continue
             _direccion, streak = racha
-            score = streak[-1][1] - streak[0][1]
+            score = abs(streak[-1][1] - streak[0][1])
             if mejor is None or score > mejor[0]:
                 mejor = (score, r['nombre'], streak)
         if not mejor:
             return None
         _score, nombre, streak = mejor
         valores_txt = ' → '.join(num(v) for _, v in streak)
-        return nombre, f"{nombre} viene subiendo hace {len(streak) - 1} meses seguidos: {valores_txt}."
+        return nombre, f"{nombre} viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
 
     def racha_resultado_negativo(trend, result_key):
         # Meses consecutivos (terminando en el actual) con resultado < 0.
@@ -794,11 +794,12 @@ def build(data, mes_label, out_path, bullets_extra=None):
         candidatos.append(top_txt)
         ya_mencionado.add(top['nombre'])
 
-    racha_rubro = rubro_racha_subiendo(data['rubrosVariacion'], ya_mencionado)
-    if racha_rubro:
-        nombre_racha, texto_racha = racha_rubro
-        candidatos.append(texto_racha)
-        ya_mencionado.add(nombre_racha)
+    for direccion in ('subiendo', 'bajando'):
+        racha_rubro = rubro_racha(data['rubrosVariacion'], ya_mencionado, direccion)
+        if racha_rubro:
+            nombre_racha, texto_racha = racha_rubro
+            candidatos.append(texto_racha)
+            ya_mencionado.add(nombre_racha)
 
     # (4) Relleno por materialidad -- solo entra si sobra lugar en los 5.
     # Notas manuales para cualquier otro rubro/proveedor del top que tenga
