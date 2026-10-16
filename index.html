@@ -3517,9 +3517,12 @@ const REPORTES_MENSUALES_AREA={
 };
 // Mismo formato que REPORTES_MENSUALES, para "Capital N" (ver
 // scripts/reportes/build_report_capn.py) -- entidad propia, no una de las
-// 4 áreas de staff. Solo lo ve el login completo (no hay login de área
-// para Capital N), así que se muestra como una tabla aparte debajo de la
-// principal en renderReportes(), nunca en REPORTES_MENSUALES_AREA.
+// 4 áreas de staff. No hay login propio para Capital N: lo ve el login
+// completo, y también el de Banca Privada (mismo criterio que las
+// pestañas "EERR Capital N"/"Análisis Capital N", ya habilitadas para esa
+// área en aplicarRestriccionesDeRol -- ver 'permitidas' en el login). Se
+// muestra como una tabla aparte debajo de la principal en
+// renderReportes(), nunca en REPORTES_MENSUALES_AREA.
 const REPORTES_MENSUALES_CAPN=[
   {mes:'Enero 2026',archivo:'reportes/capn/2026-01-reporte-enero-capital-n.pdf',generado:'2026-10-16'},
   {mes:'Febrero 2026',archivo:'reportes/capn/2026-02-reporte-febrero-capital-n.pdf',generado:'2026-10-16'},
@@ -3650,7 +3653,7 @@ function renderReportes(){
     </div>
       <div id="reportes-table-wrap">${buildReportesTableHTML(q)}</div>
     </div>
-    ${!esArea?`<div class="tc" style="margin-top:20px"><div class="tc-hd">Capital N</div>
+    ${(!esArea||ST.area==='Banca Privada')?`<div class="tc" style="margin-top:20px"><div class="tc-hd">Capital N</div>
       ${buildReportesTableHTMLLista(REPORTES_MENSUALES_CAPN)}
     </div>`:''}`;
 }
