@@ -679,11 +679,16 @@ def build(data, mes_label, out_path, bullets_extra=None):
     candidatos = []
     ya_mencionado = set()
 
-    # (1) Señales críticas -- máxima prioridad.
+    # (1) Señales críticas -- máxima prioridad. Facturación/Resultado/
+    # Resultado Acumulado NO se repiten acá como bullet "de panorama" --
+    # ya están en sus propias tarjetas arriba (KPIs y Resultado Acumulado),
+    # así que un bullet que solo repite ese mismo número no agrega nada
+    # ("no me estás diciendo nada" fue el feedback exacto). Resultado SÍ
+    # aparece acá, pero solo cuando es negativo -- ahí la función del
+    # bullet no es informar el número (ya visible) sino dar la señal de
+    # alerta, que antes vivía en la caja de "Alertas del mes".
     if result_act < 0:
         candidatos.append(f"Resultado del mes fue negativo: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
-    else:
-        candidatos.append(f"Resultado del mes: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
     margen_txt = margen_bullet(result_act, fact_act, result_ant if kpi_ant else None, fact_ant if kpi_ant else None, data['mesAnterior'] if kpi_ant else None)
     if margen_txt:
         candidatos.append(margen_txt)
@@ -703,12 +708,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
     if bullets_extra:
         candidatos.extend(bullets_extra)
 
-    # (3) Panorama base: facturación, acumulado, rubro que más sube.
-    candidatos.append(f"Facturación del mes: {usd(fact_act)}{variacion_kpi_txt(fact_act, fact_ant if kpi_ant else None)}.")
-    if len(data['kpiTrend']) > 1:
-        resultado_acum = sum(m['resultado'] for m in data['kpiTrend'])
-        primer_mes = data['kpiTrend'][0]['mes']
-        candidatos.append(f"Resultado acumulado {primer_mes} - {data['mesActual']}: {usd(resultado_acum)}.")
+    # (3) Rubro que más sube -- el verdadero "panorama": el porqué, no un
+    # número que ya está repetido en una tarjeta de arriba.
     if data['rubrosVariacion']:
         top = data['rubrosVariacion'][0]
         top_txt = f"{top['nombre']}, el rubro que más subió: {variacion_cell_txt(top)}."

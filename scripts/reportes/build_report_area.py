@@ -415,14 +415,10 @@ def build_area(data, area, mes_label, out_path):
         if margen_actual < 0 and margen_anterior >= 0:
             candidatos.append("Pasó a margen negativo este mes (el mes anterior había sido positivo).")
 
-    # (2) Panorama base.
-    candidatos.append(f"Facturación del mes: {usd(actual['ingresos'])}{variacion_kpi_txt(actual['ingresos'], anterior['ingresos'] if anterior else None)}.")
-    if actual['resultadoDirecto'] >= 0:
-        candidatos.append(f"Resultado del mes: {usd(actual['resultadoDirecto'])}{variacion_kpi_txt(actual['resultadoDirecto'], anterior['resultadoDirecto'] if anterior else None)}.")
-    if len(trend) > 1:
-        resultado_acum = sum(m['resultadoDirecto'] for m in trend)
-        primer_mes = trend[0]['mes']
-        candidatos.append(f"Resultado acumulado {primer_mes} - {actual['mes']}: {usd(resultado_acum)}.")
+    # (2) Rubro directo que más sube -- Facturación/Resultado/Resultado
+    # Acumulado NO se repiten acá: ya están en sus propias tarjetas arriba
+    # (KPIs y Resultado Acumulado), un bullet que solo repite ese número
+    # no agrega nada.
     if rubros_suben_area:
         top = rubros_suben_area[0]
         signo = '+' if top['deltaPct'] >= 0 else ''
