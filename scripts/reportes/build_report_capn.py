@@ -409,14 +409,10 @@ def build_capn(data, mes_label, out_path):
         if margen_actual < 0 and margen_anterior >= 0:
             candidatos.append("Pasó a margen negativo este mes (el mes anterior había sido positivo).")
 
-    # (2) Panorama base.
-    candidatos.append(f"Facturación del mes: {usd(actual['ingresos'])}{variacion_kpi_txt(actual['ingresos'], anterior['ingresos'] if anterior else None)}.")
-    if actual['resultado'] >= 0:
-        candidatos.append(f"Resultado del mes: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
-    if len(trend) > 1:
-        resultado_acum = sum(m['resultado'] for m in trend)
-        primer_mes = trend[0]['mes']
-        candidatos.append(f"Resultado acumulado {primer_mes} - {actual['mes']}: {usd(resultado_acum)}.")
+    # (2) Rubro que más sube -- Facturación/Resultado/Resultado Acumulado
+    # NO se repiten acá: ya están en sus propias tarjetas arriba (KPIs y
+    # Resultado Acumulado), un bullet que solo repite ese número no agrega
+    # nada.
     if rubros_suben:
         top = rubros_suben[0]
         signo = '+' if top['deltaPct'] >= 0 else ''
