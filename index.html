@@ -170,8 +170,8 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .chip.pos{background:rgba(0,72,54,.1);color:var(--verde)}.chip.neg{background:rgba(171,25,48,.1);color:var(--bordeaux)}
 .export-btn{display:flex;align-items:center;gap:6px;background:var(--crema);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
 .export-btn:hover{color:var(--grafito);border-color:var(--arena)}
-.export-btn.btn-capn{background:var(--crema);border:1.5px solid var(--bordeaux);color:var(--bordeaux);font-weight:700;padding:6px 14px}
-.export-btn.btn-capn:hover{background:var(--bordeaux);color:#fff}
+.export-btn.btn-accent{background:var(--crema);border:1.5px solid var(--bordeaux);color:var(--bordeaux);font-weight:700;padding:6px 14px}
+.export-btn.btn-accent:hover{background:var(--bordeaux);color:#fff}
 .seg-group{display:inline-flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}
 .seg-btn{background:var(--crema);border:none;border-right:1px solid var(--border);padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
 .seg-btn:last-child{border-right:none}
@@ -3648,7 +3648,7 @@ function renderReportes(){
     const pendientes=getMesesPendientesReporte();
     const mesPendiente=pendientes[0]||null;
     generarBtnHTML=mesPendiente
-      ?`<button class="export-btn" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
+      ?`<button class="export-btn btn-accent" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
       :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
   }
   // Botón para ir/volver de la vista Capital N -- en vez de mostrar esos
@@ -3656,8 +3656,8 @@ function renderReportes(){
   let capnBtnHTML='';
   if(puedeVerReportesCapN()){
     capnBtnHTML=vistaCapN
-      ?`<button class="export-btn" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`
-      :`<button class="export-btn btn-capn" onclick="switchReportesVista('capn')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>Ver Reportes de Capital N</button>`;
+      ?`<button class="export-btn btn-accent" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`
+      :`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>Ver Reportes de Capital N</button>`;
   }
   return`<div class="sec-hd"><div class="sec-title">${titulo}</div><div class="sec-sub">Generados automáticamente con IA</div></div>
     <div class="tc"><div class="tc-hd">Reportes
