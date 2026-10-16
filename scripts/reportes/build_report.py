@@ -570,11 +570,16 @@ def build(data, mes_label, out_path, bullets_extra=None):
     resultado_area_ant_alert = data.get('resultadoPorAreaAnterior') or {}
     areas_margen_nuevo_negativo = []
     for a in AREAS:
-        fact, fact_ant = ing_area_alert[a], ing_area_ant_alert.get(a, 0)
-        if fact <= 0 or not fact_ant or fact_ant <= 0:
+        # OJO: nombres distintos a fact_act/fact_ant (los de la empresa
+        # entera, usados más abajo en los KPIs y en "Análisis del mes") --
+        # reusar esos nombres acá los pisaba con el valor de la ÚLTIMA área
+        # del loop, corrompiendo el bullet de Facturación/Margen neto del
+        # mes más abajo (bug real, encontrado por verificación posterior).
+        area_fact, area_fact_ant = ing_area_alert[a], ing_area_ant_alert.get(a, 0)
+        if area_fact <= 0 or not area_fact_ant or area_fact_ant <= 0:
             continue
-        margen_actual = resultado_area_alert.get(a, 0) / fact
-        margen_anterior = resultado_area_ant_alert.get(a, 0) / fact_ant
+        margen_actual = resultado_area_alert.get(a, 0) / area_fact
+        margen_anterior = resultado_area_ant_alert.get(a, 0) / area_fact_ant
         if margen_actual < 0 and margen_anterior >= 0:
             areas_margen_nuevo_negativo.append(a)
     kpi_sub = f"vs. {data['mesAnterior']}" if kpi_ant else None
@@ -649,6 +654,25 @@ def build(data, mes_label, out_path, bullets_extra=None):
         signo = '+' if pct >= 0 else ''
         return f" ({signo}{pct:.1f}% vs. {data['mesAnterior']})"
 
+    def margen_bullet(result_actual, fact_actual, result_anterior, fact_anterior, mes_anterior_label):
+        # Margen neto (Resultado/Facturación) + variación en PUNTOS
+        # PORCENTUALES (no %) vs. el mes anterior -- restar dos porcentajes
+        # da directamente cuánto mejoró/empeoró el margen, sin el ruido de
+        # expresar esa diferencia como "% de variación de un %".
+        # Facturación <= 0 hace que el ratio sea indefinido o, peor, que
+        # dé un % positivo y "sano" cuando resultado y facturación son
+        # negativos a la vez (negativo / negativo) -- se omite el bullet
+        # directamente en vez de mostrar un margen que miente.
+        if not fact_actual or fact_actual <= 0:
+            return None
+        margen_actual = result_actual / fact_actual * 100
+        if fact_anterior and fact_anterior > 0:
+            margen_anterior = result_anterior / fact_anterior * 100
+            delta_pp = margen_actual - margen_anterior
+            signo = '+' if delta_pp >= 0 else ''
+            return f"Margen neto del mes: {margen_actual:.1f}% ({signo}{delta_pp:.1f} pp vs. {mes_anterior_label})."
+        return f"Margen neto del mes: {margen_actual:.1f}%."
+
     MAX_BULLETS = 5
     candidatos = []
     ya_mencionado = set()
@@ -658,6 +682,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
         candidatos.append(f"Resultado del mes fue negativo: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
     else:
         candidatos.append(f"Resultado del mes: {usd(result_act)}{variacion_kpi_txt(result_act, result_ant if kpi_ant else None)}.")
+    margen_txt = margen_bullet(result_act, fact_act, result_ant if kpi_ant else None, fact_ant if kpi_ant else None, data['mesAnterior'] if kpi_ant else None)
+    if margen_txt:
+        candidatos.append(margen_txt)
     if areas_sin_facturacion:
         candidatos.append(
             f"{', '.join(areas_sin_facturacion)}: facturación bruta negativa o cero este mes "
