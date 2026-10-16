@@ -386,6 +386,7 @@ def build_area(data, area, mes_label, out_path):
     doc = SimpleDocTemplate(
         out_path, pagesize=(PAGE_W, PAGE_H),
         leftMargin=MARGIN, rightMargin=MARGIN, topMargin=HEADER_H + 6 * mm, bottomMargin=16 * mm,
+        title=f"Reporte Mensual NEIX · {area} · {mes_label}", author="NEIX",
     )
     doc.build(story, onFirstPage=draw_header, onLaterPages=draw_header)
 
