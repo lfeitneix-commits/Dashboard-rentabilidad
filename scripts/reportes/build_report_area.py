@@ -379,10 +379,12 @@ def build_area(data, area, mes_label, out_path):
         # PORCENTUALES (no %) vs. el mes anterior.
         # Facturación <= 0 hace que el ratio sea indefinido o, peor, que
         # dé un % positivo y "sano" cuando resultado y facturación son
-        # negativos a la vez (negativo / negativo) -- se omite el bullet
-        # directamente en vez de mostrar un margen que miente.
+        # negativos a la vez (negativo / negativo) -- en vez de omitir el
+        # bullet (el margen SIEMPRE tiene que aparecer, a pedido), se dice
+        # explícitamente que no es un dato significativo ese mes, en vez
+        # de mostrar un % que miente.
         if not fact_actual or fact_actual <= 0:
-            return None
+            return "Margen neto del mes: no es un dato significativo (facturación negativa o cero este mes)."
         margen_actual = result_actual / fact_actual * 100
         if fact_anterior and fact_anterior > 0:
             margen_anterior = result_anterior / fact_anterior * 100
