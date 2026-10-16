@@ -3515,10 +3515,34 @@ const REPORTES_MENSUALES_AREA={
     {mes:'Agosto 2026',archivo:'reportes/area/2026-08-reporte-agosto-banca-privada.pdf',generado:'2026-10-16'},
   ],
 };
+// Mismo formato que REPORTES_MENSUALES, para "Capital N" (ver
+// scripts/reportes/build_report_capn.py) -- entidad propia, no una de las
+// 4 áreas de staff. Solo lo ve el login completo (no hay login de área
+// para Capital N), así que se muestra como una tabla aparte debajo de la
+// principal en renderReportes(), nunca en REPORTES_MENSUALES_AREA.
+const REPORTES_MENSUALES_CAPN=[
+  {mes:'Enero 2026',archivo:'reportes/capn/2026-01-reporte-enero-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Febrero 2026',archivo:'reportes/capn/2026-02-reporte-febrero-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Marzo 2026',archivo:'reportes/capn/2026-03-reporte-marzo-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Abril 2026',archivo:'reportes/capn/2026-04-reporte-abril-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Mayo 2026',archivo:'reportes/capn/2026-05-reporte-mayo-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Junio 2026',archivo:'reportes/capn/2026-06-reporte-junio-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Julio 2026',archivo:'reportes/capn/2026-07-reporte-julio-capital-n.pdf',generado:'2026-10-16'},
+  {mes:'Agosto 2026',archivo:'reportes/capn/2026-08-reporte-agosto-capital-n.pdf',generado:'2026-10-16'},
+];
 // Un login de área (ST.role==='lideres', ST.area seteado) ve solo los
 // reportes de SU área; el login completo ve el consolidado de siempre.
 function listaReportesActual(){
   return (ST.role==='lideres'&&ST.area)?(REPORTES_MENSUALES_AREA[ST.area]||[]):REPORTES_MENSUALES;
+}
+function buildReportesTableHTMLLista(lista){
+  const rows=[...lista].reverse().map(r=>`<tr>
+    <td>${r.mes}</td>
+    <td style="color:var(--muted);font-size:12px">${r.generado}</td>
+    <td class="r"><a href="${r.archivo}" target="_blank" class="export-btn" style="text-decoration:none;display:inline-flex">Ver PDF</a></td>
+  </tr>`).join('');
+  const body=rows||`<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Todavía no hay reportes generados</td></tr>`;
+  return`<table><thead><tr><th>Mes</th><th>Generado</th><th class="r">Archivo</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 function buildReportesTableHTML(query){
   const lista=listaReportesActual();
@@ -3625,7 +3649,10 @@ function renderReportes(){
       </div>
     </div>
       <div id="reportes-table-wrap">${buildReportesTableHTML(q)}</div>
-    </div>`;
+    </div>
+    ${!esArea?`<div class="tc" style="margin-top:20px"><div class="tc-hd">Capital N</div>
+      ${buildReportesTableHTMLLista(REPORTES_MENSUALES_CAPN)}
+    </div>`:''}`;
 }
 
 function buildMatrizTable(title,rowNames,tableKey,showDetalle=false){
