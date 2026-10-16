@@ -368,6 +368,23 @@ def build_capn(data, mes_label, out_path):
         signo = '+' if pct >= 0 else ''
         return f" ({signo}{pct:.1f}% vs. {anterior['mes']})"
 
+    def margen_bullet(result_actual, fact_actual, result_anterior, fact_anterior, mes_anterior_label):
+        # Margen neto (Resultado/Facturación) + variación en PUNTOS
+        # PORCENTUALES (no %) vs. el mes anterior.
+        # Facturación <= 0 hace que el ratio sea indefinido o, peor, que
+        # dé un % positivo y "sano" cuando resultado y facturación son
+        # negativos a la vez (negativo / negativo) -- se omite el bullet
+        # directamente en vez de mostrar un margen que miente.
+        if not fact_actual or fact_actual <= 0:
+            return None
+        margen_actual = result_actual / fact_actual * 100
+        if fact_anterior and fact_anterior > 0:
+            margen_anterior = result_anterior / fact_anterior * 100
+            delta_pp = margen_actual - margen_anterior
+            signo = '+' if delta_pp >= 0 else ''
+            return f"Margen neto del mes: {margen_actual:.1f}% ({signo}{delta_pp:.1f} pp vs. {mes_anterior_label})."
+        return f"Margen neto del mes: {margen_actual:.1f}%."
+
     MAX_BULLETS = 5
     candidatos = []
     ya_mencionado = set()
@@ -375,6 +392,13 @@ def build_capn(data, mes_label, out_path):
     # (1) Señales críticas.
     if actual['resultado'] < 0:
         candidatos.append(f"Resultado del mes fue negativo: {usd(actual['resultado'])}{variacion_kpi_txt(actual['resultado'], anterior['resultado'] if anterior else None)}.")
+    margen_txt = margen_bullet(
+        actual['resultado'], actual['ingresos'],
+        anterior['resultado'] if anterior else None, anterior['ingresos'] if anterior else None,
+        anterior['mes'] if anterior else None,
+    )
+    if margen_txt:
+        candidatos.append(margen_txt)
     if actual['ingresos'] <= 0:
         candidatos.append("Sin facturación (o facturación negativa) este mes.")
     if anterior and actual['ingresos'] > 0 and anterior['ingresos'] > 0:
