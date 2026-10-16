@@ -3545,8 +3545,13 @@ function puedeVerReportesCapN(){
   return !esArea||ST.area==='Banca Privada';
 }
 function listaReportesActual(){
+  const esArea=ST.role==='lideres'&&ST.area;
   if(puedeVerReportesCapN()&&ST.reportesVista==='capn') return REPORTES_MENSUALES_CAPN;
-  return (ST.role==='lideres'&&ST.area)?(REPORTES_MENSUALES_AREA[ST.area]||[]):REPORTES_MENSUALES;
+  // Login completo: tambíen puede pararse en la vista de un área puntual
+  // (botones Mesa/FAs/Banca Corporativa/Banca Privada en Reportes
+  // Mensuales) sin perder el listado consolidado de siempre como default.
+  if(!esArea&&AREAS.includes(ST.reportesVista)) return REPORTES_MENSUALES_AREA[ST.reportesVista]||[];
+  return esArea?(REPORTES_MENSUALES_AREA[ST.area]||[]):REPORTES_MENSUALES;
 }
 function switchReportesVista(v){
   ST.reportesVista=v;
@@ -3636,7 +3641,15 @@ function generarReporteClick(){
 function renderReportes(){
   const esArea=ST.role==='lideres'&&ST.area;
   const vistaCapN=puedeVerReportesCapN()&&ST.reportesVista==='capn';
-  const titulo=vistaCapN?'Reportes Mensuales · Capital N':(esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales');
+  // Login completo únicamente: además del consolidado (vista "propio",
+  // default) y Capital N, puede pararse en el reporte de una de las 4
+  // áreas sin perder de vista el generico -- "no me saques los informes
+  // genericos", solo agregar botones para segmentar.
+  const vistaArea=(!esArea&&AREAS.includes(ST.reportesVista))?ST.reportesVista:null;
+  const enOtraVista=vistaCapN||vistaArea;
+  const titulo=vistaCapN?'Reportes Mensuales · Capital N'
+    :vistaArea?`Reportes Mensuales · ${vistaArea}`
+    :(esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales');
   document.getElementById('topbar-title').textContent=titulo;
   const q=ST.reportesSearchQuery||'';
   const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -3644,26 +3657,29 @@ function renderReportes(){
   // hay uno equivalente para reportes por área (ni Capital N) todavía, así
   // que en esas vistas solo se ven los ya generados, sin botón.
   let generarBtnHTML='';
-  if(!esArea&&!vistaCapN){
+  if(!esArea&&!enOtraVista){
     const pendientes=getMesesPendientesReporte();
     const mesPendiente=pendientes[0]||null;
     generarBtnHTML=mesPendiente
       ?`<button class="export-btn btn-accent" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
       :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
   }
-  // Botón para ir/volver de la vista Capital N -- en vez de mostrar esos
-  // reportes como una tabla aparte, siempre visible, abajo de todo.
-  let capnBtnHTML='';
-  if(puedeVerReportesCapN()){
-    capnBtnHTML=vistaCapN
-      ?`<button class="export-btn btn-accent" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`
-      :`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>Ver Reportes de Capital N</button>`;
+  // Botones para ir/volver de las otras vistas -- en vez de mostrar cada
+  // una como una tabla aparte, siempre visible, abajo de todo.
+  let extraBtnsHTML='';
+  if(enOtraVista){
+    extraBtnsHTML=`<button class="export-btn btn-accent" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`;
+  } else if(!esArea){
+    extraBtnsHTML=AREAS.map(a=>`<button class="export-btn btn-accent" onclick="switchReportesVista('${a}')">${a}</button>`).join('')
+      +(puedeVerReportesCapN()?`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')">Capital N</button>`:'');
+  } else if(puedeVerReportesCapN()){
+    extraBtnsHTML=`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>Ver Reportes de Capital N</button>`;
   }
   return`<div class="sec-hd"><div class="sec-title">${titulo}</div><div class="sec-sub">Generados automáticamente con IA</div></div>
     <div class="tc"><div class="tc-hd">Reportes
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${generarBtnHTML}
-        ${capnBtnHTML}
+        ${extraBtnsHTML}
         <div class="search-wrap"><svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10.5 10.5l3 3" stroke-linecap="round"/></svg><input class="search-input" id="reportes-search" type="text" placeholder="Buscar mes…" autocomplete="off" value="${qAttr}" oninput="filterReportes(this.value)"/><div class="search-clear" id="reportes-search-clear${q.length>0?' visible':''}" onclick="clearReportesSearch()"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div></div>
       </div>
     </div>
