@@ -210,7 +210,16 @@ const APP = context.__APP__;
       .map(r => {
         const nota = notaParaCuenta(r.nombre);
         const conNota = nota ? { ...r, notaManual: nota.texto, notaMes: nota.mes } : r;
-        return { ...conNota, ...historialRubro(r.nombre, r.actual) };
+        // Serie completa (todos los meses de mesesTrend, no solo
+        // anterior/actual) -- para detectar una racha de VARIOS meses
+        // subiendo o bajando seguidos, no solo el último cambio. Mismos
+        // montos que arman historialRubro()/rankPorMesHistoria arriba,
+        // más el valor actual al final.
+        const serie = mesesTrend.map((mes, i) => ({
+          mes,
+          monto: i < mesesHistoria.length ? (rankPorMesHistoria[i][r.nombre] || 0) : r.actual,
+        }));
+        return { ...conNota, ...historialRubro(r.nombre, r.actual), serie };
       });
   }
 
@@ -299,7 +308,14 @@ const APP = context.__APP__;
         const anterior = montoAnterior[nombre] || 0;
         const actual = montoActual[nombre] || 0;
         if (anterior > RUBRO_AREA_MONTO_MIN && actual > RUBRO_AREA_MONTO_MIN) {
-          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialRubroArea(area, nombre, actual) });
+          // Serie completa (todos los meses de mesesTrend) -- para
+          // detectar una racha de VARIOS meses subiendo/bajando seguidos,
+          // no solo el último cambio vs. mesAnterior.
+          const serie = mesesTrend.map((mes, i) => ({
+            mes,
+            monto: i < mesesHistoria.length ? (rankPorMesHistoriaPorArea[area][i][nombre] || 0) : actual,
+          }));
+          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialRubroArea(area, nombre, actual), serie });
         }
       });
       lista.sort((a, b) => b.deltaPct - a.deltaPct);
@@ -347,7 +363,8 @@ const APP = context.__APP__;
     });
     return { fijos, variables };
   }
-  const capnConceptosPorMesHistoria = mesesHistoria.filter(m => capnMesesCols.includes(m)).map(capnConceptos);
+  const capnMesesHistoriaFiltrados = mesesHistoria.filter(m => capnMesesCols.includes(m));
+  const capnConceptosPorMesHistoria = capnMesesHistoriaFiltrados.map(capnConceptos);
   function historialCapN(nombre, actual) {
     if (capnConceptosPorMesHistoria.length < MESES_MIN_HISTORIAL) return {};
     const montos = capnConceptosPorMesHistoria.map(porNombre => porNombre[nombre] || 0);
@@ -366,7 +383,14 @@ const APP = context.__APP__;
       const anterior = montoAnterior[nombre] || 0;
       const actual = montoActual[nombre] || 0;
       if (anterior > CAPN_MONTO_MIN && actual > CAPN_MONTO_MIN) {
-        capnRubrosVariacion.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialCapN(nombre, actual) });
+        // Serie completa (meses de capnMesesHistoriaFiltrados + el actual)
+        // -- para detectar una racha de VARIOS meses subiendo/bajando
+        // seguidos, no solo el último cambio vs. mesAnterior.
+        const serie = [
+          ...capnMesesHistoriaFiltrados.map((mes, i) => ({ mes, monto: capnConceptosPorMesHistoria[i][nombre] || 0 })),
+          { mes: mesActual, monto: actual },
+        ];
+        capnRubrosVariacion.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialCapN(nombre, actual), serie });
       }
     });
     capnRubrosVariacion.sort((a, b) => b.deltaPct - a.deltaPct);
