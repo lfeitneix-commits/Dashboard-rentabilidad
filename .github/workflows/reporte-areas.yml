@@ -1,0 +1,19 @@
+name: Reportes por Área
+
+on:
+  schedule:
+    - cron: "30 12 1 * *"   # día 1 de cada mes, 9:30 hora Argentina (UTC-3)
+  workflow_dispatch:         # botón para correrlo a mano desde la pestaña Actions
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python enviar_reportes_areas.py
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
