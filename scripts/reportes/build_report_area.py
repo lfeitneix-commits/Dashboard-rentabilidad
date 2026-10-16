@@ -302,9 +302,15 @@ def build_area(data, area, mes_label, out_path):
     actual = trend[-1]
     anterior = trend[-2] if len(trend) > 1 else None
 
+    # "Resultado" acá es Facturación menos SOLO los gastos DIRECTOS de esta
+    # área (gastosDirectos/resultadoDirecto, ver gastoDirectoPorArea() en
+    # extract_data.js) -- no Gastos Totales (que suma el prorrateo de
+    # indirectos entre las 4 áreas, algo que un líder de área no controla
+    # ni decide). Mismo criterio en todo el reporte: KPIs, gráfico,
+    # acumulado y alertas.
     fact_var = pct_or_delta(actual['ingresos'], anterior['ingresos']) if anterior else (Paragraph('', styles['VarCell']), MUTED_TINT)
-    gastos_var = pct_or_delta(actual['egresos'], anterior['egresos']) if anterior else (Paragraph('', styles['VarCell']), MUTED_TINT)
-    result_var = pct_or_delta(actual['resultado'], anterior['resultado']) if anterior else (Paragraph('', styles['VarCell']), MUTED_TINT)
+    gastos_var = pct_or_delta(actual['gastosDirectos'], anterior['gastosDirectos']) if anterior else (Paragraph('', styles['VarCell']), MUTED_TINT)
+    result_var = pct_or_delta(actual['resultadoDirecto'], anterior['resultadoDirecto']) if anterior else (Paragraph('', styles['VarCell']), MUTED_TINT)
     kpi_sub = f"vs. {anterior['mes']}" if anterior else None
 
     rubros_area = (data.get('rubrosVariacionPorArea') or {}).get(area) or []
@@ -323,8 +329,8 @@ def build_area(data, area, mes_label, out_path):
 
     kpis = Table(
         [[kpi_card("Facturación", usd(actual['ingresos']), fact_var, kpi_sub),
-          kpi_card("Gastos totales", usd(actual['egresos']), gastos_var, kpi_sub),
-          kpi_card("Resultado", usd(actual['resultado']), result_var, kpi_sub)]],
+          kpi_card("Gastos directos", usd(actual['gastosDirectos']), gastos_var, kpi_sub),
+          kpi_card("Resultado", usd(actual['resultadoDirecto']), result_var, kpi_sub)]],
         colWidths=[CONTENT_W / 3] * 3,
     )
     kpis.setStyle(TableStyle([
@@ -332,12 +338,19 @@ def build_area(data, area, mes_label, out_path):
     ]))
     story.append(Spacer(1, 4))
     story.append(kpis)
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(
+        "Resultado = Facturación − Gastos Directos de esta área (no incluye el prorrateo de gastos indirectos "
+        "entre las 4 áreas).",
+        styles['NotaChica'],
+    ))
 
     # ── Resultado acumulado del año en curso -- mismo criterio que el
-    # consolidado: suma de "resultado" de todos los meses del trend. Se
-    # omite en el primer mes (sería el mismo número que el KPI de arriba). ──
+    # consolidado: suma de "resultadoDirecto" de todos los meses del trend.
+    # Se omite en el primer mes (sería el mismo número que el KPI de
+    # arriba). ──
     if len(trend) > 1:
-        resultado_acum = sum(m['resultado'] for m in trend)
+        resultado_acum = sum(m['resultadoDirecto'] for m in trend)
         primer_mes = trend[0]['mes']
         with keep_together():
             story.append(Spacer(1, 6))
@@ -346,13 +359,13 @@ def build_area(data, area, mes_label, out_path):
     # ── Alertas del mes: mismas señales que el consolidado, calculadas
     # para esta área puntual en vez de para toda la empresa. ──
     alertas = []
-    if actual['resultado'] < 0:
-        alertas.append(f"Resultado del mes fue negativo ({usd(actual['resultado'])}).")
+    if actual['resultadoDirecto'] < 0:
+        alertas.append(f"Resultado del mes fue negativo ({usd(actual['resultadoDirecto'])}).")
     if actual['ingresos'] <= 0:
         alertas.append("Sin facturación (o facturación negativa) este mes.")
     if anterior and actual['ingresos'] > 0 and anterior['ingresos'] > 0:
-        margen_actual = actual['resultado'] / actual['ingresos']
-        margen_anterior = anterior['resultado'] / anterior['ingresos']
+        margen_actual = actual['resultadoDirecto'] / actual['ingresos']
+        margen_anterior = anterior['resultadoDirecto'] / anterior['ingresos']
         if margen_actual < 0 and margen_anterior >= 0:
             alertas.append(f"Pasó a margen negativo este mes (el mes anterior había sido positivo).")
     if rubros_suben_area and rubros_suben_area[0].get('esAtipico'):
@@ -426,8 +439,8 @@ def build_area(data, area, mes_label, out_path):
             meses_trend = [m['mes'][:3] for m in trend]
             series = [
                 ("Facturación", AZUL, [m['ingresos'] for m in trend]),
-                ("Gastos", BORDEAUX, [m['egresos'] for m in trend]),
-                ("Resultado", VERDE, [m['resultado'] for m in trend]),
+                ("Gastos directos", BORDEAUX, [m['gastosDirectos'] for m in trend]),
+                ("Resultado", VERDE, [m['resultadoDirecto'] for m in trend]),
             ]
             trend_chart(meses_trend, series)
 
