@@ -146,7 +146,28 @@ const APP = context.__APP__;
       Julio: 'hubo una obra de mantenimiento en la oficina ese mes, que no se repitió después',
     },
   };
+  // Nota ESTACIONAL (a diferencia de NOTAS_CUENTAS, no atada a un año
+  // puntual) para "Sueldos y CS" -- en Junio y Diciembre se paga el
+  // aguinaldo (SAC) y en Julio y Enero un bono, ambos predecibles y
+  // recurrentes cada semestre. Sin esto, el salto se veía como un "rubro
+  // atípico"/"racha subiendo" sin explicación, cuando en realidad es
+  // esperable todos los años en esos 4 meses. Aplica a "Sueldos y CS" y a
+  // sus variantes por área (ej. "Sueldos y CS Mesa", "Sueldos y CS BC" --
+  // ver RUBROS_FIJOS en index.html), y a Capital N (mismo concepto en
+  // CAPN_FIJOS).
+  function notaEstacional(nombre, mes) {
+    if (!/^Sueldos y CS/i.test(nombre)) return null;
+    if (mes === 'Junio' || mes === 'Diciembre') return 'incluye el pago del aguinaldo (SAC) -- estacional, se repite cada Junio y Diciembre';
+    if (mes === 'Julio' || mes === 'Enero') return 'incluye el pago de un bono -- estacional, se repite cada Julio y Enero';
+    return null;
+  }
   function notaParaCuenta(nombre) {
+    const estacionalActual = notaEstacional(nombre, mesActual);
+    if (estacionalActual) return { mes: mesActual, texto: estacionalActual };
+    if (mesAnterior) {
+      const estacionalAnterior = notaEstacional(nombre, mesAnterior);
+      if (estacionalAnterior) return { mes: mesAnterior, texto: estacionalAnterior };
+    }
     const porMes = NOTAS_CUENTAS[nombre];
     if (!porMes) return null;
     if (porMes[mesActual]) return { mes: mesActual, texto: porMes[mesActual] };
@@ -315,7 +336,9 @@ const APP = context.__APP__;
             mes,
             monto: i < mesesHistoria.length ? (rankPorMesHistoriaPorArea[area][i][nombre] || 0) : actual,
           }));
-          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialRubroArea(area, nombre, actual), serie });
+          const notaEst = notaEstacional(nombre, mesActual) || (mesAnterior && notaEstacional(nombre, mesAnterior));
+          const conNota = notaEst ? { notaManual: notaEst } : {};
+          lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialRubroArea(area, nombre, actual), serie, ...conNota });
         }
       });
       lista.sort((a, b) => b.deltaPct - a.deltaPct);
@@ -390,7 +413,9 @@ const APP = context.__APP__;
           ...capnMesesHistoriaFiltrados.map((mes, i) => ({ mes, monto: capnConceptosPorMesHistoria[i][nombre] || 0 })),
           { mes: mesActual, monto: actual },
         ];
-        capnRubrosVariacion.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialCapN(nombre, actual), serie });
+        const notaEst = notaEstacional(nombre, mesActual) || (mesAnterior && notaEstacional(nombre, mesAnterior));
+        const conNota = notaEst ? { notaManual: notaEst } : {};
+        capnRubrosVariacion.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialCapN(nombre, actual), serie, ...conNota });
       }
     });
     capnRubrosVariacion.sort((a, b) => b.deltaPct - a.deltaPct);

@@ -701,12 +701,16 @@ def build(data, mes_label, out_path, bullets_extra=None):
             _direccion, streak = racha
             score = abs(streak[-1][1] - streak[0][1])
             if mejor is None or score > mejor[0]:
-                mejor = (score, r['nombre'], streak)
+                mejor = (score, r, streak)
         if not mejor:
             return None
-        _score, nombre, streak = mejor
+        _score, rubro, streak = mejor
+        nombre = rubro['nombre']
         valores_txt = ' → '.join(num(v) for _, v in streak)
-        return nombre, f"{nombre} viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
+        texto = f"{nombre} viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
+        if rubro.get('notaManual'):
+            texto += f" {rubro['notaManual']}."
+        return nombre, texto
 
     def racha_resultado_negativo(trend, result_key):
         # Meses consecutivos (terminando en el actual) con resultado < 0.
@@ -823,7 +827,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
     )[:ATIPICOS_EXTRA_TOP_N]
     for item in atipicos_extra:
         ya_mencionado.add(item['nombre'])
-        candidatos.append(f"{item['nombre']}: {variacion_cell_txt(item)}.{nota_historico(item)}")
+        texto_item = f"{item['nombre']}: {variacion_cell_txt(item)}."
+        if item.get('notaManual'):
+            texto_item += f" {item['notaManual']}."
+        texto_item += nota_historico(item)
+        candidatos.append(texto_item)
 
     bullets = candidatos[:MAX_BULLETS]
     with keep_together():
