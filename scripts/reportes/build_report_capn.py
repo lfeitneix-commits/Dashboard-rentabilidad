@@ -411,12 +411,16 @@ def build_capn(data, mes_label, out_path):
             _direccion, streak = racha
             score = abs(streak[-1][1] - streak[0][1])
             if mejor is None or score > mejor[0]:
-                mejor = (score, r['nombre'], streak)
+                mejor = (score, r, streak)
         if not mejor:
             return None
-        _score, nombre, streak = mejor
+        _score, rubro, streak = mejor
+        nombre = rubro['nombre']
         valores_txt = ' → '.join(num(v) for _, v in streak)
-        return nombre, f"{nombre} viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
+        texto = f"{nombre} viene {direccion} hace {len(streak) - 1} meses seguidos: {valores_txt}."
+        if rubro.get('notaManual'):
+            texto += f" {rubro['notaManual']}."
+        return nombre, texto
 
     def racha_resultado_negativo(trend_list, result_key):
         streak = 0
@@ -489,6 +493,8 @@ def build_capn(data, mes_label, out_path):
         top = rubros_suben[0]
         signo = '+' if top['deltaPct'] >= 0 else ''
         bullet = f"{top['nombre']}, el rubro que más subió: {signo}{top['deltaPct']:.1f}% ({num(top['anterior'])} → {num(top['actual'])})."
+        if top.get('notaManual'):
+            bullet += f" {top['notaManual']}."
         bullet += nota_historico(top)
         candidatos.append(bullet)
         ya_mencionado.add(top['nombre'])
@@ -510,10 +516,11 @@ def build_capn(data, mes_label, out_path):
     for item in atipicos:
         ya_mencionado.add(item['nombre'])
         signo = '+' if item['deltaPct'] >= 0 else ''
-        candidatos.append(
-            f"{item['nombre']}: {signo}{item['deltaPct']:.1f}% ({num(item['anterior'])} → {num(item['actual'])})."
-            f"{nota_historico(item)}"
-        )
+        texto_item = f"{item['nombre']}: {signo}{item['deltaPct']:.1f}% ({num(item['anterior'])} → {num(item['actual'])})."
+        if item.get('notaManual'):
+            texto_item += f" {item['notaManual']}."
+        texto_item += nota_historico(item)
+        candidatos.append(texto_item)
 
     bullets = candidatos[:MAX_BULLETS]
     with keep_together():
