@@ -172,6 +172,7 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .export-btn:hover{color:var(--grafito);border-color:var(--arena)}
 .export-btn.btn-accent{background:var(--crema);border:1.5px solid var(--bordeaux);color:var(--bordeaux);font-weight:700;padding:6px 14px}
 .export-btn.btn-accent:hover{background:var(--bordeaux);color:#fff}
+.export-btn.btn-accent.active{background:var(--bordeaux);color:#fff;cursor:default}
 .seg-group{display:inline-flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}
 .seg-btn{background:var(--crema);border:none;border-right:1px solid var(--border);padding:4px 10px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s}
 .seg-btn:last-child{border-right:none}
@@ -3649,7 +3650,7 @@ function renderReportes(){
   const enOtraVista=vistaCapN||vistaArea;
   const titulo=vistaCapN?'Reportes Mensuales · Capital N'
     :vistaArea?`Reportes Mensuales · ${vistaArea}`
-    :(esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales');
+    :(esArea?`Reportes Mensuales · ${ST.area}`:'Reportes Mensuales · Todas las Áreas');
   document.getElementById('topbar-title').textContent=titulo;
   const q=ST.reportesSearchQuery||'';
   const qAttr=q.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -3664,16 +3665,25 @@ function renderReportes(){
       ?`<button class="export-btn btn-accent" id="generar-reporte-btn" onclick="generarReporteClick()" title="Copia al portapapeles el pedido para armar este reporte"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Generar Reporte · ${mesPendiente} 2026</button>`
       :`<button class="export-btn" id="generar-reporte-btn" disabled style="opacity:.55;cursor:default">Reportes al día ✓</button>`;
   }
-  // Botones para ir/volver de las otras vistas -- en vez de mostrar cada
-  // una como una tabla aparte, siempre visible, abajo de todo.
+  // Botones para moverse entre vistas -- selector persistente (como
+  // pestañas): TODAS las opciones quedan siempre visibles, con la actual
+  // marcada como activa, para que sea obvio en qué reporte estás parado
+  // en vez de tener que leer el título de arriba ("¿estoy en el
+  // consolidado o en el de un área?" fue la confusión puntual).
   let extraBtnsHTML='';
-  if(enOtraVista){
-    extraBtnsHTML=`<button class="export-btn btn-accent" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`;
-  } else if(!esArea){
-    extraBtnsHTML=AREAS.map(a=>`<button class="export-btn btn-accent" onclick="switchReportesVista('${a}')">${a}</button>`).join('')
-      +(puedeVerReportesCapN()?`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')">Capital N</button>`:'');
+  if(!esArea){
+    const opciones=[{v:'propio',label:'Todas las Áreas'}, ...AREAS.map(a=>({v:a,label:a}))];
+    if(puedeVerReportesCapN()) opciones.push({v:'capn',label:'Capital N'});
+    extraBtnsHTML=opciones.map(o=>{
+      const activo=o.v==='propio'?!enOtraVista:o.v===ST.reportesVista;
+      return activo
+        ?`<button class="export-btn btn-accent active" disabled>${o.label}</button>`
+        :`<button class="export-btn btn-accent" onclick="switchReportesVista('${o.v}')">${o.label}</button>`;
+    }).join('');
   } else if(puedeVerReportesCapN()){
-    extraBtnsHTML=`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>Ver Reportes de Capital N</button>`;
+    extraBtnsHTML=vistaCapN
+      ?`<button class="export-btn btn-accent" onclick="switchReportesVista('propio')"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Volver</button>`
+      :`<button class="export-btn btn-accent" onclick="switchReportesVista('capn')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M8 3l5 5-5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>Ver Reportes de Capital N</button>`;
   }
   return`<div class="sec-hd"><div class="sec-title">${titulo}</div><div class="sec-sub">Generados automáticamente con IA</div></div>
     <div class="tc"><div class="tc-hd">Reportes
