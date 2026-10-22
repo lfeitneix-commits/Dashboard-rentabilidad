@@ -5760,7 +5760,10 @@ async function enviarMensajeChatIA(){
         break;
       }
       if(data.functionCall){
-        CHAT_IA.historial.push({role:'functionCall',name:data.functionCall.name,args:data.functionCall.args});
+        // thoughtSignature viaja pegado a este pedido de función -- hay que
+        // guardarlo tal cual y reenviarlo en el próximo turno, si no Gemini
+        // responde 400 ("Function call is missing a thought_signature").
+        CHAT_IA.historial.push({role:'functionCall',name:data.functionCall.name,args:data.functionCall.args,thoughtSignature:data.thoughtSignature||null});
         const resultado=await ejecutarHerramientaChatIA(data.functionCall.name,data.functionCall.args);
         CHAT_IA.historial.push({role:'functionResponse',name:data.functionCall.name,response:resultado});
         continue;

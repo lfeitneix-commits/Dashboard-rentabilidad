@@ -98,7 +98,14 @@ function turnosAGemini(turnos) {
       if (t.role === "user" && typeof t.text === "string") return { role: "user", parts: [{ text: t.text }] };
       if (t.role === "assistant" && typeof t.text === "string") return { role: "model", parts: [{ text: t.text }] };
       if (t.role === "functionCall" && t.name) {
-        return { role: "model", parts: [{ functionCall: { name: t.name, args: t.args || {} } }] };
+        const part = { functionCall: { name: t.name, args: t.args || {} } };
+        // Gemini exige reenviar, tal cual, la "firma de pensamiento" que vino
+        // pegada a este mismo part cuando el modelo pidió la función -- si no
+        // viaja, el siguiente generateContent falla con 400 ("Function call
+        // is missing a thought_signature"). Se guarda en el turno del lado
+        // del frontend (ver enviarMensajeChatIA) y se reenvía acá.
+        if (t.thoughtSignature) part.thoughtSignature = t.thoughtSignature;
+        return { role: "model", parts: [part] };
       }
       if (t.role === "functionResponse" && t.name) {
         return {
@@ -144,9 +151,11 @@ export default async function handler(req, res) {
     if (r.ok) {
       const part = data.candidates?.[0]?.content?.parts?.[0];
       if (part?.functionCall) {
-        return res
-          .status(200)
-          .json({ functionCall: { name: part.functionCall.name, args: part.functionCall.args || {} }, modelo });
+        return res.status(200).json({
+          functionCall: { name: part.functionCall.name, args: part.functionCall.args || {} },
+          thoughtSignature: part.thoughtSignature || null,
+          modelo,
+        });
       }
       return res.status(200).json({ text: part?.text ?? "", modelo });
     }
