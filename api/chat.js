@@ -108,8 +108,11 @@ function turnosAGemini(turnos) {
         return { role: "model", parts: [part] };
       }
       if (t.role === "functionResponse" && t.name) {
+        // Probado contra el endpoint real: estos modelos rechazan el rol
+        // "function" ("Role 'function' is not supported") -- el resultado de
+        // la herramienta va con rol "user", como cualquier otro turno.
         return {
-          role: "function",
+          role: "user",
           parts: [{ functionResponse: { name: t.name, response: { name: t.name, content: t.response } } }],
         };
       }
