@@ -5,13 +5,23 @@
 // fetch desde el navegador) y el botón caía siempre al plan B de copiar
 // el pedido al portapapeles. Esta función hace el mismo pedido del lado
 // del servidor, donde CORS no aplica.
-const GH_ACTIONS_TOKEN = "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";
+//
+// El token vive en la variable de entorno GH_ACTIONS_TOKEN (Vercel) --
+// NO hardcodeado acá: con el token como literal en el código, Vercel
+// devolvía 401 "Bad credentials" en cada intento aunque el mismo token
+// probado directo contra la API de GitHub (fuera de Vercel) respondía
+// 204 sin problema. Está acotado SOLO a "Actions: read and write" sobre
+// este repo -- no puede leer ni escribir contenido del repo.
+const GH_ACTIONS_TOKEN = process.env.GH_ACTIONS_TOKEN;
 const GH_OWNER = "lfeitneix-commits";
 const GH_REPO = "Dashboard-rentabilidad";
 const GH_WORKFLOW = "generar-reporte.yml";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
+  if (!GH_ACTIONS_TOKEN) {
+    return res.status(500).json({ error: "Falta la variable de entorno GH_ACTIONS_TOKEN en Vercel." });
+  }
 
   const r = await fetch(
     `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,
