@@ -25,7 +25,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependencias Python
-        run: pip install reportlab
+        run: pip install reportlab svglib
 
       - name: Extraer datos del Sheet
         id: extract
