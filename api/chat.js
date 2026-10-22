@@ -1,10 +1,11 @@
-// Asistente de controlling de Neix S.A. -- usa function calling de Gemini:
-// en vez de mandarle de antemano "todo lo que parece relevante" (lo que
-// hacía la versión anterior, y por eso siempre terminaba faltando algún
-// dato), el modelo pide la herramienta puntual que necesita y el
-// dashboard la ejecuta del lado del cliente (ver ejecutarHerramientaChatIA
-// en index.html) -- los datos viven en el browser, esta función nunca los
-// toca directamente, solo hace de puente hacia Gemini.
+// Asistente de controlling de Neix S.A. -- usa function calling de Claude
+// (Anthropic): en vez de mandarle de antemano "todo lo que parece
+// relevante" (lo que hacía la primera versión, y por eso siempre
+// terminaba faltando algún dato), el modelo pide la herramienta puntual
+// que necesita y el dashboard la ejecuta del lado del cliente (ver
+// ejecutarHerramientaChatIA en index.html) -- los datos viven en el
+// browser, esta función nunca los toca directamente, solo hace de
+// puente hacia la API de Claude.
 const SYSTEM_PROMPT =
   "Sos un asistente de controlling de Neix S.A. Respondés en español rioplatense, de forma directa y concisa. " +
   "Contestás preguntas sobre los datos del dashboard de centro de costos y rentabilidad. " +
@@ -12,20 +13,22 @@ const SYSTEM_PROMPT =
   "Tenés herramientas para consultar datos puntuales (KPIs de un mes, evolución mensual, ranking de rubros, " +
   "gastos por proveedor, Capital N): usalas siempre que la pregunta lo requiera, en vez de responder de memoria.";
 
-// Cada herramienta se declara acá (nombre + parámetros, para que Gemini
+const MODELO = "claude-sonnet-5-5";
+
+// Cada herramienta se declara acá (nombre + parámetros, para que Claude
 // sepa cuándo y cómo pedirla) pero se EJECUTA del lado del dashboard
 // (ejecutarHerramientaChatIA en index.html) -- esta función solo reenvía
-// el pedido y la respuesta entre el frontend y Gemini.
+// el pedido y la respuesta entre el frontend y Claude.
 const TOOLS = [
   {
     name: "obtener_kpis_mes",
     description:
       "Ingresos, egresos y resultado de un mes puntual, sumando las áreas visibles para este usuario. " +
       "Para el total de todos los meses cargados, usar mes=\"__consolidado__\".",
-    parameters: {
-      type: "OBJECT",
+    input_schema: {
+      type: "object",
       properties: {
-        mes: { type: "STRING", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\"" },
+        mes: { type: "string", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\"" },
       },
       required: ["mes"],
     },
@@ -35,17 +38,17 @@ const TOOLS = [
     description:
       "Serie mensual completa (ingresos, egresos, resultado) de todos los meses cargados, sumando las áreas " +
       "visibles para este usuario. Útil para ver tendencias a lo largo del tiempo.",
-    parameters: { type: "OBJECT", properties: {} },
+    input_schema: { type: "object", properties: {} },
   },
   {
     name: "obtener_ranking_rubros",
     description:
       "Ranking de rubros de gasto de toda la compañía en un mes puntual, de mayor a menor monto. " +
       "No disponible para líderes de área.",
-    parameters: {
-      type: "OBJECT",
+    input_schema: {
+      type: "object",
       properties: {
-        mes: { type: "STRING", description: "Mes en español o \"__consolidado__\"" },
+        mes: { type: "string", description: "Mes en español o \"__consolidado__\"" },
       },
       required: ["mes"],
     },
@@ -55,12 +58,12 @@ const TOOLS = [
     description:
       "Busca cuánto se le pagó, mes a mes, a un proveedor o cuenta puntual (ej. \"Tanoira\", \"Edenor\", " +
       "\"Santangelo\"). No disponible para líderes de área.",
-    parameters: {
-      type: "OBJECT",
+    input_schema: {
+      type: "object",
       properties: {
-        nombre: { type: "STRING", description: "Nombre o parte del nombre del proveedor/cuenta a buscar" },
+        nombre: { type: "string", description: "Nombre o parte del nombre del proveedor/cuenta a buscar" },
         anio: {
-          type: "STRING",
+          type: "string",
           enum: ["actual", "2025"],
           description: "Año a buscar: \"actual\" (año en curso) o \"2025\" (cerrado). Default \"actual\".",
         },
@@ -73,10 +76,10 @@ const TOOLS = [
     description:
       "Ingresos/egresos/resultado de Capital N. Si se pasa un mes puntual devuelve ese mes; si no, la " +
       "evolución completa. Solo disponible para acceso completo o Banca Privada.",
-    parameters: {
-      type: "OBJECT",
+    input_schema: {
+      type: "object",
       properties: {
-        mes: { type: "STRING", description: "Mes en español, o vacío para traer la evolución completa" },
+        mes: { type: "string", description: "Mes en español, o vacío para traer la evolución completa" },
       },
     },
   },
@@ -92,28 +95,26 @@ function herramientasPermitidas(rol) {
   });
 }
 
-function turnosAGemini(turnos) {
+// Convierte el historial de turnos (provider-agnóstico, lo arma el
+// frontend) al formato de `messages` de Claude. Un tool_use de Claude
+// lleva un `id` propio que hay que reenviar tal cual en el tool_result
+// correspondiente -- el frontend lo guarda en el turno (ver
+// enviarMensajeChatIA) y acá se reutiliza como tool_use_id.
+function turnosAClaude(turnos) {
   return turnos
     .map((t) => {
-      if (t.role === "user" && typeof t.text === "string") return { role: "user", parts: [{ text: t.text }] };
-      if (t.role === "assistant" && typeof t.text === "string") return { role: "model", parts: [{ text: t.text }] };
+      if (t.role === "user" && typeof t.text === "string") return { role: "user", content: t.text };
+      if (t.role === "assistant" && typeof t.text === "string") return { role: "assistant", content: t.text };
       if (t.role === "functionCall" && t.name) {
-        const part = { functionCall: { name: t.name, args: t.args || {} } };
-        // Gemini exige reenviar, tal cual, la "firma de pensamiento" que vino
-        // pegada a este mismo part cuando el modelo pidió la función -- si no
-        // viaja, el siguiente generateContent falla con 400 ("Function call
-        // is missing a thought_signature"). Se guarda en el turno del lado
-        // del frontend (ver enviarMensajeChatIA) y se reenvía acá.
-        if (t.thoughtSignature) part.thoughtSignature = t.thoughtSignature;
-        return { role: "model", parts: [part] };
+        return {
+          role: "assistant",
+          content: [{ type: "tool_use", id: t.id, name: t.name, input: t.args || {} }],
+        };
       }
       if (t.role === "functionResponse" && t.name) {
-        // Probado contra el endpoint real: estos modelos rechazan el rol
-        // "function" ("Role 'function' is not supported") -- el resultado de
-        // la herramienta va con rol "user", como cualquier otro turno.
         return {
           role: "user",
-          parts: [{ functionResponse: { name: t.name, response: { name: t.name, content: t.response } } }],
+          content: [{ type: "tool_result", tool_use_id: t.id, content: JSON.stringify(t.response) }],
         };
       }
       return null;
@@ -129,58 +130,53 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Falta 'turnos' (array de turnos de la conversación)." });
   }
 
-  const contents = turnosAGemini(turnos);
+  const messages = turnosAClaude(turnos);
   const tools = herramientasPermitidas(rol);
 
-  const modelos = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
-  // Tope por modelo -- sin esto, un modelo lento/saturado se queda colgando
-  // hasta que Vercel mata la función entera (FUNCTION_INVOCATION_TIMEOUT),
-  // sin llegar siquiera a probar el siguiente modelo del fallback.
-  const TIMEOUT_POR_MODELO_MS = 9000;
-  let ultimoError;
-  for (const modelo of modelos) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_POR_MODELO_MS);
-    let r, data;
-    try {
-      r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": process.env.GEMINI_API_KEY,
-          },
-          body: JSON.stringify({
-            contents,
-            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            tools: [{ functionDeclarations: tools }],
-          }),
-          signal: controller.signal,
-        }
-      );
-      data = await r.json();
-    } catch (e) {
-      ultimoError = { status: 504, data: { error: `Timeout o error de red con ${modelo}: ${e.message}` } };
-      console.error(`chat.js: ${modelo} timeout/excepción`, e.message);
-      continue;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if (r.ok) {
-      const part = data.candidates?.[0]?.content?.parts?.[0];
-      if (part?.functionCall) {
-        return res.status(200).json({
-          functionCall: { name: part.functionCall.name, args: part.functionCall.args || {} },
-          thoughtSignature: part.thoughtSignature || null,
-          modelo,
-        });
-      }
-      return res.status(200).json({ text: part?.text ?? "", modelo });
-    }
-    ultimoError = { status: r.status, data };
-    console.error(`chat.js: ${modelo} devolvió ${r.status}`, JSON.stringify(data));
-    if (r.status !== 503 && r.status !== 429) break;
+  // Tope de tiempo -- sin esto, una respuesta lenta puede quedar
+  // colgando hasta que Vercel mata la función entera
+  // (FUNCTION_INVOCATION_TIMEOUT) en vez de devolver un error legible.
+  const TIMEOUT_MS = 20000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let r, data;
+  try {
+    r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODELO,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages,
+        tools,
+      }),
+      signal: controller.signal,
+    });
+    data = await r.json();
+  } catch (e) {
+    console.error("chat.js: timeout/excepción", e.message);
+    return res.status(504).json({ error: `Timeout o error de red: ${e.message}` });
+  } finally {
+    clearTimeout(timeoutId);
   }
-  res.status(ultimoError.status).json({ error: ultimoError.data });
+
+  if (!r.ok) {
+    console.error(`chat.js: Claude devolvió ${r.status}`, JSON.stringify(data));
+    return res.status(r.status).json({ error: data });
+  }
+
+  const toolUse = (data.content || []).find((b) => b.type === "tool_use");
+  if (toolUse) {
+    return res.status(200).json({
+      functionCall: { name: toolUse.name, args: toolUse.input || {}, id: toolUse.id },
+      modelo: MODELO,
+    });
+  }
+  const textBlock = (data.content || []).find((b) => b.type === "text");
+  return res.status(200).json({ text: textBlock?.text ?? "", modelo: MODELO });
 }
