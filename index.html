@@ -5675,23 +5675,6 @@ function renderMensajesChatIA(){
 // que evolucionPorArea sale corto solo; rubros (compañía completa) y
 // Capital N se omiten directamente para esos logins, salvo Capital N
 // para Banca Privada (mismo criterio que puedeVerReportesCapN()).
-// Aplana la "Matriz de gastos fijos por proveedor" (parseGastosFijosDetalle)
-// a una lista simple {cuenta, proveedor, <mes>:monto, ...} para que el chat
-// pueda responder cuánto se le pagó a un proveedor puntual en un mes puntual
-// -- sin esto, construirContextoChatIA solo tenía rubros agregados y no
-// podía bajar al detalle de "cuánto le pagamos a Tanoira en agosto".
-function resumenProveedoresGFD(data){
-  if(!data||!data.cuentas) return [];
-  const out=[];
-  data.cuentas.forEach(c=>{
-    c.providers.forEach(p=>{
-      const fila={cuenta:c.nombre,proveedor:p.nombre};
-      data.valCols.forEach((mes,i)=>{ fila[mes]=p.vals[i]||0; });
-      out.push(fila);
-    });
-  });
-  return out;
-}
 function construirContextoChatIA(){
   const meses=ST.meses||[];
   const esArea=ST.role==='lideres'&&ST.area;
@@ -5721,8 +5704,6 @@ function construirContextoChatIA(){
     contexto.evolucionMensualConsolidado=meses.map(m=>({mes:m,...kpiMes(m)}));
     const mesParaRubros=ST.consolidado?'__consolidado__':(ST.currentMes||meses[meses.length-1]);
     contexto.topRubrosDelMesSeleccionado=mesParaRubros?getClasifRubrosRanking(mesParaRubros).slice(0,20):[];
-    if(ST.gastosFijosDetalle) contexto.detalleGastosPorProveedorAnioEnCurso=resumenProveedoresGFD(ST.gastosFijosDetalle);
-    contexto.detalleGastosPorProveedor2025=resumenProveedoresGFD(getGastosFijos2025());
   }
   if((!esArea||ST.area==='Banca Privada')&&ST.capnData){
     contexto.evolucionCapitalN=meses.map(m=>({mes:m,...getCapNAgg(m)}));
@@ -5742,12 +5723,6 @@ async function enviarMensajeChatIA(){
   input.disabled=true;
   renderMensajesChatIA();
   try{
-    // El detalle de gastos por proveedor se carga lazy (solo al entrar a
-    // Análisis de Costos) -- si todavía no se pidió, se pide acá para que
-    // el chat pueda responder sobre proveedores puntuales sin que el
-    // usuario haya visitado esa pestaña. Solo aplica a roles sin
-    // restricción de área (ver construirContextoChatIA).
-    if(!(ST.role==='lideres'&&ST.area)) await loadGastosFijosDetalleLazy();
     const r=await fetch('/api/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
