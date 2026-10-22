@@ -157,20 +157,26 @@ const APP = context.__APP__;
   // esperable todos los años en esos 4 meses. Aplica a "Sueldos y CS" y a
   // sus variantes por área (ej. "Sueldos y CS Mesa", "Sueldos y CS BC" --
   // ver RUBROS_FIJOS en index.html), y a Capital N (mismo concepto en
-  // CAPN_FIJOS).
-  function notaEstacional(nombre, mes) {
+  // CAPN_FIJOS). Chequea sobre TODO un rango de meses en vez de uno solo --
+  // una racha de "viene bajando/subiendo varios meses" (ver rubro_racha en
+  // build_report.py) puede arrancar más atrás que mesActual/mesAnterior
+  // (ej. la racha Julio→Agosto→Septiembre empieza en Julio, el mes del
+  // bono), así que mirar solo esos dos meses no alcanza. Junta aguinaldo
+  // y/o bono en una sola frase si el rango pisa más de un tipo de mes
+  // estacional.
+  function notaEstacionalRango(nombre, meses) {
     if (!/^Sueldos y CS/i.test(nombre)) return null;
-    if (mes === 'Junio' || mes === 'Diciembre') return 'incluye el pago del aguinaldo (SAC) -- estacional, se repite cada Junio y Diciembre';
-    if (mes === 'Julio' || mes === 'Enero') return 'incluye el pago de un bono -- estacional, se repite cada Julio y Enero';
-    return null;
+    const tieneAguinaldo = meses.some(m => m === 'Junio' || m === 'Diciembre');
+    const tieneBono = meses.some(m => m === 'Julio' || m === 'Enero');
+    if (!tieneAguinaldo && !tieneBono) return null;
+    const partes = [];
+    if (tieneAguinaldo) partes.push('el pago del aguinaldo (SAC) en Junio/Diciembre');
+    if (tieneBono) partes.push('el pago de un bono en Julio/Enero');
+    return `incluye ${partes.join(' y ')} -- estacional, se repite todos los años`;
   }
   function notaParaCuenta(nombre) {
-    const estacionalActual = notaEstacional(nombre, mesActual);
-    if (estacionalActual) return { mes: mesActual, texto: estacionalActual };
-    if (mesAnterior) {
-      const estacionalAnterior = notaEstacional(nombre, mesAnterior);
-      if (estacionalAnterior) return { mes: mesAnterior, texto: estacionalAnterior };
-    }
+    const estacionalRango = notaEstacionalRango(nombre, mesesTrend);
+    if (estacionalRango) return { mes: mesActual, texto: estacionalRango };
     const porMes = NOTAS_CUENTAS[nombre];
     if (!porMes) return null;
     if (porMes[mesActual]) return { mes: mesActual, texto: porMes[mesActual] };
@@ -339,7 +345,7 @@ const APP = context.__APP__;
             mes,
             monto: i < mesesHistoria.length ? (rankPorMesHistoriaPorArea[area][i][nombre] || 0) : actual,
           }));
-          const notaEst = notaEstacional(nombre, mesActual) || (mesAnterior && notaEstacional(nombre, mesAnterior));
+          const notaEst = notaEstacionalRango(nombre, mesesTrend);
           const conNota = notaEst ? { notaManual: notaEst } : {};
           lista.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialRubroArea(area, nombre, actual), serie, ...conNota });
         }
@@ -416,7 +422,7 @@ const APP = context.__APP__;
           ...capnMesesHistoriaFiltrados.map((mes, i) => ({ mes, monto: capnConceptosPorMesHistoria[i][nombre] || 0 })),
           { mes: mesActual, monto: actual },
         ];
-        const notaEst = notaEstacional(nombre, mesActual) || (mesAnterior && notaEstacional(nombre, mesAnterior));
+        const notaEst = notaEstacionalRango(nombre, serie.map(s => s.mes));
         const conNota = notaEst ? { notaManual: notaEst } : {};
         capnRubrosVariacion.push({ nombre, anterior, actual, deltaPct: (actual - anterior) / anterior * 100, ...historialCapN(nombre, actual), serie, ...conNota });
       }
