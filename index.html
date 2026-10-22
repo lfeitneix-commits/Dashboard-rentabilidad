@@ -3470,6 +3470,7 @@ const REPORTES_MENSUALES=[
   {mes:'Junio 2026',archivo:'reportes/2026-06-reporte-junio.pdf',generado:'2026-10-09'},
   {mes:'Julio 2026',archivo:'reportes/2026-07-reporte-julio.pdf',generado:'2026-10-09'},
   {mes:'Agosto 2026',archivo:'reportes/2026-08-reporte-agosto.pdf',generado:'2026-10-09'},
+  {mes:'Septiembre 2026',archivo:'reportes/2026-09-reporte-septiembre.pdf',generado:'2026-10-22'},
 ];
 // Mismo formato que REPORTES_MENSUALES, pero uno por área (ver
 // scripts/reportes/build_report_area.py) -- clave = nombre de área tal
@@ -3594,14 +3595,12 @@ function getMesesPendientesReporte(){
 }
 // El click dispara el GitHub Action ".github/workflows/generar-reporte.yml"
 // (extract_data.js + build_report.py, corre del lado de GitHub, no acá) via
-// la API de "workflow dispatch". El token de abajo está acotado SOLO a
-// "Actions: read and write" sobre este repo -- no puede leer ni escribir
-// contenido del repo. Si alguien lo copia del código fuente, lo peor que
-// puede hacer es disparar corridas de más, nunca tocar archivos. Si la
-// llamada falla (red, CORS, token revocado, etc.) cae al comportamiento
-// anterior: copiar al portapapeles el pedido para pasarle a Claude.
-const GH_ACTIONS_TOKEN='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';
-const GH_OWNER='lfeitneix-commits', GH_REPO='Dashboard-rentabilidad', GH_WORKFLOW='generar-reporte.yml';
+// la API de "workflow dispatch". Esto NO se puede pedir directo desde el
+// browser (GitHub no habilita CORS para ese endpoint, así que el fetch
+// siempre fallaba y caía al plan B) -- /api/generar-reporte.js hace el
+// mismo pedido del lado del servidor, donde CORS no aplica. Si aun así
+// falla (red, token revocado, etc.) cae al comportamiento anterior:
+// copiar al portapapeles el pedido para pasarle a Claude.
 function generarReporteClick(){
   const pendientes=getMesesPendientesReporte();
   if(!pendientes.length) return;
@@ -3619,15 +3618,7 @@ function generarReporteClick(){
     }
   };
   if(btn){ btn.innerHTML='Disparando…'; btn.disabled=true; }
-  fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,{
-    method:'POST',
-    headers:{
-      'Authorization':`Bearer ${GH_ACTIONS_TOKEN}`,
-      'Accept':'application/vnd.github+json',
-      'Content-Type':'application/json',
-    },
-    body:JSON.stringify({ref:'main'}),
-  }).then(r=>{
+  fetch('/api/generar-reporte',{method:'POST'}).then(r=>{
     if(btn)btn.disabled=false;
     if(r.ok){
       if(btn){ btn.innerHTML='Generando, puede tardar unos minutos ⏳'; restaurar(5000); }
