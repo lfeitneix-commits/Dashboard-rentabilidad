@@ -26,6 +26,19 @@ export default async function handler(req, res) {
   if (!GH_ACTIONS_TOKEN) {
     return res.status(500).json({ error: "Falta la variable de entorno GH_ACTIONS_TOKEN en Vercel." });
   }
+  // Diagnóstico temporal (no expone el token, solo su forma) -- sacar
+  // apenas se entienda por qué el valor guardado no coincide con el
+  // real. Ver generar-reporte.js en el historial de PRs.
+  if (req.query && req.query.diag === "1") {
+    return res.status(200).json({
+      largo: GH_ACTIONS_TOKEN.length,
+      primeros6: GH_ACTIONS_TOKEN.slice(0, 6),
+      ultimos4: GH_ACTIONS_TOKEN.slice(-4),
+      codigosRarosIdx: [...GH_ACTIONS_TOKEN]
+        .map((c, i) => ({ i, code: c.codePointAt(0) }))
+        .filter((x) => x.code > 126),
+    });
+  }
 
   let r;
   try {
