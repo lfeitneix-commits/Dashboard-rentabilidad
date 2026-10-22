@@ -133,24 +133,40 @@ export default async function handler(req, res) {
   const tools = herramientasPermitidas(rol);
 
   const modelos = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
+  // Tope por modelo -- sin esto, un modelo lento/saturado se queda colgando
+  // hasta que Vercel mata la función entera (FUNCTION_INVOCATION_TIMEOUT),
+  // sin llegar siquiera a probar el siguiente modelo del fallback.
+  const TIMEOUT_POR_MODELO_MS = 9000;
   let ultimoError;
   for (const modelo of modelos) {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          contents,
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          tools: [{ functionDeclarations: tools }],
-        }),
-      }
-    );
-    const data = await r.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_POR_MODELO_MS);
+    let r, data;
+    try {
+      r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": process.env.GEMINI_API_KEY,
+          },
+          body: JSON.stringify({
+            contents,
+            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            tools: [{ functionDeclarations: tools }],
+          }),
+          signal: controller.signal,
+        }
+      );
+      data = await r.json();
+    } catch (e) {
+      ultimoError = { status: 504, data: { error: `Timeout o error de red con ${modelo}: ${e.message}` } };
+      console.error(`chat.js: ${modelo} timeout/excepción`, e.message);
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (r.ok) {
       const part = data.candidates?.[0]?.content?.parts?.[0];
       if (part?.functionCall) {
