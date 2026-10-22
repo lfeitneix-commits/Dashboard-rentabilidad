@@ -5760,12 +5760,13 @@ async function enviarMensajeChatIA(){
         break;
       }
       if(data.functionCall){
-        // thoughtSignature viaja pegado a este pedido de función -- hay que
-        // guardarlo tal cual y reenviarlo en el próximo turno, si no Gemini
-        // responde 400 ("Function call is missing a thought_signature").
-        CHAT_IA.historial.push({role:'functionCall',name:data.functionCall.name,args:data.functionCall.args,thoughtSignature:data.thoughtSignature||null});
+        // id/thoughtSignature son detalles propios de cada proveedor (Claude
+        // usa id para emparejar el tool_use con su tool_result, Gemini usa
+        // thoughtSignature) -- se guardan tal cual en el turno y el backend
+        // (api/chat.js) decide cuál necesita reenviar.
+        CHAT_IA.historial.push({role:'functionCall',name:data.functionCall.name,args:data.functionCall.args,id:data.functionCall.id||null,thoughtSignature:data.thoughtSignature||null});
         const resultado=await ejecutarHerramientaChatIA(data.functionCall.name,data.functionCall.args);
-        CHAT_IA.historial.push({role:'functionResponse',name:data.functionCall.name,response:resultado});
+        CHAT_IA.historial.push({role:'functionResponse',name:data.functionCall.name,response:resultado,id:data.functionCall.id||null});
         continue;
       }
       if(typeof data.text==='string'){
