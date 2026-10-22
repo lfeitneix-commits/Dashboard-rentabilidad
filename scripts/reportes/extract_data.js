@@ -145,6 +145,9 @@ const APP = context.__APP__;
     'Gtos Mant de Oficina': {
       Julio: 'hubo una obra de mantenimiento en la oficina ese mes, que no se repitió después',
     },
+    'Adicional Obra Social': {
+      Septiembre: 'incluye ajustes retroactivos de declaraciones juradas de facturas de meses anteriores (OSDE), no solo el gasto corriente del mes',
+    },
   };
   // Nota ESTACIONAL (a diferencia de NOTAS_CUENTAS, no atada a un año
   // puntual) para "Sueldos y CS" -- en Junio y Diciembre se paga el
