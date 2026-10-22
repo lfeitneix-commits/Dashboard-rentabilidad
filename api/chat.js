@@ -1,8 +1,7 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
   const { prompt } = req.body;
-  const modelos = ["gemini-flash-latest", "gemini-flash-lite-latest"];
-
+  const modelos = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"];
   let ultimoError;
   for (const modelo of modelos) {
     const r = await fetch(
