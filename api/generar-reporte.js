@@ -7,11 +7,12 @@
 // del servidor, donde CORS no aplica.
 //
 // El token vive en la variable de entorno GH_ACTIONS_TOKEN (Vercel) --
-// NO hardcodeado acá: con el token como literal en el código, Vercel
-// devolvía 401 "Bad credentials" en cada intento aunque el mismo token
-// probado directo contra la API de GitHub (fuera de Vercel) respondía
-// 204 sin problema. Está acotado SOLO a "Actions: read and write" sobre
-// este repo -- no puede leer ni escribir contenido del repo.
+// NO hardcodeado acá. Tiene que ser un Personal Access Token CLASSIC
+// (scope "workflow"), no "fine-grained": un fine-grained (github_pat_...)
+// devolvía 401 "Bad credentials" en cada intento SOLO cuando la llamada
+// salía desde Vercel (el mismo token probado directo contra la API de
+// GitHub, fuera de Vercel, respondía 204 sin problema) -- un classic
+// (ghp_...) con scope "workflow" no tiene ese problema.
 // .trim() -- un espacio o salto de línea de más al pegar el valor en
 // Vercel (algo fácil de que pase sin querer) rompe el header HTTP y
 // tira la función entera con FUNCTION_INVOCATION_FAILED en vez de un
@@ -25,19 +26,6 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
   if (!GH_ACTIONS_TOKEN) {
     return res.status(500).json({ error: "Falta la variable de entorno GH_ACTIONS_TOKEN en Vercel." });
-  }
-  // Diagnóstico temporal (no expone el token, solo su forma) -- sacar
-  // apenas se entienda por qué el valor guardado no coincide con el
-  // real. Ver generar-reporte.js en el historial de PRs.
-  if (req.query && req.query.diag === "1") {
-    return res.status(200).json({
-      largo: GH_ACTIONS_TOKEN.length,
-      primeros6: GH_ACTIONS_TOKEN.slice(0, 6),
-      ultimos4: GH_ACTIONS_TOKEN.slice(-4),
-      codigosRarosIdx: [...GH_ACTIONS_TOKEN]
-        .map((c, i) => ({ i, code: c.codePointAt(0) }))
-        .filter((x) => x.code > 126),
-    });
   }
 
   let r;
