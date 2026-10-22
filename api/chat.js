@@ -23,9 +23,9 @@ const TOOLS = [
       "Ingresos, egresos y resultado de un mes puntual, sumando las áreas visibles para este usuario. " +
       "Para el total de todos los meses cargados, usar mes=\"__consolidado__\".",
     parameters: {
-      type: "object",
+      type: "OBJECT",
       properties: {
-        mes: { type: "string", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\"" },
+        mes: { type: "STRING", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\"" },
       },
       required: ["mes"],
     },
@@ -35,7 +35,7 @@ const TOOLS = [
     description:
       "Serie mensual completa (ingresos, egresos, resultado) de todos los meses cargados, sumando las áreas " +
       "visibles para este usuario. Útil para ver tendencias a lo largo del tiempo.",
-    parameters: { type: "object", properties: {} },
+    parameters: { type: "OBJECT", properties: {} },
   },
   {
     name: "obtener_ranking_rubros",
@@ -43,9 +43,9 @@ const TOOLS = [
       "Ranking de rubros de gasto de toda la compañía en un mes puntual, de mayor a menor monto. " +
       "No disponible para líderes de área.",
     parameters: {
-      type: "object",
+      type: "OBJECT",
       properties: {
-        mes: { type: "string", description: "Mes en español o \"__consolidado__\"" },
+        mes: { type: "STRING", description: "Mes en español o \"__consolidado__\"" },
       },
       required: ["mes"],
     },
@@ -56,11 +56,11 @@ const TOOLS = [
       "Busca cuánto se le pagó, mes a mes, a un proveedor o cuenta puntual (ej. \"Tanoira\", \"Edenor\", " +
       "\"Santangelo\"). No disponible para líderes de área.",
     parameters: {
-      type: "object",
+      type: "OBJECT",
       properties: {
-        nombre: { type: "string", description: "Nombre o parte del nombre del proveedor/cuenta a buscar" },
+        nombre: { type: "STRING", description: "Nombre o parte del nombre del proveedor/cuenta a buscar" },
         anio: {
-          type: "string",
+          type: "STRING",
           enum: ["actual", "2025"],
           description: "Año a buscar: \"actual\" (año en curso) o \"2025\" (cerrado). Default \"actual\".",
         },
@@ -74,9 +74,9 @@ const TOOLS = [
       "Ingresos/egresos/resultado de Capital N. Si se pasa un mes puntual devuelve ese mes; si no, la " +
       "evolución completa. Solo disponible para acceso completo o Banca Privada.",
     parameters: {
-      type: "object",
+      type: "OBJECT",
       properties: {
-        mes: { type: "string", description: "Mes en español, o vacío para traer la evolución completa" },
+        mes: { type: "STRING", description: "Mes en español, o vacío para traer la evolución completa" },
       },
     },
   },
@@ -151,6 +151,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ text: part?.text ?? "", modelo });
     }
     ultimoError = { status: r.status, data };
+    console.error(`chat.js: ${modelo} devolvió ${r.status}`, JSON.stringify(data));
     if (r.status !== 503 && r.status !== 429) break;
   }
   res.status(ultimoError.status).json({ error: ultimoError.data });
