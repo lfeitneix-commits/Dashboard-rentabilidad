@@ -5707,6 +5707,16 @@ async function ejecutarHerramientaChatIA(name,args){
       const mes=args.mes||ST.currentMes||ST.meses[ST.meses.length-1];
       return getClasifRubrosRanking(mes).slice(0,30);
     }
+    case 'obtener_evolucion_rubros':{
+      if(!ST.clasifRubros) return {error:'No hay datos de clasificación de rubros cargados.'};
+      return ST.clasifRubros.rubros
+        .filter(r=>r.vals.some(v=>v>0))
+        .map(r=>{
+          const fila={nombre:r.nombre,categoria:r.categoria};
+          ST.clasifRubros.meses.forEach((mes,i)=>{ fila[mes]=r.vals[i]||0; });
+          return fila;
+        });
+    }
     case 'buscar_gasto_por_proveedor':{
       if(args.anio!=='2025') await loadGastosFijosDetalleLazy();
       const data=args.anio==='2025'?getGastosFijos2025():ST.gastosFijosDetalle;
@@ -5744,7 +5754,7 @@ async function enviarMensajeChatIA(){
   if(sendBtn) sendBtn.disabled=true;
   input.disabled=true;
   renderMensajesChatIA();
-  const MAX_VUELTAS=5; // tope de llamadas a herramientas encadenadas por pregunta
+  const MAX_VUELTAS=12; // tope de llamadas a herramientas encadenadas por pregunta (un análisis/reporte puede necesitar varias)
   try{
     let resuelto=false;
     for(let vuelta=0;vuelta<MAX_VUELTAS&&!resuelto;vuelta++){

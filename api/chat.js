@@ -11,7 +11,12 @@ const SYSTEM_PROMPT =
   "Contestás preguntas sobre los datos del dashboard de centro de costos y rentabilidad. " +
   "Si no tenés el dato, decilo; no inventes números. " +
   "Tenés herramientas para consultar datos puntuales (KPIs de un mes, evolución mensual, ranking de rubros, " +
-  "gastos por proveedor, Capital N): usalas siempre que la pregunta lo requiera, en vez de responder de memoria.";
+  "evolución de rubros mes a mes, gastos por proveedor, Capital N). " +
+  "No te limites a responder preguntas sueltas: si te piden un análisis, un reporte, una comparación entre " +
+  "meses o sugerencias de ahorro, llamá a las herramientas las veces que haga falta (varios meses, varios " +
+  "rubros) para juntar la info antes de responder, y armá una respuesta estructurada (con viñetas y los " +
+  "números clave en negrita) en vez de una sola línea. Cuando sugieras un ahorro o señales una tendencia, " +
+  "basate siempre en los números que te devuelven las herramientas, nunca en una suposición.";
 
 const MODELO = "claude-sonnet-5-5";
 
@@ -72,6 +77,14 @@ const TOOLS = [
     },
   },
   {
+    name: "obtener_evolucion_rubros",
+    description:
+      "Evolución mes a mes de TODOS los rubros de gasto de la compañía (uno al lado del otro, no uno por " +
+      "uno) -- pensada para detectar tendencias y comparar varios rubros/meses de una sola llamada, por " +
+      "ejemplo para sugerir dónde se podría ahorrar. No disponible para líderes de área.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
     name: "obtener_capital_n",
     description:
       "Ingresos/egresos/resultado de Capital N. Si se pasa un mes puntual devuelve ese mes; si no, la " +
@@ -89,7 +102,9 @@ function herramientasPermitidas(rol) {
   const esArea = !!(rol && rol.esArea);
   const area = rol && rol.area;
   return TOOLS.filter((t) => {
-    if (t.name === "obtener_ranking_rubros" || t.name === "buscar_gasto_por_proveedor") return !esArea;
+    if (["obtener_ranking_rubros", "buscar_gasto_por_proveedor", "obtener_evolucion_rubros"].includes(t.name)) {
+      return !esArea;
+    }
     if (t.name === "obtener_capital_n") return !esArea || area === "Banca Privada";
     return true;
   });
@@ -136,7 +151,7 @@ export default async function handler(req, res) {
   // Tope de tiempo -- sin esto, una respuesta lenta puede quedar
   // colgando hasta que Vercel mata la función entera
   // (FUNCTION_INVOCATION_TIMEOUT) en vez de devolver un error legible.
-  const TIMEOUT_MS = 20000;
+  const TIMEOUT_MS = 25000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let r, data;
@@ -150,10 +165,14 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages,
         tools,
+        // Un análisis/reporte puede necesitar varias herramientas, pero de a
+        // una por vuelta -- el frontend (enviarMensajeChatIA) solo sabe
+        // ejecutar y reenviar un tool_result a la vez.
+        tool_choice: { type: "auto", disable_parallel_tool_use: true },
       }),
       signal: controller.signal,
     });
