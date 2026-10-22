@@ -12,7 +12,11 @@
 // probado directo contra la API de GitHub (fuera de Vercel) respondía
 // 204 sin problema. Está acotado SOLO a "Actions: read and write" sobre
 // este repo -- no puede leer ni escribir contenido del repo.
-const GH_ACTIONS_TOKEN = process.env.GH_ACTIONS_TOKEN;
+// .trim() -- un espacio o salto de línea de más al pegar el valor en
+// Vercel (algo fácil de que pase sin querer) rompe el header HTTP y
+// tira la función entera con FUNCTION_INVOCATION_FAILED en vez de un
+// error legible.
+const GH_ACTIONS_TOKEN = (process.env.GH_ACTIONS_TOKEN || "").trim();
 const GH_OWNER = "lfeitneix-commits";
 const GH_REPO = "Dashboard-rentabilidad";
 const GH_WORKFLOW = "generar-reporte.yml";
@@ -23,18 +27,24 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Falta la variable de entorno GH_ACTIONS_TOKEN en Vercel." });
   }
 
-  const r = await fetch(
-    `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${GH_ACTIONS_TOKEN}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ref: "main" }),
-    }
-  );
+  let r;
+  try {
+    r = await fetch(
+      `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${GH_ACTIONS_TOKEN}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "main" }),
+      }
+    );
+  } catch (e) {
+    console.error("generar-reporte.js: excepción llamando a GitHub", e.message);
+    return res.status(500).json({ error: `Excepción llamando a GitHub: ${e.message}` });
+  }
 
   if (r.ok) return res.status(204).end();
   const text = await r.text().catch(() => "");
