@@ -1224,16 +1224,16 @@ def build(data, mes_label, out_path, bullets_extra=None):
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
-                # DORADO solo para esta serie -- GRAFITO quedaba muy parecido a
-                # VERDE/AZUL (los 3 son oscuros y poco saturados, difíciles de
-                # distinguir a simple vista); un dorado cálido contrasta mejor
-                # contra el verde/azul/bordó sin salirse de una paleta sobria.
-                DORADO = colors.HexColor('#B8860B')
+                # VIOLETA solo para esta serie -- GRAFITO (y antes, DORADO)
+                # quedaba muy parecido o muy flojo contra VERDE/AZUL/BORDEAUX;
+                # un violeta contrasta claramente contra los otros 3 sin
+                # salirse de una paleta sobria.
+                VIOLETA = colors.HexColor('#6B4C9A')
                 series_pct = [
                     ("Margen neto", VERDE, [r / i * 100 for _, i, _, r, _, _ in puntos]),
                     ("Costos Fijos / Fact.", AZUL, [f / i * 100 for _, i, _, _, f, _ in puntos]),
                     ("Sueldos / Fact.", BORDEAUX, [s / i * 100 for _, i, _, _, _, s in puntos]),
-                    ("Eficiencia", DORADO, [(r / e * 100 if e else 0) for _, _, e, r, _, _ in puntos]),
+                    ("Eficiencia", VIOLETA, [(r / e * 100 if e else 0) for _, _, e, r, _, _ in puntos]),
                 ]
                 trend_chart(meses_ratios, series_pct, fmt_axis=lambda v: f"{v:.0f}%")
 
