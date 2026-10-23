@@ -845,6 +845,17 @@ const APP = context.__APP__;
       const gastosDirectos = gastoDirectoPorArea(m, a);
       return { mes: m, ...base, gastosDirectos, resultadoDirecto: base.ingresos - gastosDirectos };
     })])),
+    // Mismo fijos/sueldosTotal que ratiosTrend, pero SOLO lo que esa área
+    // gasta directamente (calcFijosVariables/sueldosTotalDePeriodo con
+    // areaOverride, ver index.html) -- sin el prorrateo de indirectos entre
+    // las 4 áreas, mismo criterio que kpiTrendPorArea. Alimenta los ratios
+    // (Costos Fijos/Fact., Sueldos/Fact., Cobertura de Fijos, Eficiencia) del
+    // reporte por área (build_report_area.py).
+    ratiosTrendPorArea: Object.fromEntries(AREAS_.map(a => [a, mesesTrend.map(m => ({
+      mes: m,
+      fijos: APP.calcFijosVariables(m, a).fijos,
+      sueldosTotal: APP.sueldosTotalDePeriodo(m, a),
+    }))])),
     gastosTotalesActual: areaVals(mesActual, 'gastosTotalesRow'),
     gastosTotalesAnterior: mesAnterior ? areaVals(mesAnterior, 'gastosTotalesRow') : null,
     impuestosActual: areaVals(mesActual, 'impuestosRow'),

@@ -1281,9 +1281,8 @@ function buildAgg(rows,nameCol,numCol,notesCol){
 // definida, así que el resumen y los rubros de esa vista solo consideran
 // gastos directos. Recorre las filas en orden replicando el mismo criterio
 // de sección que usa buildAgg (detectMainSection).
-function filasDirectasLideres(md){
+function filasSoloDirectas(md){
   if(!md) return [];
-  if(ST.role!=='lideres') return md.rows;
   let curTipo=null;
   return md.rows.filter(row=>{
     const nom=String(row['']||row[md.nameCol]||'').trim();
@@ -1291,6 +1290,11 @@ function filasDirectasLideres(md){
     if(main) curTipo=main.tipo;
     return curTipo!=='ind';
   });
+}
+function filasDirectasLideres(md){
+  if(!md) return [];
+  if(ST.role!=='lideres') return md.rows;
+  return filasSoloDirectas(md);
 }
 
 // ── PARENT-CHILD STRUCTURE ──────────────────────────────────────
@@ -3906,7 +3910,7 @@ function buildQuantInversionInicialHtml(){
 // Suma de todas las filas "Sueldos y CS*" (sin contar la fila padre, para no
 // duplicar) en un mes puntual o consolidado -- extraído de renderAnalisis
 // para poder reusarlo también desde extract_data.js (ratios del reporte).
-function sueldosTotalDePeriodo(mes){
+function sueldosTotalDePeriodo(mes,areaOverride){
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   const PNAMES=new Set(Object.keys(PARENT_CHILDREN));
@@ -3917,19 +3921,20 @@ function sueldosTotalDePeriodo(mes){
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!nom||PNAMES.has(nom))return;
       if(!/^Sueldos y CS/i.test(nom))return;
-      tot+=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+      tot+=areaOverride?getAreaVal(row,areaOverride):AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
     });
   });
   return tot;
 }
 
-function calcFijosVariables(mes){
+function calcFijosVariables(mes,areaOverride){
   // La hoja de Clasificación trae fijos/variables consolidados de toda la
   // empresa — solo sirve de atajo cuando se ve el total (acceso completo).
-  // Para un líder de área (AREAS acotado a una sola) hay que recalcular
-  // fila por fila con getAreaVal, si no el ratio queda con el fijo de
-  // TODA la empresa dividido por la facturación de una sola área.
-  if(ST.role!=='lideres'&&ST.clasifData&&ST.clasifData[mes]) return ST.clasifData[mes];
+  // Para un líder de área (AREAS acotado a una sola) o para `areaOverride`
+  // (reportes por área: ver build_report_area.py) hay que recalcular fila
+  // por fila con getAreaVal, si no el ratio queda con el fijo de TODA la
+  // empresa dividido por la facturación de una sola área.
+  if(!areaOverride&&ST.role!=='lideres'&&ST.clasifData&&ST.clasifData[mes]) return ST.clasifData[mes];
   const isCons=mes==='__consolidado__';
   const meses=isCons?ST.meses:[mes];
   let fijos=0,semifijos=0,variables=0;
@@ -3939,13 +3944,14 @@ function calcFijosVariables(mes){
   meses.forEach(m=>{
     const md=ST.mesData[m];
     if(!md) return;
-    filasDirectasLideres(md).forEach(row=>{
+    const filas=areaOverride?filasSoloDirectas(md):filasDirectasLideres(md);
+    filas.forEach(row=>{
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!nom||SKIP_RE.test(nom)) return;
       const note=String(row._allNotes||'').trim();
       if(/ya\s+descontado|incluido\s+fac/i.test(note)) return;
       if(PARENT_NAMES.has(nom)) return;
-      const total=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+      const total=areaOverride?getAreaVal(row,areaOverride):AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
       if(total===0) return;
       const cat=getCategoriaFor(nom);
       if(cat==='Semi-fijo') semifijos+=total;
