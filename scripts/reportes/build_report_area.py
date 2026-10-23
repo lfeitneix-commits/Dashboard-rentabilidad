@@ -162,16 +162,18 @@ def build_area(data, area, mes_label, out_path):
         cell.setStyle(TableStyle(style_cmds))
         return cell
 
-    def margen_card(label, pct):
+    def margen_card(label, pct, width=CONTENT_W):
         # Margen: positivo es bueno sin importar magnitud (al revés de un
         # ratio de costo) -- mismo criterio que margen_cell() del reporte
-        # consolidado.
+        # consolidado. `width` default = tarjeta sola (Margen neto); se pasa
+        # la mitad (87mm, como info_card) cuando va en una fila de a dos
+        # (Eficiencia).
         color = VERDE if pct >= 0 else BORDEAUX
         sign = '+' if pct >= 0 else ''
         cell = Table(
             [[Paragraph(label.upper(), styles['KpiLabel'])],
              [Paragraph(f"{sign}{pct:.1f}%", ParagraphStyle('MargenValue', fontName='DMMono-Medium', fontSize=16, textColor=color, alignment=TA_CENTER))]],
-            colWidths=[CONTENT_W],
+            colWidths=[width],
         )
         cell.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), CREMA),
@@ -183,12 +185,32 @@ def build_area(data, area, mes_label, out_path):
         ]))
         return cell
 
-    def margen_na_card(label, note):
+    def info_card(label, value_str):
+        # Mismo envoltorio visual que margen_card, pero sin semáforo
+        # verde/rojo -- para ratios que no tienen un "bueno/malo" definido
+        # (Costos Fijos/Fact., Sueldos/Fact., Cobertura de Fijos). Mismo
+        # criterio que info_card() del reporte consolidado.
+        cell = Table(
+            [[Paragraph(label.upper(), styles['KpiLabel'])],
+             [Paragraph(value_str, ParagraphStyle('ic', fontName='DMMono-Medium', fontSize=15, textColor=GRAFITO, alignment=TA_CENTER))]],
+            colWidths=[87 * mm],
+        )
+        cell.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, GRAFITO),
+            ('TOPPADDING', (0, 0), (0, 0), 11),
+            ('BOTTOMPADDING', (-1, -1), (-1, -1), 11),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+        ]))
+        return cell
+
+    def margen_na_card(label, note, width=CONTENT_W):
         cell = Table(
             [[Paragraph(label.upper(), styles['KpiLabel'])],
              [Paragraph('N/D', ParagraphStyle('MargenNA', fontName='DMMono-Medium', fontSize=16, textColor=MUTED, alignment=TA_CENTER))],
              [Paragraph(note, ParagraphStyle('MargenNANote', fontName='DMSans', fontSize=7.5, textColor=MUTED, alignment=TA_CENTER))]],
-            colWidths=[CONTENT_W],
+            colWidths=[width],
         )
         cell.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), CREMA),
@@ -398,6 +420,48 @@ def build_area(data, area, mes_label, out_path):
         else:
             story.append(margen_na_card("Margen neto (Resultado / Facturación)", "Facturación negativa o cero este mes"))
 
+    # ── Resto de los ratios generales de esta área -- mismos 4 ratios que
+    # el consolidado (ver "RATIOS GENERALES" en build_report.py): Costos
+    # Fijos/Fact., Sueldos y CS/Fact., Cobertura de Fijos y Eficiencia. A
+    # diferencia del consolidado, "fijos"/"sueldosTotal" acá son SOLO lo
+    # que esta área gasta directamente (ratiosTrendPorArea, ver
+    # extract_data.js -- calcFijosVariables/sueldosTotalDePeriodo con
+    # areaOverride), sin el prorrateo de indirectos entre las 4 áreas,
+    # mismo criterio que el resto del reporte. No se repite "Resultado
+    # Operativo" (a diferencia del consolidado): acá ya es exactamente el
+    # KPI "Resultado" de arriba y el "Resultado acumulado" de abajo, así
+    # que una tercera tarjeta con el mismo número no agrega nada. ──
+    ratios_trend_area = (data.get('ratiosTrendPorArea') or {}).get(area) or []
+    if ratios_trend_area and actual['ingresos'] > 0:
+        fijos_area_act = ratios_trend_area[-1]['fijos']
+        sueldos_area_act = ratios_trend_area[-1]['sueldosTotal']
+        with keep_together():
+            story.append(Spacer(1, 6))
+            cf_pct = fijos_area_act / actual['ingresos'] * 100
+            suel_pct = sueldos_area_act / actual['ingresos'] * 100
+            fila1 = Table(
+                [[info_card("Costos Fijos / Facturación", f"{cf_pct:.1f}%"),
+                  info_card("Sueldos y CS / Facturación", f"{suel_pct:.1f}%")]],
+                colWidths=[CONTENT_W / 2] * 2,
+            )
+            fila1.setStyle(TableStyle([
+                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(fila1)
+            story.append(Spacer(1, 4))
+            cobertura_txt = f"{actual['ingresos'] / fijos_area_act:.2f}x" if fijos_area_act > 0 else "N/D"
+            eficiencia_pct = actual['resultadoDirecto'] / actual['gastosDirectos'] * 100 if actual['gastosDirectos'] else None
+            fila2_cards = [info_card("Cobertura de Fijos", cobertura_txt)]
+            if eficiencia_pct is not None:
+                fila2_cards.append(margen_card("Eficiencia (Resultado / Gastos Directos)", eficiencia_pct, width=87 * mm))
+            else:
+                fila2_cards.append(margen_na_card("Eficiencia (Resultado / Gastos Directos)", "Gastos directos en cero este mes", width=87 * mm))
+            fila2 = Table([fila2_cards], colWidths=[CONTENT_W / 2] * 2)
+            fila2.setStyle(TableStyle([
+                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(fila2)
+
     # ── Resultado acumulado del año en curso -- mismo criterio que el
     # consolidado: suma de "resultadoDirecto" de todos los meses del trend.
     # Se omite en el primer mes (sería el mismo número que el KPI de
@@ -600,26 +664,60 @@ def build_area(data, area, mes_label, out_path):
             ]
             trend_chart(meses_trend, series)
 
-    # ── Evolución del margen neto -- mismo criterio de exclusión que el
-    # consolidado: se excluyen los meses con facturación <= 0 (el % no es
-    # interpretable ese mes, ver margen_bullet() arriba). Gráfico aparte del
-    # de USD de arriba: mezclar escalas (USD vs. %) en el mismo eje lo haría
-    # ilegible para ambas series. ──
-    if len(margenes_trend) > 1:
-        with keep_together():
-            section_title("EVOLUCIÓN DEL MARGEN NETO")
-            if len(margenes_trend) < len(trend):
-                story.append(Paragraph(
-                    "Se excluyen los meses con facturación <= 0 (el % no es interpretable ese mes).",
-                    styles['NotaChica'],
-                ))
-                story.append(Spacer(1, 2))
-            meses_margen = [mes[:3] for mes, _ in margenes_trend]
-            trend_chart(
-                meses_margen,
-                [("Margen neto", area_color, [v for _, v in margenes_trend])],
-                fmt_axis=lambda v: f"{v:.0f}%",
-            )
+    # ── Evolución de los ratios generales de esta área -- Margen neto,
+    # Costos Fijos/Fact. y Sueldos/Fact. van juntos (los 3 son % sobre
+    # Facturación, misma escala natural). Eficiencia (Resultado / Gastos
+    # Directos) y Cobertura de Fijos van cada uno en su propio gráfico: a
+    # diferencia del consolidado (donde Egresos totales incluyen indirectos
+    # y moderan el ratio), acá el denominador es solo Gastos Directos de
+    # esta área -- en un área con gastos directos chicos (ej. Mesa) el % de
+    # Eficiencia puede dispararse a varios cientos por ciento y, mezclado
+    # con los otros 3, los aplastaría contra el eje. Se excluyen los meses
+    # con facturación <= 0 (el % no es interpretable ese mes, ver
+    # margen_bullet() arriba) -- fijos/sueldosTotal son SOLO los de esta
+    # área (ratiosTrendPorArea), igual que las tarjetas de arriba. ──
+    if ratios_trend_area and len(ratios_trend_area) == len(trend):
+        puntos = [
+            (t['mes'][:3], t['ingresos'], t['gastosDirectos'], t['resultadoDirecto'], rt['fijos'], rt['sueldosTotal'])
+            for t, rt in zip(trend, ratios_trend_area)
+            if t['ingresos'] > 0
+        ]
+        if len(puntos) > 1:
+            meses_ratios = [p[0] for p in puntos]
+            with keep_together():
+                section_title("EVOLUCIÓN DE RATIOS GENERALES")
+                if len(puntos) < len(ratios_trend_area):
+                    story.append(Paragraph(
+                        "Se excluyen los meses con facturación <= 0 (el % no es interpretable ese mes).",
+                        styles['NotaChica'],
+                    ))
+                    story.append(Spacer(1, 2))
+                series_pct = [
+                    ("Margen neto", VERDE, [r / i * 100 for _, i, _, r, _, _ in puntos]),
+                    ("Costos Fijos / Fact.", AZUL, [f / i * 100 for _, i, _, _, f, _ in puntos]),
+                    ("Sueldos / Fact.", BORDEAUX, [s / i * 100 for _, i, _, _, _, s in puntos]),
+                ]
+                trend_chart(meses_ratios, series_pct, fmt_axis=lambda v: f"{v:.0f}%")
+
+            puntos_efic = [(mes, g, r) for mes, _, g, r, _, _ in puntos if g > 0]
+            if len(puntos_efic) > 1:
+                with keep_together():
+                    section_title("EVOLUCIÓN EFICIENCIA · RESULTADO / GASTOS DIRECTOS")
+                    trend_chart(
+                        [p[0] for p in puntos_efic],
+                        [("Eficiencia", MUTED, [r / g * 100 for _, g, r in puntos_efic])],
+                        fmt_axis=lambda v: f"{v:.0f}%",
+                    )
+
+            puntos_cob = [(mes, i, f) for mes, i, _, _, f, _ in puntos if f > 0]
+            if len(puntos_cob) > 1:
+                with keep_together():
+                    section_title("EVOLUCIÓN COBERTURA DE FIJOS · FACTURACIÓN / COSTOS FIJOS")
+                    trend_chart(
+                        [p[0] for p in puntos_cob],
+                        [("Cobertura de Fijos", area_color, [i / f for _, i, f in puntos_cob])],
+                        fmt_axis=lambda v: f"{v:.1f}x",
+                    )
 
     # ── Top rubros DIRECTOS que más subieron en esta área (ya calculado
     # por extract_data.js en rubrosVariacionPorArea), con la misma columna
