@@ -820,6 +820,16 @@ const APP = context.__APP__;
     // build_report.py a partir de esto + kpiActual, sin duplicar lógica acá.
     fijosActual: APP.calcFijosVariables(mesActual).fijos,
     sueldosTotalActual: APP.sueldosTotalDePeriodo(mesActual),
+    // Mismo fijos/sueldosTotal pero mes a mes (mesesTrend) -- para la
+    // evolución de los ratios generales (Margen neto, Costos Fijos/Fact.,
+    // Sueldos/Fact., Cobertura de Fijos, Eficiencia) en vez de solo la foto
+    // de mesActual. El resto de cada ratio sale de kpiTrend (ingresos,
+    // egresos, resultado), ya extraído más abajo.
+    ratiosTrend: mesesTrend.map(m => ({
+      mes: m,
+      fijos: APP.calcFijosVariables(m).fijos,
+      sueldosTotal: APP.sueldosTotalDePeriodo(m),
+    })),
     kpiAnterior: mesAnterior ? kpiFor(mesAnterior) : null,
     kpiTrend: mesesTrend.map(m => ({ mes: m, ...kpiFor(m) })),
     // Mismo kpiTrend pero por área -- para los reportes por área (uno por
