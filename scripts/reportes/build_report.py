@@ -1194,6 +1194,54 @@ def build(data, mes_label, out_path, bullets_extra=None):
             story.append(Spacer(1, 4))
             story.append(accum_card("Resultado Operativo", result_act))
 
+    # ── Evolución de los ratios generales -- misma lógica que arriba
+    # (Margen neto, Costos Fijos/Fact., Sueldos/Fact., Eficiencia) pero mes
+    # a mes, no solo la foto de mesActual. Se arma acá (no en
+    # extract_data.js) cruzando kpiTrend (ingresos/egresos/resultado por
+    # mes, ya extraído) con ratiosTrend (fijos/sueldosTotal por mes) --
+    # evita duplicar el cálculo del ratio en JS y en Python. Meses con
+    # facturación <= 0 (ej. Mesa en Agosto arrastra el total negativo) se
+    # excluyen de la serie entera: el % no es interpretable ese mes (mismo
+    # criterio que el "N/D" de los KPI cards de arriba), y dejarlo adentro
+    # distorsiona la escala del gráfico para todos los demás meses. Cobertura
+    # de Fijos va en un gráfico aparte: es un múltiplo ("x"), no un %, mezclar
+    # escalas en el mismo eje haría ilegibles a los dos. ──
+    ratios_trend = data.get('ratiosTrend') or []
+    kpi_trend = data.get('kpiTrend') or []
+    if len(ratios_trend) > 1 and len(kpi_trend) == len(ratios_trend):
+        puntos = [
+            (kt['mes'][:3], kt['ingresos'], kt['egresos'], kt['resultado'], rt['fijos'], rt['sueldosTotal'])
+            for kt, rt in zip(kpi_trend, ratios_trend)
+            if kt['ingresos'] > 0
+        ]
+        if len(puntos) > 1:
+            meses_ratios = [p[0] for p in puntos]
+            with keep_together():
+                section_title("EVOLUCIÓN DE RATIOS GENERALES")
+                if len(puntos) < len(ratios_trend):
+                    story.append(Paragraph(
+                        "Se excluyen los meses con facturación total <= 0 (el % no es interpretable ese mes).",
+                        styles['NotaChica'],
+                    ))
+                    story.append(Spacer(1, 2))
+                series_pct = [
+                    ("Margen neto", VERDE, [r / i * 100 for _, i, _, r, _, _ in puntos]),
+                    ("Costos Fijos / Fact.", AZUL, [f / i * 100 for _, i, _, _, f, _ in puntos]),
+                    ("Sueldos / Fact.", BORDEAUX, [s / i * 100 for _, i, _, _, _, s in puntos]),
+                    ("Eficiencia", GRAFITO, [(r / e * 100 if e else 0) for _, _, e, r, _, _ in puntos]),
+                ]
+                trend_chart(meses_ratios, series_pct, fmt_axis=lambda v: f"{v:.0f}%")
+
+            puntos_cob = [(mes, i, f) for mes, i, _, _, f, _ in puntos if f > 0]
+            if len(puntos_cob) > 1:
+                with keep_together():
+                    section_title("EVOLUCIÓN COBERTURA DE FIJOS · FACTURACIÓN / COSTOS FIJOS")
+                    trend_chart(
+                        [p[0] for p in puntos_cob],
+                        [("Cobertura de Fijos", AZUL, [i / f for _, i, f in puntos_cob])],
+                        fmt_axis=lambda v: f"{v:.1f}x",
+                    )
+
     # ── Unit economics: cruza la Matriz (comitentes y empleados por área)
     # con Facturación y Gastos Totales de mesActual. Si el Sheet no tiene
     # esos datos todavía, extract_data.js manda unitEconomics=null y esta
