@@ -51,56 +51,31 @@ jobs:
             echo "Mes pendiente: $PENDIENTE"
           fi
 
-      - name: Generar PDF
+      - name: Generar reportes (consolidado + 4 áreas) y registrarlos
         id: generar
         if: steps.detectar.outputs.pendiente != ''
         run: |
           cd scripts/reportes
+          ARCHIVOS=$(node generar_reportes.js "$PENDIENTE" real_data.json ../../index.html)
+          echo "$ARCHIVOS"
           MES=$(node -e "console.log(JSON.parse(process.env.PENDIENTE).mes)")
-          NN=$(node -e "console.log(JSON.parse(process.env.PENDIENTE).nn)")
-          SLUG=$(node -e "console.log(JSON.parse(process.env.PENDIENTE).slug)")
-          OUT="reportes/2026-${NN}-reporte-${SLUG}.pdf"
-          python3 build_report.py --data real_data.json --out "../../$OUT" --mes-label "${MES} 2026"
-          echo "out=$OUT" >> "$GITHUB_OUTPUT"
-          echo "mes=$MES" >> "$GITHUB_OUTPUT"
-          echo "fecha=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          {
+            echo "mes=$MES"
+            echo "archivos<<EOF_ARCHIVOS"
+            echo "$ARCHIVOS"
+            echo "EOF_ARCHIVOS"
+          } >> "$GITHUB_OUTPUT"
         env:
           PENDIENTE: ${{ steps.detectar.outputs.pendiente }}
-
-      - name: Chequeo básico del PDF generado
-        if: steps.detectar.outputs.pendiente != ''
-        run: |
-          OUT="${{ steps.generar.outputs.out }}"
-          if [ ! -s "$OUT" ]; then
-            echo "El PDF no se generó o quedó vacío ($OUT)."
-            exit 1
-          fi
-          if grep -a -q "Completar a mano" "$OUT"; then
-            echo "El PDF quedó con un placeholder sin completar -- no se sube."
-            exit 1
-          fi
-
-      - name: Registrar el reporte en index.html
-        if: steps.detectar.outputs.pendiente != ''
-        run: |
-          node -e "
-            const fs = require('fs');
-            const mes = process.env.MES, archivo = process.env.OUT, fecha = process.env.FECHA;
-            let html = fs.readFileSync('index.html', 'utf-8');
-            const fila = \`  {mes:'\${mes} 2026',archivo:'\${archivo}',generado:'\${fecha}'},\n\`;
-            html = html.replace(/(const REPORTES_MENSUALES=\[[\s\S]*?)(\];)/, (_, cuerpo, cierre) => cuerpo + fila + cierre);
-            fs.writeFileSync('index.html', html);
-          "
-        env:
-          MES: ${{ steps.generar.outputs.mes }}
-          OUT: ${{ steps.generar.outputs.out }}
-          FECHA: ${{ steps.generar.outputs.fecha }}
 
       - name: Commitear y subir a main
         if: steps.detectar.outputs.pendiente != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html "${{ steps.generar.outputs.out }}"
-          git commit -m "Generar reporte automático de ${{ steps.generar.outputs.mes }} 2026"
+          echo "$ARCHIVOS" | xargs git add
+          git commit -m "Generar reporte automático de $MES 2026 (consolidado + áreas)"
           git push origin HEAD:main
+        env:
+          ARCHIVOS: ${{ steps.generar.outputs.archivos }}
+          MES: ${{ steps.generar.outputs.mes }}
