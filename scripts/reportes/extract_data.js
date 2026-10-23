@@ -71,7 +71,7 @@ let code = extractScript(indexPath);
 code += `
 this.__APP__ = {
   ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy, parseNum,
-  BASE, SHEETS, parseCSV, getCapNAgg,
+  BASE, SHEETS, parseCSV, getCapNAgg, calcFijosVariables, sueldosTotalDePeriodo,
 };`;
 const context = vm.createContext(sandbox);
 vm.runInContext(code, context, { filename: 'index.html#script' });
@@ -812,6 +812,14 @@ const APP = context.__APP__;
     mesAnterior,
     mesesTrend,
     kpiActual: kpiFor(mesActual),
+    // Para los ratios generales (ver "ANÁLISIS NEIX" en el dashboard, misma
+    // cuenta): fijos sale de calcFijosVariables (Clasificación de gastos,
+    // ya prorrateado por rol) y sueldosTotal de sueldosTotalDePeriodo (suma
+    // de todas las filas "Sueldos y CS*"). El resto de los ratios (Margen
+    // neto, Cobertura de fijos, Eficiencia) se calculan directo en
+    // build_report.py a partir de esto + kpiActual, sin duplicar lógica acá.
+    fijosActual: APP.calcFijosVariables(mesActual).fijos,
+    sueldosTotalActual: APP.sueldosTotalDePeriodo(mesActual),
     kpiAnterior: mesAnterior ? kpiFor(mesAnterior) : null,
     kpiTrend: mesesTrend.map(m => ({ mes: m, ...kpiFor(m) })),
     // Mismo kpiTrend pero por área -- para los reportes por área (uno por
