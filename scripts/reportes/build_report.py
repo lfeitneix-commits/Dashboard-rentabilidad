@@ -1224,16 +1224,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
-                # VIOLETA solo para esta serie -- GRAFITO (y antes, DORADO)
-                # quedaba muy parecido o muy flojo contra VERDE/AZUL/BORDEAUX;
-                # un violeta contrasta claramente contra los otros 3 sin
-                # salirse de una paleta sobria.
-                VIOLETA = colors.HexColor('#6B4C9A')
                 series_pct = [
                     ("Margen neto", VERDE, [r / i * 100 for _, i, _, r, _, _ in puntos]),
                     ("Costos Fijos / Fact.", AZUL, [f / i * 100 for _, i, _, _, f, _ in puntos]),
                     ("Sueldos / Fact.", BORDEAUX, [s / i * 100 for _, i, _, _, _, s in puntos]),
-                    ("Eficiencia", VIOLETA, [(r / e * 100 if e else 0) for _, _, e, r, _, _ in puntos]),
+                    # --arena del dashboard (index.html :root, mismo hex que
+                    # MUTED acá) -- matiz tierra, bien distinto de
+                    # verde/azul/bordó, sin salirse de la paleta real de Neix.
+                    ("Eficiencia", MUTED, [(r / e * 100 if e else 0) for _, _, e, r, _, _ in puntos]),
                 ]
                 trend_chart(meses_ratios, series_pct, fmt_axis=lambda v: f"{v:.0f}%")
 
