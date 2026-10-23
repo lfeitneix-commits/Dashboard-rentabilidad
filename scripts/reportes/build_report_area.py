@@ -162,6 +162,45 @@ def build_area(data, area, mes_label, out_path):
         cell.setStyle(TableStyle(style_cmds))
         return cell
 
+    def margen_card(label, pct):
+        # Margen: positivo es bueno sin importar magnitud (al revés de un
+        # ratio de costo) -- mismo criterio que margen_cell() del reporte
+        # consolidado.
+        color = VERDE if pct >= 0 else BORDEAUX
+        sign = '+' if pct >= 0 else ''
+        cell = Table(
+            [[Paragraph(label.upper(), styles['KpiLabel'])],
+             [Paragraph(f"{sign}{pct:.1f}%", ParagraphStyle('MargenValue', fontName='DMMono-Medium', fontSize=16, textColor=color, alignment=TA_CENTER))]],
+            colWidths=[CONTENT_W],
+        )
+        cell.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, color),
+            ('TOPPADDING', (0, 0), (0, 0), 10),
+            ('BOTTOMPADDING', (0, 1), (0, 1), 10),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+        ]))
+        return cell
+
+    def margen_na_card(label, note):
+        cell = Table(
+            [[Paragraph(label.upper(), styles['KpiLabel'])],
+             [Paragraph('N/D', ParagraphStyle('MargenNA', fontName='DMMono-Medium', fontSize=16, textColor=MUTED, alignment=TA_CENTER))],
+             [Paragraph(note, ParagraphStyle('MargenNANote', fontName='DMSans', fontSize=7.5, textColor=MUTED, alignment=TA_CENTER))]],
+            colWidths=[CONTENT_W],
+        )
+        cell.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, GRAFITO),
+            ('TOPPADDING', (0, 0), (0, 0), 10),
+            ('BOTTOMPADDING', (-1, -1), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+            ('TOPPADDING', (0, 2), (0, 2), 2),
+        ]))
+        return cell
+
     def accum_card(label, value):
         color = VERDE if value >= 0 else BORDEAUX
         cell = Table(
@@ -344,6 +383,20 @@ def build_area(data, area, mes_label, out_path):
         "entre las 4 áreas).",
         styles['NotaChica'],
     ))
+
+    # ── Margen neto del mes (Resultado directo / Facturación) -- mismo
+    # criterio que el consolidado: positivo es bueno sin importar magnitud.
+    # Si la facturación es <= 0 el % no es interpretable (puede dar
+    # "positivo" con resultado y facturación negativos a la vez), se
+    # muestra N/D en vez de un número que miente -- mismo criterio que
+    # margen_bullet() más abajo. ──
+    with keep_together():
+        story.append(Spacer(1, 6))
+        if actual['ingresos'] > 0:
+            margen_pct_kpi = actual['resultadoDirecto'] / actual['ingresos'] * 100
+            story.append(margen_card("Margen neto (Resultado / Facturación)", margen_pct_kpi))
+        else:
+            story.append(margen_na_card("Margen neto (Resultado / Facturación)", "Facturación negativa o cero este mes"))
 
     # ── Resultado acumulado del año en curso -- mismo criterio que el
     # consolidado: suma de "resultadoDirecto" de todos los meses del trend.
@@ -546,6 +599,27 @@ def build_area(data, area, mes_label, out_path):
                 ("Resultado", VERDE, [m['resultadoDirecto'] for m in trend]),
             ]
             trend_chart(meses_trend, series)
+
+    # ── Evolución del margen neto -- mismo criterio de exclusión que el
+    # consolidado: se excluyen los meses con facturación <= 0 (el % no es
+    # interpretable ese mes, ver margen_bullet() arriba). Gráfico aparte del
+    # de USD de arriba: mezclar escalas (USD vs. %) en el mismo eje lo haría
+    # ilegible para ambas series. ──
+    if len(margenes_trend) > 1:
+        with keep_together():
+            section_title("EVOLUCIÓN DEL MARGEN NETO")
+            if len(margenes_trend) < len(trend):
+                story.append(Paragraph(
+                    "Se excluyen los meses con facturación <= 0 (el % no es interpretable ese mes).",
+                    styles['NotaChica'],
+                ))
+                story.append(Spacer(1, 2))
+            meses_margen = [mes[:3] for mes, _ in margenes_trend]
+            trend_chart(
+                meses_margen,
+                [("Margen neto", area_color, [v for _, v in margenes_trend])],
+                fmt_axis=lambda v: f"{v:.0f}%",
+            )
 
     # ── Top rubros DIRECTOS que más subieron en esta área (ya calculado
     # por extract_data.js en rubrosVariacionPorArea), con la misma columna
