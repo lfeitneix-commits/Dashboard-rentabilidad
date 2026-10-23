@@ -563,29 +563,35 @@ def build_area(data, area, mes_label, out_path):
                 styles['NotaChica'],
             ))
 
-    # ── Unit Economics de esta área (comitentes, empleados, facturación y
-    # costo por comitente/empleado) -- mismos datos que el reporte
-    # consolidado, filtrados a esta área. ──
+    # ── Unit Economics de esta área (empleados, facturación y costo por
+    # empleado -- y comitentes también, salvo para Mesa) -- mismos datos
+    # que el reporte consolidado, filtrados a esta área. "Comitentes" no
+    # es una unidad relevante para el negocio de Mesa (a pedido), así que
+    # se omite esa tabla y las 2 evoluciones que dependen de ella para esa
+    # área puntual -- el resto de las áreas no cambia. ──
     ue = data.get('unitEconomics')
     ue_area = next((a for a in (ue or {}).get('porArea', []) if a['area'] == area), None) if ue else None
+    mostrar_comitentes = area != 'Mesa'
     if ue_area:
         with keep_together():
             section_title("UNIT ECONOMICS")
+            nota_comit = "Comitentes: cuentas abiertas de {} (Matriz) &nbsp;·&nbsp; ".format(ue['mes']) if mostrar_comitentes else ""
             story.append(Paragraph(
-                f"Comitentes: cuentas abiertas de {ue['mes']} (Matriz) &nbsp;·&nbsp; Empleados: Matriz (fijo) "
+                f"{nota_comit}Empleados: Matriz (fijo) "
                 f"&nbsp;·&nbsp; Facturación y Costo total: datos de {ue['mes']}",
                 styles['NotaChica'],
             ))
             story.append(Spacer(1, 4))
             col_a, col_rest = 48 * mm, (CONTENT_W - 48 * mm) / 2
             comit, emp = ue_area['comitentes'], ue_area['empleados']
-            rows = [[
-                num(comit) if comit else '—',
-                usd2(ue_area['facturacionMes'] / comit) if comit else '—',
-                usd2(ue_area['gastoTotal'] / comit) if comit else '—',
-            ]]
-            plain_table(["Comitentes", "Facturación / comitente", "Costo total / comitente"], rows,
-                        [col_a, col_rest, col_rest])
+            if mostrar_comitentes:
+                rows = [[
+                    num(comit) if comit else '—',
+                    usd2(ue_area['facturacionMes'] / comit) if comit else '—',
+                    usd2(ue_area['gastoTotal'] / comit) if comit else '—',
+                ]]
+                plain_table(["Comitentes", "Facturación / comitente", "Costo total / comitente"], rows,
+                            [col_a, col_rest, col_rest])
             rows = [[
                 num(emp) if emp else '—',
                 usd2(ue_area['facturacionMes'] / emp) if emp else '—',
@@ -596,14 +602,15 @@ def build_area(data, area, mes_label, out_path):
 
     # ── Evolución Unit Economics de esta área -- mismo criterio que el
     # consolidado (ver "EVOLUCIÓN UNIT ECONOMICS" ahí), pero una sola
-    # línea (esta área) en vez de una por cada una de las 4. ──
+    # línea (esta área) en vez de una por cada una de las 4. Ambos
+    # gráficos son por comitente, así que se omiten para Mesa. ──
     ue_trend = data.get('unitEconomicsTrend') or []
     ue_trend_area = []
     for m in ue_trend:
         a_data = next((x for x in m.get('porArea', []) if x['area'] == area), None)
         if a_data:
             ue_trend_area.append(a_data)
-    if ue_area and len(ue_trend_area) > 1:
+    if mostrar_comitentes and ue_area and len(ue_trend_area) > 1:
         meses_ue = [m['mes'][:3] for m in ue_trend]
         fmt_axis_usd2 = lambda v: usd2(v)
 
