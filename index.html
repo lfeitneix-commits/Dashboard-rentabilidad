@@ -2509,22 +2509,7 @@ function renderAnalisis(){
   const tR=AREAS.reduce((s,a)=>s+(agg[a]?.resultado||0),0);
   const margen=tI?tR/tI*100:0;
   const ratioFijos=tI?(fv.fijos/tI*100):0;
-  const suelTot=(()=>{
-    const isCons2=mes==='__consolidado__';
-    const meses2=isCons2?ST.meses:[mes];
-    const PNAMES=new Set(Object.keys(PARENT_CHILDREN));
-    let tot=0;
-    meses2.forEach(m=>{
-      const md=ST.mesData[m];if(!md)return;
-      md.rows.forEach(row=>{
-        const nom=String(row['']||row[md.nameCol]||'').trim();
-        if(!nom||PNAMES.has(nom))return;
-        if(!/^Sueldos y CS/i.test(nom))return;
-        tot+=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
-      });
-    });
-    return tot;
-  })();
+  const suelTot=sueldosTotalDePeriodo(mes);
   const ratioSueldos=tI?(suelTot/tI*100):0;
 
   // Gasto fijo que más aumentó (solo consolidado — comparar último mes vs penúltimo)
@@ -3913,6 +3898,26 @@ function buildQuantInversionInicialHtml(){
     </div>`;
 }
 
+
+// Suma de todas las filas "Sueldos y CS*" (sin contar la fila padre, para no
+// duplicar) en un mes puntual o consolidado -- extraído de renderAnalisis
+// para poder reusarlo también desde extract_data.js (ratios del reporte).
+function sueldosTotalDePeriodo(mes){
+  const isCons=mes==='__consolidado__';
+  const meses=isCons?ST.meses:[mes];
+  const PNAMES=new Set(Object.keys(PARENT_CHILDREN));
+  let tot=0;
+  meses.forEach(m=>{
+    const md=ST.mesData[m];if(!md)return;
+    md.rows.forEach(row=>{
+      const nom=String(row['']||row[md.nameCol]||'').trim();
+      if(!nom||PNAMES.has(nom))return;
+      if(!/^Sueldos y CS/i.test(nom))return;
+      tot+=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+    });
+  });
+  return tot;
+}
 
 function calcFijosVariables(mes){
   // La hoja de Clasificación trae fijos/variables consolidados de toda la

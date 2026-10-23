@@ -443,6 +443,27 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ]))
         return cell
 
+    def info_card(label, value_str):
+        # Mismo envoltorio visual que ratio_card/margen_card, pero sin
+        # semáforo verde/rojo -- para ratios que, a diferencia de un margen o
+        # un costo con umbral conocido, no tienen un "bueno/malo" definido
+        # (ej. Costos Fijos/Facturación, Cobertura de Fijos): el dashboard
+        # mismo los muestra en gris neutro (.kv sin sgn()), no en color.
+        cell = Table(
+            [[Paragraph(label.upper(), styles['KpiLabel'])],
+             [Paragraph(value_str, ParagraphStyle('ic', fontName='DMMono-Medium', fontSize=15, textColor=GRAFITO, alignment=TA_CENTER))]],
+            colWidths=[87 * mm],
+        )
+        cell.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
+            ('LINEABOVE', (0, 0), (-1, 0), 3, GRAFITO),
+            ('TOPPADDING', (0, 0), (0, 0), 11),
+            ('BOTTOMPADDING', (-1, -1), (-1, -1), 11),
+            ('TOPPADDING', (0, 1), (0, 1), 3),
+        ]))
+        return cell
+
     def accum_card(label, value):
         color = VERDE if value >= 0 else BORDEAUX
         cell = Table(
@@ -1133,6 +1154,46 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ]))
         story.append(ratios_row)
 
+    # ── Ratios generales (resto) -- mismos 6 ratios de "Análisis Neix" en el
+    # dashboard (Margen neto y Gastos totales/Facturación ya se muestran
+    # arriba): Costos Fijos/Facturación, Sueldos y CS/Facturación, Cobertura
+    # de Fijos (Facturación / Costos Fijos) y Eficiencia (Resultado /
+    # Egresos), más Resultado Operativo como cifra en USD. fijosActual y
+    # sueldosTotalActual vienen de extract_data.js (calcFijosVariables /
+    # sueldosTotalDePeriodo, mismas funciones que usa el dashboard -- no se
+    # recalcula nada acá). ──
+    fijos_act = data.get('fijosActual')
+    sueldos_act = data.get('sueldosTotalActual')
+    if fact_act > 0 and fijos_act is not None and sueldos_act is not None:
+        with keep_together():
+            story.append(Spacer(1, 4))
+            cf_pct = fijos_act / fact_act * 100
+            suel_pct = sueldos_act / fact_act * 100
+            fila1 = Table(
+                [[info_card("Costos Fijos / Facturación", f"{cf_pct:.1f}%"),
+                  info_card("Sueldos y CS / Facturación", f"{suel_pct:.1f}%")]],
+                colWidths=[CONTENT_W / 2] * 2,
+            )
+            fila1.setStyle(TableStyle([
+                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(fila1)
+            story.append(Spacer(1, 4))
+            cobertura_txt = f"{fact_act / fijos_act:.2f}x" if fijos_act > 0 else "N/D"
+            eficiencia_pct = result_act / gastos_act * 100 if gastos_act else None
+            fila2_cards = [info_card("Cobertura de Fijos", cobertura_txt)]
+            if eficiencia_pct is not None:
+                fila2_cards.append(margen_card("Eficiencia (Resultado / Egresos)", eficiencia_pct))
+            else:
+                fila2_cards.append(na_card("Eficiencia (Resultado / Egresos)", "Egresos en cero este mes"))
+            fila2 = Table([fila2_cards], colWidths=[CONTENT_W / 2] * 2)
+            fila2.setStyle(TableStyle([
+                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(fila2)
+            story.append(Spacer(1, 4))
+            story.append(accum_card("Resultado Operativo", result_act))
+
     # ── Unit economics: cruza la Matriz (comitentes y empleados por área)
     # con Facturación y Gastos Totales de mesActual. Si el Sheet no tiene
     # esos datos todavía, extract_data.js manda unitEconomics=null y esta
@@ -1179,6 +1240,53 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     for a in ue['porArea']]
             plain_table(["Área", "Empleados", "Facturación / empleado", "Costo total / empleado"], rows,
                         [col_a, col_rest, col_rest, col_rest])
+
+        # ── Unit economics ACUMULADO DEL AÑO: mismo cruce que arriba, pero
+        # sumando Facturación y Costo total de TODOS los meses cargados
+        # (unitEconomicsTrend) en vez de solo mesActual. "Comitentes" usa el
+        # promedio de los meses cargados (varía mes a mes); "Empleados" es
+        # fijo, se toma del mes más reciente -- mismo criterio que arriba. ──
+        ue_trend_acum = data.get('unitEconomicsTrend') or []
+        if len(ue_trend_acum) > 1:
+            acum_por_area = {}
+            for a in ue['porArea']:
+                acum_por_area[a['area']] = {'facturacion': 0.0, 'gasto': 0.0, 'comitentes_suma': 0, 'comitentes_n': 0, 'empleados': a['empleados']}
+            for m in ue_trend_acum:
+                for a in m['porArea']:
+                    acc = acum_por_area.get(a['area'])
+                    if not acc:
+                        continue
+                    acc['facturacion'] += a['facturacionMes']
+                    acc['gasto'] += a['gastoTotal']
+                    if a['comitentes']:
+                        acc['comitentes_suma'] += a['comitentes']
+                        acc['comitentes_n'] += 1
+            with keep_together():
+                primer_mes_ue = ue_trend_acum[0]['mes']
+                section_title(f"UNIT ECONOMICS · ACUMULADO {primer_mes_ue} - {data['mesActual']}")
+                story.append(Paragraph(
+                    "Facturación y Costo total sumados de todos los meses cargados &nbsp;·&nbsp; "
+                    "Comitentes: promedio de esos meses (Matriz) &nbsp;·&nbsp; Empleados: Matriz (fijo)",
+                    styles['NotaChica'],
+                ))
+                story.append(Spacer(1, 4))
+                rows = []
+                for a in ue['porArea']:
+                    acc = acum_por_area[a['area']]
+                    comit_prom = acc['comitentes_suma'] / acc['comitentes_n'] if acc['comitentes_n'] else 0
+                    rows.append([
+                        a['area'],
+                        usd(acc['facturacion']),
+                        usd(acc['gasto']),
+                        usd2(acc['facturacion'] / comit_prom) if comit_prom else '—',
+                        usd2(acc['gasto'] / comit_prom) if comit_prom else '—',
+                    ])
+                col_a2 = 28 * mm
+                col_rest2 = (CONTENT_W - col_a2) / 4
+                plain_table(
+                    ["Área", "Facturación acum.", "Costo acum.", "Fact. / comitente", "Costo / comitente"],
+                    rows, [col_a2, col_rest2, col_rest2, col_rest2, col_rest2],
+                )
 
     # ── Evolución Unit Economics: mismo criterio que "Evolución últimos
     # meses" (Facturación/Gastos/Resultado), pero por área y por comitente
