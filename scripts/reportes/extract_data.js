@@ -730,6 +730,15 @@ const APP = context.__APP__;
     if (m) return m[2].trim();
     return concepto.replace(/\s*TC:\s*\d+.*$/i, '').trim() || concepto;
   }
+  // Texto libre después del número de comprobante (ej. "Video Grego Ferra"
+  // en "COMPRAS REPUBLICA COCON 62-26 Video Grego Ferra") -- lo que se
+  // cargó a mano sobre esa compra puntual. Se muestra junto al proveedor en
+  // el Anexo (ver agruparPorProveedor) para no tener que adivinar de qué
+  // se trata un monto grande con solo el nombre del proveedor.
+  function detalleDeConcepto(concepto) {
+    const m = /^(COMPRAS|PAGOS)\s+.+?\s+\d{1,6}-\d{2,8}\b\s*(.*)$/i.exec(concepto);
+    return m ? m[2].trim() : '';
+  }
   function agruparPorProveedor(itemsAnterior, itemsActual, keyFn = proveedorCanonico) {
     const sumar = items => {
       const m = {};
@@ -741,9 +750,26 @@ const APP = context.__APP__;
     };
     const sumAnt = sumar(itemsAnterior);
     const sumAct = sumar(itemsActual);
+    // Detalle del movimiento más grande (en valor absoluto) de mesActual
+    // para cada proveedor -- si hubo varias compras distintas al mismo
+    // proveedor este mes, se queda con la de mayor monto (la que más
+    // probablemente explica la variación), no con todas mezcladas.
+    const detalleMax = {};
+    (itemsActual || []).forEach(it => {
+      const key = keyFn(it.concepto);
+      const detalle = detalleDeConcepto(it.concepto);
+      if (!detalle) return;
+      const abs = Math.abs(it.montoUSD);
+      if (!detalleMax[key] || abs > detalleMax[key].abs) detalleMax[key] = { abs, detalle };
+    });
     const nombres = new Set([...Object.keys(sumAnt), ...Object.keys(sumAct)]);
     return [...nombres]
-      .map(nombre => ({ nombre, anterior: sumAnt[nombre] || 0, actual: sumAct[nombre] || 0 }))
+      .map(nombre => ({
+        nombre,
+        anterior: sumAnt[nombre] || 0,
+        actual: sumAct[nombre] || 0,
+        detalle: detalleMax[nombre] ? detalleMax[nombre].detalle : '',
+      }))
       .sort((a, b) => Math.abs(b.actual) - Math.abs(a.actual));
   }
   const cuentasLedger = new Set([...Object.keys(gastosLedgerDetalle), ...Object.keys(gastosLedgerDetalleAnterior)]);
