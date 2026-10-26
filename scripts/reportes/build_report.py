@@ -1154,6 +1154,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
 
     # ── Ratios generales ──
     with keep_together():
+        section_title("RATIOS GENERALES")
         story.append(Spacer(1, 2))
         if fact_act > 0:
             margen_pct = result_act / fact_act * 100
@@ -1285,6 +1286,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # factura bruto el productor externo) -- no toca el resto del reporte,
     # donde "Facturación por área" sigue siendo la bruta del Sheet. ──
     ue = data.get('unitEconomics')
+    # "Comitentes" no es una unidad relevante para el negocio de Mesa (a
+    # pedido) -- mismo criterio que ya aplica el reporte de área de Mesa
+    # (build_report_area.py, mostrar_comitentes): se excluye su fila de las
+    # tablas de Comitentes acá también, no solo en su propio reporte.
+    ue_sin_mesa = [a for a in (ue or {}).get('porArea', []) if a['area'] != 'Mesa']
     if ue:
         col_a = 48 * mm
         col_rest = (CONTENT_W - col_a) / 3
@@ -1301,7 +1307,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
             rows = [[a['area'], num(a['comitentes']) if a['comitentes'] else '—',
                      usd2(a['facturacionMes'] / a['comitentes']) if a['comitentes'] else '—',
                      usd2(a['gastoTotal'] / a['comitentes']) if a['comitentes'] else '—']
-                    for a in ue['porArea']]
+                    for a in ue_sin_mesa]
             plain_table(["Área", "Comitentes", "Facturación / comitente", "Costo total / comitente"], rows,
                         [col_a, col_rest, col_rest, col_rest])
 
@@ -1345,7 +1351,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 rows = []
                 for a in ue['porArea']:
                     acc = acum_por_area[a['area']]
-                    comit_prom = acc['comitentes_suma'] / acc['comitentes_n'] if acc['comitentes_n'] else 0
+                    # Comitentes no es una unidad relevante para Mesa (a
+                    # pedido) -- se muestra su Facturación/Costo acumulado
+                    # igual (sí aplica), pero sin las columnas por comitente.
+                    comit_prom = 0 if a['area'] == 'Mesa' else (acc['comitentes_suma'] / acc['comitentes_n'] if acc['comitentes_n'] else 0)
                     rows.append([
                         a['area'],
                         usd(acc['facturacion']),
@@ -1371,8 +1380,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
         meses_ue = [m['mes'][:3] for m in ue_trend]
 
         def serie_por_area(campo):
+            # Comitentes no es una unidad relevante para Mesa (a pedido) --
+            # se la excluye de estos 2 gráficos, que son enteramente por
+            # comitente, mismo criterio que las tablas de "Comitentes" de
+            # arriba.
             series = []
             for a in AREAS:
+                if a == 'Mesa':
+                    continue
                 vals = []
                 for m in ue_trend:
                     area_data = next((x for x in m['porArea'] if x['area'] == a), None)

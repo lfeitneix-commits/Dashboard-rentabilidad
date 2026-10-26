@@ -413,7 +413,7 @@ def build_area(data, area, mes_label, out_path):
     # muestra N/D en vez de un número que miente -- mismo criterio que
     # margen_bullet() más abajo. ──
     with keep_together():
-        story.append(Spacer(1, 6))
+        section_title("RATIOS GENERALES")
         if actual['ingresos'] > 0:
             margen_pct_kpi = actual['resultadoDirecto'] / actual['ingresos'] * 100
             story.append(margen_card("Margen neto (Resultado / Facturación)", margen_pct_kpi))
