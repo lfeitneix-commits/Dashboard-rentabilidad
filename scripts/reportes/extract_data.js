@@ -799,6 +799,16 @@ const APP = context.__APP__;
   // CS/Comisiones Productores.
   const RUBRO_LEDGER_PREFIJOS = {
     'Capacitacion y Cursos': { re: /^Capacit\.?\s*y\s*Cursos\b/i },
+    // Mismo criterio: en el mayor contable no hay una cuenta "Gastos de
+    // Hardware" -- está repartida por área ("Gtos Hardw y Comp Mesa"/
+    // "...BC"/etc., ver PARENT_CHILDREN en index.html). Sumando TODAS esas
+    // cuentas (Directos + Indirectos) el total reconcilia con el de
+    // "Clasificación de gastos" (a diferencia de "Servicios Contratados",
+    // que se probó con el mismo criterio y NO reconcilia -- esa además
+    // trae movimientos sucios del mayor, como transferencias bancarias y
+    // ajustes impositivos sin proveedor real asociado -- se la deja afuera
+    // de este mecanismo y sigue cayendo a "Gastos Fijos Detalle").
+    'Gastos de Hardware': { re: /^Gtos\s+Hardw\s*y\s*Comp\b/i },
   };
   Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn }]) => {
     const cuentasMatch = [...cuentasLedger].filter(c => re.test(c));

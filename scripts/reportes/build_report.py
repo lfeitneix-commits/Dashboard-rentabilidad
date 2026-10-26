@@ -1515,14 +1515,22 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
                                 [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 # ── Chequeo de reconciliación: si la suma de este desglose
-                # no da el mismo total que "Top rubros" para esta cuenta, es
-                # que falta cargar algún proveedor/movimiento en la hoja
-                # fuente (mismo problema que tuvo "Pagina Web/Publicidad" --
-                # ver PR de prioridad del mayor contable). Mejor avisar que
-                # mostrar en silencio un desglose que no suma lo mismo que
-                # el número real de arriba. Tolerancia: USD 1 o 2% del real
-                # (lo que sea mayor), para no disparar por redondeo de
-                # conversión ARS→USD. ──
+                # no da el mismo total que "Top rubros" para esta cuenta,
+                # avisar en vez de mostrar en silencio un desglose que no
+                # suma lo mismo que el número real de arriba. Dos causas
+                # posibles, no se puede distinguir desde acá cuál es (el
+                # texto cubre ambas a propósito, sin afirmar una u otra):
+                # (1) faltan proveedores/movimientos cargados en la hoja
+                # fuente (ej. el caso ya resuelto de "Pagina Web/Publicidad"
+                # -- ahí si faltaban), o (2) la cuenta es un agregado de
+                # varias del mayor contable (ej. "Gastos de Hardware" =
+                # Directos + Indirectos por área) y "Clasificación de
+                # gastos" -- la fuente de "Top rubros" -- no es simplemente
+                # la suma de esas cuentas (confirmado a mano para Gastos de
+                # Hardware/Servicios Contratados: ninguna combinación de sus
+                # cuentas por área da el total real). Tolerancia: USD 1 o 2%
+                # del real (lo que sea mayor), para no disparar por redondeo
+                # de conversión ARS→USD. ──
                 real = anexo_reales.get(nombre)
                 if real:
                     real_ant, real_act = real
@@ -1533,9 +1541,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     if abs(real_ant - sum_ant) > tol_ant or abs(real_act - sum_act) > tol_act:
                         story.append(Spacer(1, 2))
                         story.append(Paragraph(
-                            f"Atención: este desglose es parcial, no reconcilia con el total real de la cuenta "
+                            f"Atención: este desglose no reconcilia con el total real de la cuenta "
                             f"({data['mesAnterior']} {usd(real_ant)} / {data['mesActual']} {usd(real_act)}, según "
-                            f'"Top rubros"). Faltan proveedores o movimientos sin identificar en la hoja fuente.',
+                            f'"Top rubros"). Puede ser que falten proveedores/movimientos sin cargar en la hoja '
+                            f'fuente, o que esta cuenta sume distinto en "Clasificación de gastos" que en el '
+                            f'mayor contable.',
                             ParagraphStyle('anexoWarning', fontName='DMSans-Bold', fontSize=8, textColor=BORDEAUX),
                         ))
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
