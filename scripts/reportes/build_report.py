@@ -941,11 +941,25 @@ def build(data, mes_label, out_path, bullets_extra=None):
     for area, suben_area in area_blocks:
         for r in suben_area:
             fuentes_por_nombre.setdefault(r['nombre'], []).append(('area', area))
+    # Total real de cada rubro (anterior/actual, ya calculado por
+    # extract_data.js para "Top rubros") -- se usa más abajo para chequear
+    # que el desglose del Anexo (sea 'ledger' o 'providers') reconcilie con
+    # ese total, y avisar en vez de mostrar en silencio un desglose parcial
+    # que no suma lo mismo (ver advertencia_reconciliacion). Prioriza el
+    # valor de la tabla general sobre el de área si el rubro aparece en
+    # ambas (setdefault -- rubros_suben se recorre primero).
+    real_totales_por_nombre = {}
+    for r in rubros_suben:
+        real_totales_por_nombre.setdefault(r['nombre'], (r['anterior'], r['actual']))
+    for area, suben_area in area_blocks:
+        for r in suben_area:
+            real_totales_por_nombre.setdefault(r['nombre'], (r['anterior'], r['actual']))
     nombres_vistos = set(fuentes_por_nombre.keys())
     cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
     ledger_por_nombre = {k.strip().lower(): k for k in ledger_detalle.keys()}
     anexo_entries = []
     anexo_fuentes = {}
+    anexo_reales = {}
     vistos_lower = set()
     for n in sorted(nombres_vistos):
         nl = n.strip().lower()
@@ -961,6 +975,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
         if canon:
             vistos_lower.add(nl)
             anexo_fuentes.setdefault(canon, []).extend(fuentes_por_nombre[n])
+            anexo_reales[canon] = real_totales_por_nombre[n]
     anexo_entries.sort(key=lambda e: e[0])
     anexo_nombres = {e[0] for e in anexo_entries}
     nombre_style = ParagraphStyle('rubroNombre', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
@@ -1472,7 +1487,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 story.append(cuenta_t)
                 story.append(Spacer(1, 4))
                 if tipo == 'providers':
-                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in cuentas_detalle[nombre]]
+                    detalle_list = cuentas_detalle[nombre]
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in detalle_list]
                     plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
                                 [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 else:
@@ -1485,9 +1501,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     # Ferra" -- ver detalleDeConcepto en extract_data.js), se
                     # agrega a continuación del nombre: a un monto grande no
                     # le alcanza con el proveedor para saber de qué se trata.
+                    detalle_list = ledger_agrupado[nombre]
                     def nombre_con_detalle(p):
                         return f"{p['nombre']} - {p['detalle']}" if p.get('detalle') else p['nombre']
-                    rows = [[nombre_con_detalle(p), num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
+                    rows = [[nombre_con_detalle(p), num(p['anterior']), num(p['actual'])] for p in detalle_list]
                     story.append(Paragraph(
                         "Mayor contable, agrupado por proveedor/concepto (convertidos de ARS a USD con el MEP "
                         "de cada mes) -- movimiento por movimiento del mes, no solo el subconjunto curado en "
@@ -1497,6 +1514,30 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     story.append(Spacer(1, 2))
                     plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
                                 [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                # ── Chequeo de reconciliación: si la suma de este desglose
+                # no da el mismo total que "Top rubros" para esta cuenta, es
+                # que falta cargar algún proveedor/movimiento en la hoja
+                # fuente (mismo problema que tuvo "Pagina Web/Publicidad" --
+                # ver PR de prioridad del mayor contable). Mejor avisar que
+                # mostrar en silencio un desglose que no suma lo mismo que
+                # el número real de arriba. Tolerancia: USD 1 o 2% del real
+                # (lo que sea mayor), para no disparar por redondeo de
+                # conversión ARS→USD. ──
+                real = anexo_reales.get(nombre)
+                if real:
+                    real_ant, real_act = real
+                    sum_ant = sum(p['anterior'] for p in detalle_list)
+                    sum_act = sum(p['actual'] for p in detalle_list)
+                    tol_ant = max(1.0, abs(real_ant) * 0.02)
+                    tol_act = max(1.0, abs(real_act) * 0.02)
+                    if abs(real_ant - sum_ant) > tol_ant or abs(real_act - sum_act) > tol_act:
+                        story.append(Spacer(1, 2))
+                        story.append(Paragraph(
+                            f"Atención: este desglose es parcial, no reconcilia con el total real de la cuenta "
+                            f"({data['mesAnterior']} {usd(real_ant)} / {data['mesActual']} {usd(real_act)}, según "
+                            f'"Top rubros"). Faltan proveedores o movimientos sin identificar en la hoja fuente.',
+                            ParagraphStyle('anexoWarning', fontName='DMSans-Bold', fontSize=8, textColor=BORDEAUX),
+                        ))
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):
                     if tipo_fuente == 'general':
                         key, label = 'sec_top_rubros', 'Top rubros que más subieron'
