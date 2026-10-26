@@ -817,20 +817,25 @@ const APP = context.__APP__;
     // "Servicios Contratados" -- mismo reparto por área que Hardware
     // ("Serv. Contratados Mesa"/"...BC"/etc.), pero a diferencia de esa,
     // sumando todas sus cuentas el total NO reconcilia con "Clasificación
-    // de gastos" (USD 79.064 vs. el real USD 56.365 en Septiembre) y trae
-    // algunos movimientos sin proveedor real asociado (transferencias
-    // bancarias, ajustes impositivos chicos) -- se muestra de todos modos,
-    // a pedido: son los proveedores/movimientos REALES del mes, y entre
-    // ellos sí se ve claro cuál explica una suba grande (ej. Bloomberg
-    // nuevo en el mes). build_report.py ya marca en rojo que no reconcilia
-    // con el total de arriba.
-    'Servicios Contratados': { re: /^Serv\.?\s*Contratados\b/i },
+    // de gastos" (antes de excluir NUBI: USD 79.064 vs. el real USD
+    // 56.365 en Septiembre) y trae algunos movimientos sin proveedor real
+    // asociado (transferencias bancarias, ajustes impositivos chicos) --
+    // se muestra de todos modos, a pedido: son los proveedores/movimientos
+    // REALES del mes, y entre ellos sí se ve claro cuál explica una suba
+    // grande (ej. Bloomberg nuevo en el mes). build_report.py ya marca en
+    // rojo que no reconcilia con el total de arriba. Los movimientos de
+    // "Nubi" quedan excluidos (ver `excluir` abajo) -- son sueldos (NUBI
+    // es la plataforma de adelanto de sueldo de los empleados), están
+    // contabilizados acá por un tema de cuenta contable, pero no son un
+    // servicio contratado real -- a pedido del usuario.
+    'Servicios Contratados': { re: /^Serv\.?\s*Contratados\b/i, excluir: /nubi/i },
   };
-  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn }]) => {
+  Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn, excluir }]) => {
     const cuentasMatch = [...cuentasLedger].filter(c => re.test(c));
     if (!cuentasMatch.length) return;
-    const itemsAnt = cuentasMatch.flatMap(c => gastosLedgerDetalleAnterior[c] || []);
-    const itemsAct = cuentasMatch.flatMap(c => gastosLedgerDetalle[c] || []);
+    const sinExcluidos = items => excluir ? (items || []).filter(it => !excluir.test(it.concepto)) : (items || []);
+    const itemsAnt = sinExcluidos(cuentasMatch.flatMap(c => gastosLedgerDetalleAnterior[c] || []));
+    const itemsAct = sinExcluidos(cuentasMatch.flatMap(c => gastosLedgerDetalle[c] || []));
     if (!itemsAct.length && !itemsAnt.length) return;
     gastosLedgerAgrupado[canonico] = agruparPorProveedor(itemsAnt, itemsAct, keyFn);
     // Solo para que build_report.py detecte que el rubro SÍ tiene Anexo
