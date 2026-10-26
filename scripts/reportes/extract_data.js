@@ -727,8 +727,17 @@ const APP = context.__APP__;
   // Gastos Fijos Detalle -- no 15 filas sueltas por 15 días distintos.
   function proveedorCanonico(concepto) {
     const m = /^(COMPRAS|PAGOS)\s+(.+?)\s+\d{1,6}-\d{2,8}\b/i.exec(concepto);
-    if (m) return m[2].trim();
-    return concepto.replace(/\s*TC:\s*\d+.*$/i, '').trim() || concepto;
+    // "TC: NNNN <proveedor>" -- un mismo proveedor puede aparecer varias
+    // veces en el mes con un número de comprobante "TC:" distinto cada vez
+    // (ej. "COMPRAS TC: 1510 MARINA MULLER 2-71 07-2026", "...TC: 1520...",
+    // "...TC: 1530..."). Ese "TC: NNNN" queda DENTRO del nombre que captura
+    // el regex de arriba (entre "COMPRAS"/"PAGOS" y el número de
+    // comprobante real), así que hay que sacarlo de ahí -- sin esto, cada
+    // comprobante quedaba como una fila separada para el mismo proveedor
+    // en vez de una sola sumada.
+    const nombre = m ? m[2].trim() : (concepto.replace(/\s*TC:\s*\d+.*$/i, '').trim() || concepto);
+    const mTC = /^TC:\s*\d+\s+(.+)$/i.exec(nombre);
+    return mTC ? mTC[1].trim() : nombre;
   }
   // Texto libre después del número de comprobante (ej. "Video Grego Ferra"
   // en "COMPRAS REPUBLICA COCON 62-26 Video Grego Ferra") -- lo que se
@@ -803,12 +812,19 @@ const APP = context.__APP__;
     // Hardware" -- está repartida por área ("Gtos Hardw y Comp Mesa"/
     // "...BC"/etc., ver PARENT_CHILDREN en index.html). Sumando TODAS esas
     // cuentas (Directos + Indirectos) el total reconcilia con el de
-    // "Clasificación de gastos" (a diferencia de "Servicios Contratados",
-    // que se probó con el mismo criterio y NO reconcilia -- esa además
-    // trae movimientos sucios del mayor, como transferencias bancarias y
-    // ajustes impositivos sin proveedor real asociado -- se la deja afuera
-    // de este mecanismo y sigue cayendo a "Gastos Fijos Detalle").
+    // "Clasificación de gastos".
     'Gastos de Hardware': { re: /^Gtos\s+Hardw\s*y\s*Comp\b/i },
+    // "Servicios Contratados" -- mismo reparto por área que Hardware
+    // ("Serv. Contratados Mesa"/"...BC"/etc.), pero a diferencia de esa,
+    // sumando todas sus cuentas el total NO reconcilia con "Clasificación
+    // de gastos" (USD 79.064 vs. el real USD 56.365 en Septiembre) y trae
+    // algunos movimientos sin proveedor real asociado (transferencias
+    // bancarias, ajustes impositivos chicos) -- se muestra de todos modos,
+    // a pedido: son los proveedores/movimientos REALES del mes, y entre
+    // ellos sí se ve claro cuál explica una suba grande (ej. Bloomberg
+    // nuevo en el mes). build_report.py ya marca en rojo que no reconcilia
+    // con el total de arriba.
+    'Servicios Contratados': { re: /^Serv\.?\s*Contratados\b/i },
   };
   Object.entries(RUBRO_LEDGER_PREFIJOS).forEach(([canonico, { re, keyFn }]) => {
     const cuentasMatch = [...cuentasLedger].filter(c => re.test(c));
