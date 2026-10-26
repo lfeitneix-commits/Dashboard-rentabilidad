@@ -3917,7 +3917,14 @@ function sueldosTotalDePeriodo(mes,areaOverride){
   let tot=0;
   meses.forEach(m=>{
     const md=ST.mesData[m];if(!md)return;
-    md.rows.forEach(row=>{
+    // Con areaOverride (reportes por área) hay que filtrar a filas DIRECTAS
+    // -- sin esto, "Sueldos y CS Back/IT/Adm/RRHH/MKT/Performance" (sueldos
+    // INDIRECTOS de staff, prorrateados entre las 4 áreas) se sumaban acá
+    // igual que "Sueldos y CS Mesa" (directo), duplicando de hecho el
+    // sueldo directo del área con el prorrateo de indirectos -- mismo
+    // criterio que ya usa calcFijosVariables con areaOverride.
+    const filas=areaOverride?filasSoloDirectas(md):md.rows;
+    filas.forEach(row=>{
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!nom||PNAMES.has(nom))return;
       if(!/^Sueldos y CS/i.test(nom))return;

@@ -1063,6 +1063,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
             plain_table(["Área", "Gastos Totales"], [[a, usd(gastos_area_abs[a])] for a in AREAS],
                         [55 * mm, CONTENT_W - 55 * mm], signed_colidx=1,
                         signed_vals=[gastos_area_abs[a] for a in AREAS])
+        story.append(Paragraph(
+            "No incluye Impuestos (no se abre por área) -- por eso la suma de las 4 áreas da menos que "
+            "\"Gastos Totales\" de la primera página.",
+            styles['NotaChica'],
+        ))
 
     # ── Directos vs Indirectos: el ratio de "Ratios por área" mezcla costo
     # propio del área (Directos, fila "GASTOS DIRECTOS" del Sheet) con el
@@ -1146,7 +1151,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 rows.append([a, usd(fact), usd(result), cell])
             data_table(["Área", "Facturación", "Resultado", "Margen"], rows,
                        [40 * mm, 42 * mm, 42 * mm, CONTENT_W - 40 * mm - 42 * mm - 42 * mm], var_colidx=3)
+            story.append(Paragraph(
+                "Este \"Resultado\" incluye el prorrateo de gastos indirectos entre las 4 áreas (a diferencia "
+                "del reporte propio de cada área, que solo cuenta sus gastos directos) -- por eso puede diferir "
+                "bastante del \"Resultado\" de ese reporte.",
+                styles['NotaChica'],
+            ))
             if hubo_na_margen:
+                story.append(Spacer(1, 2))
                 story.append(Paragraph(
                     "N/D: esa área tuvo facturación bruta <= 0 este mes (ver tabla de Facturación por área).",
                     styles['NotaChica'],
