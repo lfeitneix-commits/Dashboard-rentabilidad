@@ -1486,9 +1486,32 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 ]))
                 story.append(cuenta_t)
                 story.append(Spacer(1, 4))
+                # Top proveedores por VARIACIÓN (|actual - anterior|), no por
+                # monto absoluto -- la idea del Anexo es justificar un cambio
+                # grande (ej. "por qué subió tanto"), y un proveedor grande
+                # pero estable mes a mes no lo explica tanto como uno chico
+                # que apareció de cero o se fue a cero. Cuentas con muchos
+                # proveedores quedaban larguísimas (ej. "Gastos de Hardware"
+                # con 39 filas, la mayoría de centavos) -- se cortan en las
+                # MAX_FILAS_ANEXO que más cambiaron y se suma el resto en una
+                # sola fila, para no perder completitud en el total (el
+                # chequeo de reconciliación de abajo sigue usando la suma
+                # completa, no solo lo que se muestra).
+                MAX_FILAS_ANEXO = 10
+                def filas_a_mostrar(detalle_list):
+                    ordenado = sorted(detalle_list, key=lambda p: abs(p['actual'] - p['anterior']), reverse=True)
+                    if len(ordenado) <= MAX_FILAS_ANEXO:
+                        return ordenado, None
+                    resto = ordenado[MAX_FILAS_ANEXO:]
+                    resto_resumen = (len(resto), sum(p['anterior'] for p in resto), sum(p['actual'] for p in resto))
+                    return ordenado[:MAX_FILAS_ANEXO], resto_resumen
                 if tipo == 'providers':
                     detalle_list = cuentas_detalle[nombre]
-                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in detalle_list]
+                    principales, resto_resumen = filas_a_mostrar(detalle_list)
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in principales]
+                    if resto_resumen:
+                        n_resto, resto_ant, resto_act = resto_resumen
+                        rows.append([f"+ {n_resto} proveedores más (menor variación)", num(resto_ant), num(resto_act)])
                     plain_table(["Proveedor / Concepto", data['mesAnterior'], data['mesActual']], rows,
                                 [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
                 else:
@@ -1504,7 +1527,11 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     detalle_list = ledger_agrupado[nombre]
                     def nombre_con_detalle(p):
                         return f"{p['nombre']} - {p['detalle']}" if p.get('detalle') else p['nombre']
-                    rows = [[nombre_con_detalle(p), num(p['anterior']), num(p['actual'])] for p in detalle_list]
+                    principales, resto_resumen = filas_a_mostrar(detalle_list)
+                    rows = [[nombre_con_detalle(p), num(p['anterior']), num(p['actual'])] for p in principales]
+                    if resto_resumen:
+                        n_resto, resto_ant, resto_act = resto_resumen
+                        rows.append([f"+ {n_resto} proveedores más (menor variación)", num(resto_ant), num(resto_act)])
                     story.append(Paragraph(
                         "Mayor contable, agrupado por proveedor/concepto (convertidos de ARS a USD con el MEP "
                         "de cada mes) -- movimiento por movimiento del mes, no solo el subconjunto curado en "
