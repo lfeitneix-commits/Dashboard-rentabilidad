@@ -1099,7 +1099,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 story.append(Spacer(1, 2))
                 story.append(Paragraph(
                     f"{', '.join(areas_directos_neg)}: \"Directos\" dio negativo este mes -- es un gasto real, no "
-                    f"debería pasar. Vale la pena revisarlo en el Sheet antes de dar el mes por cerrado.",
+                    f"debería pasar. Vale la pena revisarlo antes de dar el mes por cerrado.",
                     styles['NotaChica'],
                 ))
 
@@ -1291,8 +1291,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
         with keep_together():
             section_title("UNIT ECONOMICS")
             story.append(Paragraph(
-                f"Comitentes: cuentas abiertas de {ue['mes']} (Matriz) "
-                f"&nbsp;·&nbsp; Empleados: Matriz (fijo, no cambia mes a mes) "
+                f"Comitentes: cuentas abiertas de {ue['mes']} "
+                f"&nbsp;·&nbsp; Empleados: fijo, no cambia mes a mes "
                 f"&nbsp;·&nbsp; Facturación (FAs neta de Comisiones Productores) y Costo total "
                 f"(Directos + Indirectos prorrateados): datos de {ue['mes']}",
                 styles['NotaChica'],
@@ -1338,7 +1338,7 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 section_title(f"UNIT ECONOMICS · ACUMULADO {primer_mes_ue} - {data['mesActual']}")
                 story.append(Paragraph(
                     "Facturación y Costo total sumados de todos los meses cargados &nbsp;·&nbsp; "
-                    "Comitentes: promedio de esos meses (Matriz) &nbsp;·&nbsp; Empleados: Matriz (fijo)",
+                    "Comitentes: promedio de esos meses &nbsp;·&nbsp; Empleados: fijo",
                     styles['NotaChica'],
                 ))
                 story.append(Spacer(1, 4))
@@ -1461,10 +1461,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
         story.append(Paragraph(
-            "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\" -- movimiento por "
-            "movimiento del mayor contable cuando ese mes está cargado, o la vista curada de \"Gastos "
-            "Fijos Detalle\" si no. No todas las cuentas tienen este desglose cargado en el Sheet. Tocá "
-            "el nombre de un rubro en las tablas de arriba para volver acá directamente.",
+            "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\". No todas las cuentas "
+            "tienen este desglose disponible. Tocá el nombre de un rubro en las tablas de arriba para "
+            "volver acá directamente.",
             styles['NotaChica'],
         ))
         story.append(Spacer(1, 4))
@@ -1533,9 +1532,8 @@ def build(data, mes_label, out_path, bullets_extra=None):
                         n_resto, resto_ant, resto_act = resto_resumen
                         rows.append([f"+ {n_resto} proveedores más (menor variación)", num(resto_ant), num(resto_act)])
                     story.append(Paragraph(
-                        "Mayor contable, agrupado por proveedor/concepto (convertidos de ARS a USD con el MEP "
-                        "de cada mes) -- movimiento por movimiento del mes, no solo el subconjunto curado en "
-                        "\"Gastos Fijos Detalle\":",
+                        "Movimientos reales del mes, agrupados por proveedor/concepto (convertidos de ARS a "
+                        "USD con el tipo de cambio de cada mes):",
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
@@ -1568,11 +1566,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     if abs(real_ant - sum_ant) > tol_ant or abs(real_act - sum_act) > tol_act:
                         story.append(Spacer(1, 2))
                         story.append(Paragraph(
-                            f"Atención: este desglose no reconcilia con el total real de la cuenta "
+                            f"Atención: este desglose es parcial, no reconcilia con el total real de la cuenta "
                             f"({data['mesAnterior']} {usd(real_ant)} / {data['mesActual']} {usd(real_act)}, según "
-                            f'"Top rubros"). Puede ser que falten proveedores/movimientos sin cargar en la hoja '
-                            f'fuente, o que esta cuenta sume distinto en "Clasificación de gastos" que en el '
-                            f'mayor contable.',
+                            f'"Top rubros").',
                             ParagraphStyle('anexoWarning', fontName='DMSans-Bold', fontSize=8, textColor=BORDEAUX),
                         ))
                 for tipo_fuente, area_fuente in anexo_fuentes.get(nombre, []):

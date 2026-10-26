@@ -747,9 +747,9 @@ def build_area(data, area, mes_label, out_path):
     if ue_area:
         with keep_together():
             section_title("UNIT ECONOMICS")
-            nota_comit = "Comitentes: cuentas abiertas de {} (Matriz) &nbsp;·&nbsp; ".format(ue['mes']) if mostrar_comitentes else ""
+            nota_comit = "Comitentes: cuentas abiertas de {} &nbsp;·&nbsp; ".format(ue['mes']) if mostrar_comitentes else ""
             story.append(Paragraph(
-                f"{nota_comit}Empleados: Matriz (fijo) "
+                f"{nota_comit}Empleados: fijo "
                 f"&nbsp;·&nbsp; Facturación y Costo total: datos de {ue['mes']}",
                 styles['NotaChica'],
             ))
