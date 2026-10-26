@@ -896,19 +896,25 @@ def build(data, mes_label, out_path, bullets_extra=None):
     # está en la tabla de arriba, mesAnterior/mesActual) -- es de qué
     # proveedores/conceptos/movimientos se compone. Dos fuentes posibles
     # por rubro (`anexo_entries`, cada una con su `tipo`), en este orden:
-    #   'providers' -- el rubro coincide por nombre con una cuenta de
-    #     Gastos Fijos Detalle: proveedores con su monto en mesAnterior y
-    #     mesActual (gastosFijosDetalleCuentas, ya agregado por mes).
-    #   'ledger' -- no hay esa cuenta en Gastos Fijos Detalle (ej.
-    #     "Honorarios por Servicios" -- confirmado contra la hoja cruda,
-    #     no tiene bloque propio ahí, solo "Honorarios Profesionales" lo
-    #     tiene), pero el nombre coincide EXACTO con una cuenta del mayor
-    #     contable (gastosLedgerDetalle, extract_data.js): movimiento por
-    #     movimiento de mesActual, con fecha y concepto reales. Si el
-    #     rubro es un agregado de varias cuentas del mayor (ej.
-    #     "Impuestos" = Impuesto Ley 25413 + IVA No Computable + ...) NO
-    #     hay match exacto a propósito -- sumar esas cuentas a mano acá
-    #     sería adivinar, no leer el Sheet.
+    #   'ledger' -- el nombre coincide EXACTO (case-insensitive) con una
+    #     cuenta del mayor contable (gastosLedgerDetalle/Agrupado,
+    #     extract_data.js, hojas "Gastos MM.26"): TODOS los movimientos
+    #     reales de mesActual, agrupados por proveedor -- a propósito la
+    #     fuente PRIORITARIA: "Gastos Fijos Detalle" es una vista curada
+    #     de solo un subconjunto de proveedores "recurrentes" por cuenta y
+    #     puede no reconciliar con el total real de la cuenta (ej. "Pagina
+    #     Web/Publicidad" en Septiembre: esa vista curada solo tenía 2 de
+    #     los 5 proveedores reales del mes, perdiéndose justo el que
+    #     explicaba la suba). Si el rubro es un agregado de varias cuentas
+    #     del mayor (ej. "Impuestos" = Impuesto Ley 25413 + IVA No
+    #     Computable + ...) NO hay match exacto a propósito -- sumar esas
+    #     cuentas a mano acá sería adivinar, no leer el Sheet.
+    #   'providers' -- no hay esa cuenta en el mayor contable de este mes
+    #     (ej. el mes no tiene gid cargado en GASTOS_LEDGER_GID todavía),
+    #     pero el rubro coincide por nombre con una cuenta de Gastos Fijos
+    #     Detalle: proveedores con su monto en mesAnterior y mesActual
+    #     (gastosFijosDetalleCuentas, ya agregado por mes) -- mejor que
+    #     nada, aunque sea solo el subconjunto curado.
     # Si un rubro no tiene ninguna de las dos, queda sin link -- no inventa
     # un desglose que no existe, ni lo reemplaza por otra cosa (una serie
     # mensual se probó como "tercera fuente" y no resolvía "qué es esto";
@@ -946,12 +952,12 @@ def build(data, mes_label, out_path, bullets_extra=None):
         if nl in vistos_lower:
             continue
         canon = None
-        if nl in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[nl]):
-            canon = cuentas_por_nombre[nl]
-            anexo_entries.append((canon, 'providers'))
-        elif nl in ledger_por_nombre and ledger_detalle.get(ledger_por_nombre[nl]):
+        if nl in ledger_por_nombre and ledger_detalle.get(ledger_por_nombre[nl]):
             canon = ledger_por_nombre[nl]
             anexo_entries.append((canon, 'ledger'))
+        elif nl in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[nl]):
+            canon = cuentas_por_nombre[nl]
+            anexo_entries.append((canon, 'providers'))
         if canon:
             vistos_lower.add(nl)
             anexo_fuentes.setdefault(canon, []).extend(fuentes_por_nombre[n])
@@ -960,10 +966,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
     nombre_style = ParagraphStyle('rubroNombre', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
 
     def nombre_cell(nombre):
-        # Si ese rubro tiene una entrada en el Anexo (providers o ledger),
-        # el nombre es un link interno -- mismo criterio de match
-        # (case-insensitive) que arriba.
-        match = cuentas_por_nombre.get(nombre.strip().lower()) or ledger_por_nombre.get(nombre.strip().lower())
+        # Si ese rubro tiene una entrada en el Anexo (ledger o providers),
+        # el nombre es un link interno -- mismo orden de prioridad y mismo
+        # criterio de match (case-insensitive) que arriba.
+        match = ledger_por_nombre.get(nombre.strip().lower()) or cuentas_por_nombre.get(nombre.strip().lower())
         if match and match in anexo_nombres:
             html = f'<a href="#{cuenta_slug(match)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
             return Paragraph(html, nombre_style)
@@ -1440,10 +1446,10 @@ def build(data, mes_label, out_path, bullets_extra=None):
         story.append(PageBreak())
         section_title("ANEXO · DETALLE DE CUENTAS")
         story.append(Paragraph(
-            "De qué proveedores/conceptos (o movimientos del mayor contable, cuando no hay cuenta en "
-            "Gastos Fijos Detalle) se compone cada cuenta de \"Top rubros\" -- no todas tienen este "
-            "desglose cargado en el Sheet. Tocá el nombre de un rubro en las tablas de arriba para "
-            "volver acá directamente.",
+            "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros\" -- movimiento por "
+            "movimiento del mayor contable cuando ese mes está cargado, o la vista curada de \"Gastos "
+            "Fijos Detalle\" si no. No todas las cuentas tienen este desglose cargado en el Sheet. Tocá "
+            "el nombre de un rubro en las tablas de arriba para volver acá directamente.",
             styles['NotaChica'],
         ))
         story.append(Spacer(1, 4))
@@ -1476,8 +1482,9 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     # una sola fila), mismo estilo de tabla que "providers".
                     rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
                     story.append(Paragraph(
-                        "Sin cuenta propia en \"Gastos Fijos Detalle\" -- agrupado del mayor contable por "
-                        "proveedor/concepto (convertidos de ARS a USD con el MEP de cada mes):",
+                        "Mayor contable, agrupado por proveedor/concepto (convertidos de ARS a USD con el MEP "
+                        "de cada mes) -- movimiento por movimiento del mes, no solo el subconjunto curado en "
+                        "\"Gastos Fijos Detalle\":",
                         styles['NotaChica'],
                     ))
                     story.append(Spacer(1, 2))
