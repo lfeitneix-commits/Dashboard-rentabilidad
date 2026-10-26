@@ -1480,7 +1480,14 @@ def build(data, mes_label, out_path, bullets_extra=None):
                     # por número de factura/comprobante -- varias compras al
                     # mismo proveedor en distintos días del mes se suman en
                     # una sola fila), mismo estilo de tabla que "providers".
-                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
+                    # Si el mayor contable tiene, además del proveedor, un
+                    # texto libre sobre esa compra puntual (ej. "Video Grego
+                    # Ferra" -- ver detalleDeConcepto en extract_data.js), se
+                    # agrega a continuación del nombre: a un monto grande no
+                    # le alcanza con el proveedor para saber de qué se trata.
+                    def nombre_con_detalle(p):
+                        return f"{p['nombre']} - {p['detalle']}" if p.get('detalle') else p['nombre']
+                    rows = [[nombre_con_detalle(p), num(p['anterior']), num(p['actual'])] for p in ledger_agrupado[nombre]]
                     story.append(Paragraph(
                         "Mayor contable, agrupado por proveedor/concepto (convertidos de ARS a USD con el MEP "
                         "de cada mes) -- movimiento por movimiento del mes, no solo el subconjunto curado en "
