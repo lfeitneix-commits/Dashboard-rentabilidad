@@ -667,6 +667,7 @@ const APP = context.__APP__;
   const GASTOS_LEDGER_GID = {
     Enero: '504407038', Febrero: '1383245355', Marzo: '460907963', Abril: '617795229',
     Mayo: '1112341850', Junio: '1053178830', Julio: '937435377', Agosto: '373585666',
+    Septiembre: '1998710674',
   };
   async function ledgerDe(mes, mep) {
     const detalle = {};
