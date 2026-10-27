@@ -100,7 +100,8 @@ Cuando te pidan un reporte de un área o de Neix:
 - No das recomendaciones de inversión ni opinás sobre personas: analizás números.
 
 ## Cómo conseguís los datos
-No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.`;
+No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.
+NUNCA le digas al usuario que no tenés un dato sin antes haber probado obtener_eerr_completo (volcado de TODAS las filas del EERR de un mes, con sus notas) y, si es sobre proveedores o gastos fijos, obtener_gastos_fijos_completo -- son el respaldo para cualquier pregunta puntual que las demás herramientas no cubran. Solo si después de revisar esos volcados el dato realmente no está, decí que no está disponible.`;
 
 const MODELO = "claude-sonnet-5-5";
 
@@ -236,6 +237,41 @@ const TOOLS = [
       required: ["mes"],
     },
   },
+  {
+    name: "obtener_eerr_completo",
+    description:
+      "Volcado COMPLETO de todas las filas del EERR de un mes puntual, en el mismo orden que la hoja -- " +
+      "incluye absolutamente todo: secciones, cuentas, subcuentas, subtotales, impuestos, resultados, notas. " +
+      "Usar esta herramienta cuando una pregunta puntual sobre un mes no esté cubierta por ninguna otra " +
+      "herramienta más específica, en vez de responder que no tenés el dato. Sin \"area\" devuelve el " +
+      "consolidado de la compañía (columna Total); un líder de área solo puede pedir su propia área.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mes: { type: "string", description: "Nombre del mes en español (ej. \"Septiembre\")" },
+        area: { type: "string", enum: ["Mesa", "FAs", "Banca Corporativa", "Banca Privada"] },
+      },
+      required: ["mes"],
+    },
+  },
+  {
+    name: "obtener_gastos_fijos_completo",
+    description:
+      "Volcado COMPLETO de 'Gastos Fijos - Proveedor x Mes': todas las cuentas, con TODOS sus proveedores y " +
+      "sus montos mes a mes (no solo un ranking o una búsqueda puntual). Usar cuando se necesite comparar o " +
+      "listar varios proveedores a la vez, o cuando buscar_gasto_por_proveedor / obtener_ranking_proveedores " +
+      "no alcancen. No disponible para líderes de área.",
+    input_schema: {
+      type: "object",
+      properties: {
+        anio: {
+          type: "string",
+          enum: ["actual", "2025"],
+          description: "Año a traer: \"actual\" (año en curso) o \"2025\" (cerrado). Default \"actual\".",
+        },
+      },
+    },
+  },
 ];
 
 function herramientasPermitidas(rol) {
@@ -243,9 +279,13 @@ function herramientasPermitidas(rol) {
   const area = rol && rol.area;
   return TOOLS.filter((t) => {
     if (
-      ["obtener_ranking_rubros", "buscar_gasto_por_proveedor", "obtener_ranking_proveedores", "obtener_evolucion_rubros"].includes(
-        t.name,
-      )
+      [
+        "obtener_ranking_rubros",
+        "buscar_gasto_por_proveedor",
+        "obtener_ranking_proveedores",
+        "obtener_evolucion_rubros",
+        "obtener_gastos_fijos_completo",
+      ].includes(t.name)
     ) {
       return !esArea;
     }
