@@ -406,62 +406,6 @@ def build_area(data, area, mes_label, out_path):
         styles['NotaChica'],
     ))
 
-    # ── Margen neto del mes (Resultado directo / Facturación) -- mismo
-    # criterio que el consolidado: positivo es bueno sin importar magnitud.
-    # Si la facturación es <= 0 el % no es interpretable (puede dar
-    # "positivo" con resultado y facturación negativos a la vez), se
-    # muestra N/D en vez de un número que miente -- mismo criterio que
-    # margen_bullet() más abajo. ──
-    with keep_together():
-        section_title("RATIOS GENERALES")
-        if actual['ingresos'] > 0:
-            margen_pct_kpi = actual['resultadoDirecto'] / actual['ingresos'] * 100
-            story.append(margen_card("Margen neto (Resultado / Facturación)", margen_pct_kpi))
-        else:
-            story.append(margen_na_card("Margen neto (Resultado / Facturación)", "Facturación negativa o cero este mes"))
-
-    # ── Resto de los ratios generales de esta área -- mismos 4 ratios que
-    # el consolidado (ver "RATIOS GENERALES" en build_report.py): Costos
-    # Fijos/Fact., Sueldos y CS/Fact., Cobertura de Fijos y Eficiencia. A
-    # diferencia del consolidado, "fijos"/"sueldosTotal" acá son SOLO lo
-    # que esta área gasta directamente (ratiosTrendPorArea, ver
-    # extract_data.js -- calcFijosVariables/sueldosTotalDePeriodo con
-    # areaOverride), sin el prorrateo de indirectos entre las 4 áreas,
-    # mismo criterio que el resto del reporte. No se repite "Resultado
-    # Operativo" (a diferencia del consolidado): acá ya es exactamente el
-    # KPI "Resultado" de arriba y el "Resultado acumulado" de abajo, así
-    # que una tercera tarjeta con el mismo número no agrega nada. ──
-    ratios_trend_area = (data.get('ratiosTrendPorArea') or {}).get(area) or []
-    if ratios_trend_area and actual['ingresos'] > 0:
-        fijos_area_act = ratios_trend_area[-1]['fijos']
-        sueldos_area_act = ratios_trend_area[-1]['sueldosTotal']
-        with keep_together():
-            story.append(Spacer(1, 6))
-            cf_pct = fijos_area_act / actual['ingresos'] * 100
-            suel_pct = sueldos_area_act / actual['ingresos'] * 100
-            fila1 = Table(
-                [[info_card("Costos Fijos / Facturación", f"{cf_pct:.1f}%"),
-                  info_card("Sueldos y CS / Facturación", f"{suel_pct:.1f}%")]],
-                colWidths=[CONTENT_W / 2] * 2,
-            )
-            fila1.setStyle(TableStyle([
-                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ]))
-            story.append(fila1)
-            story.append(Spacer(1, 4))
-            cobertura_txt = f"{actual['ingresos'] / fijos_area_act:.2f}x" if fijos_area_act > 0 else "N/D"
-            eficiencia_pct = actual['resultadoDirecto'] / actual['gastosDirectos'] * 100 if actual['gastosDirectos'] else None
-            fila2_cards = [info_card("Cobertura de Fijos", cobertura_txt)]
-            if eficiencia_pct is not None:
-                fila2_cards.append(margen_card("Eficiencia (Resultado / Gastos Directos)", eficiencia_pct, width=87 * mm))
-            else:
-                fila2_cards.append(margen_na_card("Eficiencia (Resultado / Gastos Directos)", "Gastos directos en cero este mes", width=87 * mm))
-            fila2 = Table([fila2_cards], colWidths=[CONTENT_W / 2] * 2)
-            fila2.setStyle(TableStyle([
-                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ]))
-            story.append(fila2)
-
     # ── Resultado acumulado del año en curso -- mismo criterio que el
     # consolidado: suma de "resultadoDirecto" de todos los meses del trend.
     # Se omite en el primer mes (sería el mismo número que el KPI de
@@ -651,6 +595,64 @@ def build_area(data, area, mes_label, out_path):
         for b in bullets:
             story.append(Paragraph(f"•  {b}", styles['BulletCustom']))
             story.append(Spacer(1, 4))
+
+    # ── Ratios generales de esta área -- a pedido, van después de "Análisis
+    # del mes" (antes iban pegados a los KPIs de arriba). Margen neto
+    # (Resultado directo / Facturación) -- mismo criterio que el
+    # consolidado: positivo es bueno sin importar magnitud. Si la
+    # facturación es <= 0 el % no es interpretable (puede dar "positivo"
+    # con resultado y facturación negativos a la vez), se muestra N/D en
+    # vez de un número que miente -- mismo criterio que margen_bullet() más
+    # arriba. ──
+    with keep_together():
+        section_title("RATIOS GENERALES")
+        if actual['ingresos'] > 0:
+            margen_pct_kpi = actual['resultadoDirecto'] / actual['ingresos'] * 100
+            story.append(margen_card("Margen neto (Resultado / Facturación)", margen_pct_kpi))
+        else:
+            story.append(margen_na_card("Margen neto (Resultado / Facturación)", "Facturación negativa o cero este mes"))
+
+    # ── Resto de los ratios generales de esta área -- mismos 4 ratios que
+    # el consolidado (ver "RATIOS GENERALES" en build_report.py): Costos
+    # Fijos/Fact., Sueldos y CS/Fact., Cobertura de Fijos y Eficiencia. A
+    # diferencia del consolidado, "fijos"/"sueldosTotal" acá son SOLO lo
+    # que esta área gasta directamente (ratiosTrendPorArea, ver
+    # extract_data.js -- calcFijosVariables/sueldosTotalDePeriodo con
+    # areaOverride), sin el prorrateo de indirectos entre las 4 áreas,
+    # mismo criterio que el resto del reporte. No se repite "Resultado
+    # Operativo" (a diferencia del consolidado): acá ya es exactamente el
+    # KPI "Resultado" de arriba y el "Resultado acumulado" de más arriba,
+    # así que una tercera tarjeta con el mismo número no agrega nada. ──
+    ratios_trend_area = (data.get('ratiosTrendPorArea') or {}).get(area) or []
+    if ratios_trend_area and actual['ingresos'] > 0:
+        fijos_area_act = ratios_trend_area[-1]['fijos']
+        sueldos_area_act = ratios_trend_area[-1]['sueldosTotal']
+        with keep_together():
+            story.append(Spacer(1, 6))
+            cf_pct = fijos_area_act / actual['ingresos'] * 100
+            suel_pct = sueldos_area_act / actual['ingresos'] * 100
+            fila1 = Table(
+                [[info_card("Costos Fijos / Facturación", f"{cf_pct:.1f}%"),
+                  info_card("Sueldos y CS / Facturación", f"{suel_pct:.1f}%")]],
+                colWidths=[CONTENT_W / 2] * 2,
+            )
+            fila1.setStyle(TableStyle([
+                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(fila1)
+            story.append(Spacer(1, 4))
+            cobertura_txt = f"{actual['ingresos'] / fijos_area_act:.2f}x" if fijos_area_act > 0 else "N/D"
+            eficiencia_pct = actual['resultadoDirecto'] / actual['gastosDirectos'] * 100 if actual['gastosDirectos'] else None
+            fila2_cards = [info_card("Cobertura de Fijos", cobertura_txt)]
+            if eficiencia_pct is not None:
+                fila2_cards.append(margen_card("Eficiencia (Resultado / Gastos Directos)", eficiencia_pct, width=87 * mm))
+            else:
+                fila2_cards.append(margen_na_card("Eficiencia (Resultado / Gastos Directos)", "Gastos directos en cero este mes", width=87 * mm))
+            fila2 = Table([fila2_cards], colWidths=[CONTENT_W / 2] * 2)
+            fila2.setStyle(TableStyle([
+                ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(fila2)
 
     # ── Evolución últimos meses, en gráfico (Facturación/Gastos/Resultado) ──
     if len(trend) > 1:
