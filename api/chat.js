@@ -13,7 +13,7 @@ Neix S.A. es una ALyC (Agente de Liquidación y Compensación) y ACyDI (Agente d
 
 ## Áreas comerciales (generan ingresos)
 - Mesa: trading, cartera propia, caución y operaciones de mercado. Es el área con más facturación y la más volátil. Líder: Nacho.
-- FAs + Mza: red de asesores financieros (productores) externos, incluida la oficina de Mendoza. Su principal costo directo son las Comisiones Productores que se les pagan a los asesores. Líder: Sole.
+- FAs + Mza: red de asesores financieros (productores) externos, incluida la oficina de Mendoza. Su principal costo directo son las Comisiones Productores que se les pagan a los asesores. Líder: Sole. El alquiler de la oficina de Mendoza es el proveedor "DEI S.A." dentro de la cuenta Alquileres y Expensas (no tiene fila propia en la hoja, va junto con el resto de Alquileres y Expensas de FAs).
 - Banca Corporativa: empresas e institucionales.
 - Banca Privada: clientes individuales de alto patrimonio. Líder: Nicanor.
 Capital N tiene su propio estado de resultados (pestaña CAPITAL N), separado de Neix.
@@ -413,20 +413,38 @@ function procesarEventoAnthropicStream(evt, estado, emit) {
   }
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end();
+// Edge Runtime, no el de Node por default -- una función serverless de
+// Node en Vercel puede quedarse buffereando toda la respuesta de
+// res.write() y entregarla de una sola vez al final (visto en producción:
+// el streaming no se notaba, el chat seguía mostrando "Pensando..." hasta
+// el final). El Edge Runtime corre sobre Web Streams de verdad, que es lo
+// que garantiza que cada chunk llegue al navegador a medida que se escribe
+// y no recién al cerrarse la respuesta.
+export const config = { runtime: "edge" };
 
-  const { turnos, rol } = req.body || {};
+const jsonError = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+export default async function handler(req) {
+  if (req.method !== "POST") return jsonError(405, { error: "Method not allowed" });
+
+  let payload;
+  try {
+    payload = await req.json();
+  } catch (e) {
+    return jsonError(400, { error: "Body inválido (se esperaba JSON)." });
+  }
+  const { turnos, rol } = payload || {};
   if (!Array.isArray(turnos) || turnos.length === 0) {
-    return res.status(400).json({ error: "Falta 'turnos' (array de turnos de la conversación)." });
+    return jsonError(400, { error: "Falta 'turnos' (array de turnos de la conversación)." });
   }
 
   const messages = turnosAClaude(turnos);
   const tools = herramientasPermitidas(rol);
 
-  // Tope de tiempo -- sin esto, una respuesta lenta puede quedar
-  // colgando hasta que Vercel mata la función entera
-  // (FUNCTION_INVOCATION_TIMEOUT) en vez de devolver un error legible.
+  // Tope de tiempo -- sin esto, una respuesta lenta puede quedar colgando
+  // hasta el límite de duración de la función en vez de devolver un error
+  // legible.
   const TIMEOUT_MS = 25000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -459,7 +477,7 @@ export default async function handler(req, res) {
   } catch (e) {
     clearTimeout(timeoutId);
     console.error("chat.js: timeout/excepción", e.message);
-    return res.status(504).json({ error: `Timeout o error de red: ${e.message}` });
+    return jsonError(504, { error: `Timeout o error de red: ${e.message}` });
   }
 
   if (!r.ok) {
@@ -471,43 +489,53 @@ export default async function handler(req, res) {
       // sin body de error legible -- se informa igual con lo que haya
     }
     console.error(`chat.js: Claude devolvió ${r.status}`, JSON.stringify(data));
-    return res.status(r.status).json({ error: data });
+    return jsonError(r.status, { error: data });
   }
 
   // A partir de acá la respuesta HTTP ya está comprometida a 200 -- se
   // transmite como NDJSON (una línea = un evento JSON) en vez de un único
   // JSON al final, para que el frontend pueda ir pintando el texto a
-  // medida que llega.
-  res.writeHead(200, {
-    "Content-Type": "application/x-ndjson; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
-  });
-  const emit = (obj) => res.write(JSON.stringify(obj) + "\n");
-
+  // medida que llega. El ReadableStream se arma acá y se empieza a leer el
+  // upstream de Claude recién cuando el runtime pide el primer chunk
+  // (start), reenviando cada evento ya reducido apenas llega.
+  const encoder = new TextEncoder();
   const estado = { toolUse: null };
-  const reader = r.body.getReader();
+  const upstreamReader = r.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const { eventos, resto } = extraerEventosSSE(buffer);
-      buffer = resto;
-      eventos.forEach((evt) => procesarEventoAnthropicStream(evt, estado, emit));
-    }
-  } catch (e) {
-    console.error("chat.js: error leyendo el stream de Claude", e.message);
-    emit({ type: "error", error: e.message });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-  res.end();
+
+  const stream = new ReadableStream({
+    async start(streamController) {
+      const emit = (obj) => streamController.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+      let buffer = "";
+      try {
+        while (true) {
+          const { done, value } = await upstreamReader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const { eventos, resto } = extraerEventosSSE(buffer);
+          buffer = resto;
+          eventos.forEach((evt) => procesarEventoAnthropicStream(evt, estado, emit));
+        }
+      } catch (e) {
+        console.error("chat.js: error leyendo el stream de Claude", e.message);
+        emit({ type: "error", error: e.message });
+      } finally {
+        clearTimeout(timeoutId);
+        streamController.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  });
 }
 
 // Exportadas solo para poder testear el parseo/reducción del stream con
-// eventos sintéticos (ver scripts/reportes o el harness de test del chat),
-// sin pegarle a la red real -- Vercel sigue usando únicamente el default
-// export de arriba.
+// eventos sintéticos, sin pegarle a la red real -- Vercel sigue usando
+// únicamente el default export de arriba.
 export { extraerEventosSSE, procesarEventoAnthropicStream };
