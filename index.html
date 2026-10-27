@@ -5652,7 +5652,7 @@ function initChatIA(){
   const panel=document.createElement('div');
   panel.id='chat-ia-panel';
   panel.className='hidden';
-  panel.innerHTML=`<div class="chat-ia-hd"><span>Asistente IA · Neix</span><button type="button" id="chat-ia-close" aria-label="Cerrar">✕</button></div>
+  panel.innerHTML=`<div class="chat-ia-hd"><span>CELIA · Neix</span><button type="button" id="chat-ia-close" aria-label="Cerrar">✕</button></div>
     <div class="chat-ia-body" id="chat-ia-body"></div>
     <div class="chat-ia-ft">
       <input type="text" id="chat-ia-input" placeholder="Preguntá algo..." autocomplete="off"/>
@@ -5689,7 +5689,7 @@ function renderMensajesChatIA(){
   const visibles=CHAT_IA.historial.filter(m=>m.role==='user'||m.role==='assistant');
   let html=visibles.length
     ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${escapeHtmlChatIA(m.text)}</div>`).join('')
-    : '<div class="chat-ia-msg assistant">Hola, soy el asistente de controlling de Neix. Preguntame sobre los datos de rentabilidad y centro de costos que tenés cargados en el dashboard.</div>';
+    : '<div class="chat-ia-msg assistant">Hola, soy CELIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
   if(CHAT_IA.enviando) html+='<div class="chat-ia-typing">Pensando…</div>';
   body.innerHTML=html;
   body.scrollTop=body.scrollHeight;
@@ -5722,15 +5722,22 @@ async function ejecutarHerramientaChatIA(name,args){
   const kpiMes=m=>{
     const d=ST.mesData[m];
     if(!d) return null;
-    return AREAS.reduce((acc,a)=>{acc.ingresos+=d.agg[a].ingresos;acc.egresos+=d.agg[a].egresos;acc.resultado+=d.agg[a].resultado;return acc;},{ingresos:0,egresos:0,resultado:0});
+    const base=AREAS.reduce((acc,a)=>{
+      acc.ingresos+=d.agg[a].ingresos;acc.egresos+=d.agg[a].egresos;acc.resultado+=d.agg[a].resultado;
+      acc.gastosDirectos+=d.agg[a].gastos_dir;acc.gastosIndirectos+=d.agg[a].gastos_ind;
+      acc.impuestos+=getAreaVal(d.impuestosRow,a);acc.resultadoAntesImpuestos+=getAreaVal(d.resAntesRow,a);
+      return acc;
+    },{ingresos:0,egresos:0,resultado:0,gastosDirectos:0,gastosIndirectos:0,impuestos:0,resultadoAntesImpuestos:0});
+    return base;
   };
   switch(name){
     case 'obtener_kpis_mes':{
       if(args.mes==='__consolidado__'){
         return ST.meses.reduce((acc,m)=>{
           const k=kpiMes(m); if(!k) return acc;
-          acc.ingresos+=k.ingresos;acc.egresos+=k.egresos;acc.resultado+=k.resultado;return acc;
-        },{ingresos:0,egresos:0,resultado:0});
+          Object.keys(acc).forEach(key=>{ acc[key]+=k[key]; });
+          return acc;
+        },{ingresos:0,egresos:0,resultado:0,gastosDirectos:0,gastosIndirectos:0,impuestos:0,resultadoAntesImpuestos:0});
       }
       const k=kpiMes(args.mes);
       return k||{error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
@@ -5784,13 +5791,16 @@ async function ejecutarHerramientaChatIA(name,args){
       if(!isCons&&!ST.meses.includes(args.mes)){
         return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
       }
-      let ingresos=0,egresos=0,resultado=0,gastosDirectos=0,fijos=0,sueldosTotal=0;
+      let ingresos=0,egresos=0,resultado=0,gastosIndirectos=0,impuestos=0,resultadoAntesImpuestos=0;
+      let gastosDirectos=0,fijos=0,sueldosTotal=0;
       const rubrosAcumulados={};
       meses.forEach(m=>{
         const d=ST.mesData[m];
         if(!d) return;
-        const a=d.agg[args.area]||{ingresos:0,egresos:0,resultado:0};
-        ingresos+=a.ingresos;egresos+=a.egresos;resultado+=a.resultado;
+        const a=d.agg[args.area]||{ingresos:0,egresos:0,resultado:0,gastos_ind:0};
+        ingresos+=a.ingresos;egresos+=a.egresos;resultado+=a.resultado;gastosIndirectos+=a.gastos_ind;
+        impuestos+=getAreaVal(d.impuestosRow,args.area);
+        resultadoAntesImpuestos+=getAreaVal(d.resAntesRow,args.area);
         directosLeafRowsChatIA(m).forEach(r=>{
           const v=getAreaVal(r,args.area);
           if(!v) return;
@@ -5805,13 +5815,16 @@ async function ejecutarHerramientaChatIA(name,args){
         .map(([nombre,monto])=>({nombre,monto}));
       return {
         area:args.area, mes:args.mes,
-        ingresos, egresos, resultado,
+        ingresos, gastosIndirectos, egresos, resultadoAntesImpuestos, impuestos,
+        resultado,
         gastosDirectos, resultadoDirecto:ingresos-gastosDirectos,
         fijos, sueldosTotal,
         topRubrosDirectos,
-        nota:'ingresos/egresos/resultado incluyen el prorrateo de gastos indirectos entre las 4 áreas; ' +
+        nota:'ingresos/egresos/gastosIndirectos/resultadoAntesImpuestos/impuestos/resultado (resultado = ' +
+          'después de impuestos) incluyen el prorrateo de gastos indirectos entre las 4 áreas; ' +
           'gastosDirectos/resultadoDirecto/fijos/sueldosTotal/topRubrosDirectos son SOLO lo que esta área ' +
-          'gasta directamente, sin ese prorrateo.',
+          'gasta directamente, sin ese prorrateo (no hay todavía un criterio de prorrateo de impuestos por ' +
+          'área definido aparte del ya incluido en impuestos/resultadoAntesImpuestos).',
       };
     }
     default:
