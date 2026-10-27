@@ -5924,6 +5924,60 @@ async function ejecutarHerramientaChatIA(name,args){
       }
       return {mes:args.mes,dolarMEP,nota:'Dólar MEP de cierre del mes, usado para convertir de ARS a USD en el EERR.'};
     }
+    case 'obtener_eerr_completo':{
+      if(!ST.meses.includes(args.mes)){
+        return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
+      }
+      const d=ST.mesData[args.mes];
+      if(!d) return {error:`No hay datos cargados para "${args.mes}".`};
+      let area=null;
+      if(args.area){
+        // Mismo chequeo que obtener_datos_area -- AREAS ya viene acotado a
+        // una sola para un líder de área.
+        if(!AREAS.includes(args.area)){
+          return {error:`Área inválida o no disponible para tu rol: "${args.area}". Áreas disponibles: ${AREAS.join(', ')}`};
+        }
+        area=args.area;
+      }
+      const items=(d.annotated||[]).filter(r=>r._nom).map(r=>({
+        tipo:r._kind,
+        nombre:r._nom,
+        valor:area?getAreaVal(r,area):getAreaVal(r,'Total'),
+        nota:r._note||'',
+      }));
+      return {
+        mes:args.mes,
+        area:area||'consolidado (Total)',
+        items,
+        nota:'Volcado completo de TODAS las filas del EERR de este mes, en el mismo orden que la hoja -- usala ' +
+          'para cualquier pregunta puntual que no esté cubierta por las otras herramientas, antes de decir que ' +
+          'no tenés el dato. tipo "section"/"subsection" = encabezados de grupo (su valor ya es el subtotal del ' +
+          'grupo); "account"/"subaccount" = cuentas puntuales; "subtotal_dir" = SUBTOTAL DIRECTOS; "skip" = ' +
+          'filas sueltas fuera de la jerarquía normal (Impuestos, RESULTADO antes/después de impuestos, GASTOS ' +
+          'TOTALES, etc). Sin "area", valor es el consolidado de la compañía (columna Total).',
+      };
+    }
+    case 'obtener_gastos_fijos_completo':{
+      if(args.anio!=='2025') await loadGastosFijosDetalleLazy();
+      const data=args.anio==='2025'?getGastosFijos2025():ST.gastosFijosDetalle;
+      if(!data) return {error:'El detalle de gastos por proveedor no está disponible.'};
+      const cuentas=data.cuentas.map(c=>{
+        const porMes=vals=>Object.fromEntries(data.valCols.map((mes,i)=>[mes,vals[i]||0]));
+        return {
+          cuenta:c.nombre,
+          proveedores:c.providers.map(p=>({proveedor:p.nombre,valores:porMes(p.vals)})),
+          sinDiscriminar:c.ajuste?porMes(c.ajuste.vals):null,
+          totalCuenta:c.total?porMes(c.total.vals):null,
+        };
+      });
+      return {
+        cuentas,
+        totalGastosFijos:data.grandTotal?Object.fromEntries(data.valCols.map((mes,i)=>[mes,data.grandTotal.vals[i]||0])):null,
+        nota:'Volcado completo de "Gastos Fijos - Proveedor x Mes" -- cada cuenta con TODOS sus proveedores y ' +
+          'sus montos mes a mes. Es un subconjunto curado de cuentas fijas, no TODOS los gastos de la compañía ' +
+          '(no incluye Sueldos y CS, Comisiones Productores ni Impuestos, que no se cargan por proveedor).',
+      };
+    }
     default:
       return {error:`Herramienta desconocida: ${name}`};
   }
