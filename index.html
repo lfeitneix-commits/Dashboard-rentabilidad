@@ -238,10 +238,10 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .chat-ia-table thead{background:var(--crema);font-weight:600;font-family:'DM Sans',sans-serif}
 .chat-ia-table tbody tr:nth-child(even){background:var(--crema)}
 .chat-ia-typing{align-self:flex-start;font-size:12px;color:var(--muted);font-style:italic}
-.chat-ia-ft{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:#fff;flex-shrink:0}
-.chat-ia-ft input{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;min-width:0}
-.chat-ia-ft input:focus{border-color:var(--bordeaux)}
-.chat-ia-ft button{background:var(--bordeaux);color:#fff;border:none;border-radius:8px;padding:0 16px;cursor:pointer;font-size:13px;font-weight:600;flex-shrink:0}
+.chat-ia-ft{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:#fff;flex-shrink:0;align-items:flex-end}
+.chat-ia-ft textarea{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;min-width:0;resize:none;max-height:140px;overflow-y:auto;line-height:1.4}
+.chat-ia-ft textarea:focus{border-color:var(--bordeaux)}
+.chat-ia-ft button{background:var(--bordeaux);color:#fff;border:none;border-radius:8px;padding:0 16px;height:36px;cursor:pointer;font-size:13px;font-weight:600;flex-shrink:0}
 .chat-ia-ft button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
@@ -5645,7 +5645,7 @@ document.getElementById('logout-btn').addEventListener('click',()=>location.relo
 // que necesita -- ver TOOLS en api/chat.js -- y acá abajo
 // (ejecutarHerramientaChatIA) se la resolvemos contra ST, que es donde
 // viven los datos reales (el servidor no los tiene).
-const CHAT_IA={abierto:false,historial:[],enviando:false};
+const CHAT_IA={abierto:false,historial:[],enviando:false,streamText:''};
 function initChatIA(){
   if(document.getElementById('chat-ia-btn')) return; // ya inicializado
   const btn=document.createElement('button');
@@ -5660,15 +5660,30 @@ function initChatIA(){
   panel.innerHTML=`<div class="chat-ia-hd"><span>CELIA · Neix</span><button type="button" id="chat-ia-close" aria-label="Cerrar">✕</button></div>
     <div class="chat-ia-body" id="chat-ia-body"></div>
     <div class="chat-ia-ft">
-      <input type="text" id="chat-ia-input" placeholder="Preguntá algo..." autocomplete="off"/>
+      <textarea id="chat-ia-input" rows="1" placeholder="Preguntá algo..." autocomplete="off"></textarea>
       <button type="button" id="chat-ia-send">Enviar</button>
     </div>`;
   document.body.appendChild(btn);
   document.body.appendChild(panel);
   document.getElementById('chat-ia-close').addEventListener('click',toggleChatIA);
   document.getElementById('chat-ia-send').addEventListener('click',enviarMensajeChatIA);
-  document.getElementById('chat-ia-input').addEventListener('keydown',e=>{ if(e.key==='Enter') enviarMensajeChatIA(); });
+  // Enter manda la pregunta (como antes, cuando esto era un <input> de una
+  // sola línea); Shift+Enter inserta un salto de línea, como en cualquier
+  // caja de texto multilínea.
+  document.getElementById('chat-ia-input').addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); enviarMensajeChatIA(); }
+  });
+  // Textarea que crece hacia abajo a medida que se escribe (hasta un
+  // máximo, después scrollea adentro) en vez de quedar con el texto
+  // tapado en una sola línea fija.
+  document.getElementById('chat-ia-input').addEventListener('input',ajustarAlturaInputChatIA);
   renderMensajesChatIA();
+}
+function ajustarAlturaInputChatIA(){
+  const input=document.getElementById('chat-ia-input');
+  if(!input) return;
+  input.style.height='auto';
+  input.style.height=input.scrollHeight+'px';
 }
 function toggleChatIA(){
   CHAT_IA.abierto=!CHAT_IA.abierto;
@@ -5744,7 +5759,15 @@ function renderMensajesChatIA(){
   let html=visibles.length
     ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${renderMensajeChatIA(m.text)}</div>`).join('')
     : '<div class="chat-ia-msg assistant">Hola, soy CELIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
-  if(CHAT_IA.enviando) html+='<div class="chat-ia-typing">Pensando…</div>';
+  if(CHAT_IA.enviando){
+    // Mientras llega la respuesta en vivo (streaming) se va mostrando el
+    // texto a medida que se genera, como si lo estuviera tipeando -- recién
+    // si todavía no llegó ni una palabra (por ejemplo, mientras se ejecuta
+    // una herramienta entre una vuelta y otra) se muestra "Pensando...".
+    html+=CHAT_IA.streamText
+      ? `<div class="chat-ia-msg assistant">${renderMensajeChatIA(CHAT_IA.streamText)}</div>`
+      : '<div class="chat-ia-typing">Pensando…</div>';
+  }
   body.innerHTML=html;
   body.scrollTop=estabaAbajo?body.scrollHeight:scrollPrevio;
 }
@@ -6085,12 +6108,61 @@ async function ejecutarHerramientaChatIA(name,args){
       return {error:`Herramienta desconocida: ${name}`};
   }
 }
+// Una vuelta = una llamada a /api/chat, que ahora responde en streaming
+// (NDJSON, una línea por evento) en vez de un único JSON al final -- lee el
+// body de a pedazos y va mostrando el texto a medida que llega. Devuelve
+// {texto, toolCall, huboError} con lo que pasó en esa vuelta puntual;
+// enviarMensajeChatIA decide qué hacer con cada caso.
+async function leerVueltaStreamChatIA(){
+  let r;
+  try{
+    r=await fetch('/api/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({turnos:CHAT_IA.historial,rol:rolChatIA()}),
+    });
+  }catch(e){
+    return {texto:'',toolCall:null,huboError:true};
+  }
+  if(!r.ok||!r.body) return {texto:'',toolCall:null,huboError:true};
+
+  let toolCall=null,huboError=false;
+  const reader=r.body.getReader();
+  const decoder=new TextDecoder();
+  let buffer='';
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+      const lineas=buffer.split('\n');
+      buffer=lineas.pop();
+      for(const linea of lineas){
+        if(!linea.trim()) continue;
+        let evt;
+        try{ evt=JSON.parse(linea); }catch(e){ continue; }
+        if(evt.type==='text_delta'){
+          CHAT_IA.streamText+=evt.text;
+          renderMensajesChatIA();
+        } else if(evt.type==='tool_use'){
+          toolCall={name:evt.name,args:evt.args,id:evt.id};
+        } else if(evt.type==='error'){
+          huboError=true;
+        }
+      }
+    }
+  }catch(e){
+    huboError=true;
+  }
+  return {texto:CHAT_IA.streamText,toolCall,huboError};
+}
 async function enviarMensajeChatIA(){
   if(CHAT_IA.enviando) return;
   const input=document.getElementById('chat-ia-input');
   const texto=(input.value||'').trim();
   if(!texto) return;
   input.value='';
+  ajustarAlturaInputChatIA();
   CHAT_IA.historial.push({role:'user',text:texto});
   CHAT_IA.enviando=true;
   const sendBtn=document.getElementById('chat-ia-send');
@@ -6101,29 +6173,30 @@ async function enviarMensajeChatIA(){
   try{
     let resuelto=false;
     for(let vuelta=0;vuelta<MAX_VUELTAS&&!resuelto;vuelta++){
-      const r=await fetch('/api/chat',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({turnos:CHAT_IA.historial,rol:rolChatIA()}),
-      });
-      const data=await r.json().catch(()=>null);
-      if(!r.ok||!data){
+      CHAT_IA.streamText='';
+      const {texto:textoVuelta,toolCall,huboError}=await leerVueltaStreamChatIA();
+      if(huboError){
         CHAT_IA.historial.push({role:'assistant',text:'El modelo está saturado, probá de nuevo en un rato',error:true});
         resuelto=true;
         break;
       }
-      if(data.functionCall){
+      if(toolCall){
+        // Si llegó a escribir algo de texto antes de pedir la herramienta
+        // (poco común, pero puede pasar), se guarda tal cual como un
+        // mensaje propio -- ya se lo mostró en vivo, no tendría sentido
+        // hacerlo desaparecer.
+        if(textoVuelta) CHAT_IA.historial.push({role:'assistant',text:textoVuelta});
         // id/thoughtSignature son detalles propios de cada proveedor (Claude
         // usa id para emparejar el tool_use con su tool_result, Gemini usa
         // thoughtSignature) -- se guardan tal cual en el turno y el backend
         // (api/chat.js) decide cuál necesita reenviar.
-        CHAT_IA.historial.push({role:'functionCall',name:data.functionCall.name,args:data.functionCall.args,id:data.functionCall.id||null,thoughtSignature:data.thoughtSignature||null});
-        const resultado=await ejecutarHerramientaChatIA(data.functionCall.name,data.functionCall.args);
-        CHAT_IA.historial.push({role:'functionResponse',name:data.functionCall.name,response:resultado,id:data.functionCall.id||null});
+        CHAT_IA.historial.push({role:'functionCall',name:toolCall.name,args:toolCall.args,id:toolCall.id||null,thoughtSignature:null});
+        const resultado=await ejecutarHerramientaChatIA(toolCall.name,toolCall.args);
+        CHAT_IA.historial.push({role:'functionResponse',name:toolCall.name,response:resultado,id:toolCall.id||null});
         continue;
       }
-      if(typeof data.text==='string'){
-        CHAT_IA.historial.push({role:'assistant',text:data.text});
+      if(textoVuelta){
+        CHAT_IA.historial.push({role:'assistant',text:textoVuelta});
         resuelto=true;
         break;
       }
@@ -6137,6 +6210,7 @@ async function enviarMensajeChatIA(){
     CHAT_IA.historial.push({role:'assistant',text:'El modelo está saturado, probá de nuevo en un rato',error:true});
   }
   CHAT_IA.enviando=false;
+  CHAT_IA.streamText='';
   if(sendBtn) sendBtn.disabled=false;
   input.disabled=false;
   renderMensajesChatIA();
