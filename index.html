@@ -234,6 +234,14 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 #chat-ia-btn{position:fixed;bottom:22px;right:22px;width:54px;height:54px;border-radius:50%;background:var(--bordeaux);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.28);z-index:900;transition:transform .15s}
 #chat-ia-btn:hover{transform:scale(1.07)}
 #chat-ia-panel{position:fixed;bottom:86px;right:22px;width:560px;max-width:calc(100vw - 32px);height:min(720px,calc(100vh - 110px));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;z-index:900;font-family:'DM Sans',sans-serif}
+/* En el celular, calc(100vh - 110px) deja un panel casi tan alto como toda
+   la pantalla -- se siente gigante y tapa el dashboard entero. Achicado a
+   una proporción fija de la pantalla, como un modal normal, no un
+   fullscreen. */
+@media(max-width:480px){
+  #chat-ia-btn{bottom:16px;right:16px}
+  #chat-ia-panel{bottom:80px;right:12px;left:12px;width:auto;max-width:none;height:70vh}
+}
 #chat-ia-panel.hidden{display:none}
 .chat-ia-hd{background:var(--grafito);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:13px;flex-shrink:0}
 .chat-ia-hd button{background:none;border:none;color:#fff;cursor:pointer;opacity:.75;font-size:15px;line-height:1;padding:2px}
