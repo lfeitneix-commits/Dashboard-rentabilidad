@@ -5732,13 +5732,21 @@ function renderMensajeChatIA(texto){
 function renderMensajesChatIA(){
   const body=document.getElementById('chat-ia-body');
   if(!body) return;
+  // Esta función se llama varias veces por pregunta (al mandarla, al
+  // mostrar "Pensando…", al llegar la respuesta) -- si siempre se fuerza
+  // el scroll al final, a alguien que scrolleó hacia arriba para releer
+  // una respuesta anterior se le salta el chat al fondo de golpe, como si
+  // se le "borrara" lo de arriba. Solo se sigue el scroll automáticamente
+  // si ya estaba al final; si no, se mantiene exactamente donde estaba.
+  const estabaAbajo=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+  const scrollPrevio=body.scrollTop;
   const visibles=CHAT_IA.historial.filter(m=>m.role==='user'||m.role==='assistant');
   let html=visibles.length
     ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${renderMensajeChatIA(m.text)}</div>`).join('')
     : '<div class="chat-ia-msg assistant">Hola, soy CELIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
   if(CHAT_IA.enviando) html+='<div class="chat-ia-typing">Pensando…</div>';
   body.innerHTML=html;
-  body.scrollTop=body.scrollHeight;
+  body.scrollTop=estabaAbajo?body.scrollHeight:scrollPrevio;
 }
 function rolChatIA(){
   return {esArea:ST.role==='lideres'&&!!ST.area,area:ST.area||null};
