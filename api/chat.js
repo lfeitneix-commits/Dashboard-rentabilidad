@@ -100,7 +100,7 @@ Cuando te pidan un reporte de un área o de Neix:
 - No das recomendaciones de inversión ni opinás sobre personas: analizás números.
 
 ## Cómo conseguís los datos
-No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos por proveedor, Capital N). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.`;
+No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos por proveedor, Capital N, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.`;
 
 const MODELO = "claude-sonnet-5-5";
 
@@ -202,6 +202,20 @@ const TOOLS = [
         area: { type: "string", enum: ["Mesa", "FAs", "Banca Corporativa", "Banca Privada"] },
       },
       required: ["mes", "area"],
+    },
+  },
+  {
+    name: "obtener_tipo_cambio",
+    description:
+      "Dólar MEP de cierre de un mes puntual, o de todos los meses cargados si se pasa \"__consolidado__\" -- " +
+      "el tipo de cambio que usa el EERR para convertir de ARS a USD. Usar esta herramienta para cualquier " +
+      "pregunta sobre qué tipo de cambio o cotización se usó en un mes.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mes: { type: "string", description: "Nombre del mes en español (ej. \"Septiembre\") o \"__consolidado__\"" },
+      },
+      required: ["mes"],
     },
   },
 ];

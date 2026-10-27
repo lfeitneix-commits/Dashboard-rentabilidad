@@ -5763,6 +5763,20 @@ function directosLeafRowsChatIA(mes){
   if(idxDirectos<0||idxSubtotal<0) return [];
   return rows.slice(idxDirectos+1,idxSubtotal).filter(r=>(r._kind==='account'||r._kind==='subaccount')&&(!r._parentId||r._child));
 }
+async function mepDeChatIA(mes){
+  const sheetInfo=SHEETS.find(s=>s.mes===mes);
+  if(!sheetInfo) return null;
+  try{
+    const res=await fetch(BASE+sheetInfo.gid);
+    const text=await res.text();
+    const {rows}=parseCSV(text);
+    const dolarRow=rows.find(r=>/^D[OÓ]LAR/i.test(String(Object.values(r)[0]||'').trim()));
+    return dolarRow?parseNum(Object.values(dolarRow)[1]):null;
+  }catch(e){
+    console.error(`No se pudo obtener el tipo de cambio de ${mes} (no bloqueante):`,e.message);
+    return null;
+  }
+}
 async function ejecutarHerramientaChatIA(name,args){
   args=args||{};
   const kpiMes=m=>{
@@ -5872,6 +5886,24 @@ async function ejecutarHerramientaChatIA(name,args){
           'gasta directamente, sin ese prorrateo (no hay todavía un criterio de prorrateo de impuestos por ' +
           'área definido aparte del ya incluido en impuestos/resultadoAntesImpuestos).',
       };
+    }
+    case 'obtener_tipo_cambio':{
+      const isCons=args.mes==='__consolidado__';
+      if(isCons){
+        const out=[];
+        for(const m of ST.meses){
+          out.push({mes:m,dolarMEP:await mepDeChatIA(m)});
+        }
+        return out;
+      }
+      if(!ST.meses.includes(args.mes)){
+        return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
+      }
+      const dolarMEP=await mepDeChatIA(args.mes);
+      if(dolarMEP==null){
+        return {error:`No se pudo obtener el tipo de cambio MEP de "${args.mes}".`};
+      }
+      return {mes:args.mes,dolarMEP,nota:'Dólar MEP de cierre del mes, usado para convertir de ARS a USD en el EERR.'};
     }
     default:
       return {error:`Herramienta desconocida: ${name}`};
