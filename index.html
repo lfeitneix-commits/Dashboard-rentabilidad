@@ -5675,7 +5675,13 @@ function toggleChatIA(){
   }
 }
 function escapeHtmlChatIA(s){
-  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  const esc=String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Markdown liviano: el system prompt le pide al modelo "números clave en
+  // negrita" (**texto**) -- sin esto se veía el asterisco literal en vez
+  // de la negrita real. Corre DESPUÉS de escapar entities, así que los
+  // <strong> que agrega acá son los únicos tags reales en el mensaje (todo
+  // lo demás que haya escrito el modelo ya quedó como texto plano seguro).
+  return esc.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
 }
 function renderMensajesChatIA(){
   const body=document.getElementById('chat-ia-body');
