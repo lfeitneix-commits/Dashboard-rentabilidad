@@ -5978,6 +5978,101 @@ async function ejecutarHerramientaChatIA(name,args){
           '(no incluye Sueldos y CS, Comisiones Productores ni Impuestos, que no se cargan por proveedor).',
       };
     }
+    case 'obtener_capital_n_completo':{
+      const d=ST.capnData;
+      if(!d||!d.rows) return {error:'Capital N no está cargado.'};
+      const mesesCols=d.headers.filter(h=>h&&h!==''&&!/consolidado/i.test(h)&&h!=='Neix Banca Privada');
+      const isCons=!args.mes||args.mes==='__consolidado__';
+      if(!isCons&&!mesesCols.includes(args.mes)){
+        return {error:`No hay datos de Capital N cargados para "${args.mes}". Meses disponibles: ${mesesCols.join(', ')}`};
+      }
+      const items=d.rows.map(row=>{
+        const nombre=String(row['']||'').trim();
+        if(!nombre) return null;
+        const valor=isCons?mesesCols.reduce((s,m)=>s+parseNum(row[m]||''),0):parseNum(row[args.mes]||'');
+        return {nombre,valor};
+      }).filter(Boolean);
+      return {
+        mes:isCons?'__consolidado__':args.mes,
+        items,
+        nota:'Volcado completo de todas las filas del EERR de Capital N (Facturación, cada rubro de gasto, ' +
+          'Resultado), en el mismo orden que la hoja.',
+      };
+    }
+    case 'obtener_quant_completo':{
+      const cl=ST.quantCostoLaboral;
+      if(!cl||!Object.keys(cl).length) return {error:'Los datos de Quant no están disponibles.'};
+      const mesesCL=ORDEN_MESES.filter(m=>cl[m]);
+      const mes=args.mes||'__consolidado__';
+      const isConsolidado=mes==='__consolidado__';
+      if(!isConsolidado&&!mesesCL.includes(mes)){
+        return {error:`No hay datos de Quant cargados para "${mes}". Meses disponibles: ${mesesCL.join(', ')}`};
+      }
+      const mesesScope=isConsolidado?mesesCL:mesesCL.filter(m=>m===mes);
+      const usd=(ars,m)=>QUANT_TC_MENSUAL[m]?ars/QUANT_TC_MENSUAL[m]:0;
+      const costoLaboralTotal=mesesScope.reduce((s,m)=>s+(cl[m]&&cl[m].TOTAL!=null?usd(cl[m].TOTAL,m):0),0);
+
+      const mesIdx=m=>ORDEN_MESES.indexOf(m);
+      const parseDesde=desdeStr=>{
+        const norm=String(desdeStr||'').trim().toLowerCase();
+        const idx=ORDEN_MESES.findIndex(mn=>norm.startsWith(mn.slice(0,3).toLowerCase()));
+        return idx>=0?idx:null;
+      };
+      const serviciosConFecha=QUANT_SERVICIOS.rows.filter(s=>parseDesde(s.desde)!==null);
+      const serviciosSinFecha=QUANT_SERVICIOS.rows.filter(s=>parseDesde(s.desde)===null);
+      const mesRef=mesesScope[mesesScope.length-1];
+      const serviciosActivos=mesRef?serviciosConFecha.filter(s=>parseDesde(s.desde)<=mesIdx(mesRef)):[];
+      const costoServicioEnScope=s=>mesesScope.filter(m=>parseDesde(s.desde)<=mesIdx(m)).length*s.costo;
+      const infraTotal=serviciosActivos.reduce((s,r)=>s+costoServicioEnScope(r),0);
+
+      const hardwareCats=QUANT_HARDWARE.cats.map(cat=>{
+        const total=mesRef?cat.rows.filter(r=>r.kind==='item'&&mesIdx(r.mes)<=mesIdx(mesRef)).reduce((s,r)=>s+usd(r.monto,r.mes),0):0;
+        return {categoria:cat.nombre,total};
+      }).filter(c=>c.total);
+      const hardwareTotal=hardwareCats.reduce((s,c)=>s+c.total,0);
+      const gastosTotales=costoLaboralTotal+infraTotal+hardwareTotal;
+
+      const mesesObra=['Enero','Febrero','Marzo','Abril','Mayo','Junio'];
+      const tcPromObra=mesesObra.reduce((s,m)=>s+QUANT_TC_MENSUAL[m],0)/mesesObra.length;
+      const obraUsd=QUANT_OBRA_ARS/tcPromObra;
+      const gastosUnicosNoMensuales=[
+        {concepto:'Obra - Oficina Quant',importe:obraUsd,periodo:'por única vez · TC promedio Ene–Jun'},
+        {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'por única vez'},
+        {concepto:'Placa FPGA',importe:3464.00,periodo:'en Aduana'},
+        {concepto:'Placa FPGA',importe:2345.00,periodo:'en camino'},
+        {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'acumulado Marzo–Julio 2026'},
+        {concepto:'OpenAI – Codex (Suscripciones x 6)',importe:1200.00,periodo:'recurrente mensual desde Agosto 2026'},
+      ];
+      return {
+        mes,
+        costoLaboralTotal,
+        serviciosInfraestructura:serviciosActivos.map(s=>({servicio:s.servicio,total:costoServicioEnScope(s),desde:s.desde})),
+        infraestructuraTotal:infraTotal,
+        serviciosNoIncluidos:serviciosSinFecha.map(s=>({servicio:s.servicio,desde:s.desde,motivo:'todavía sin facturar'})),
+        hardware:hardwareCats,
+        hardwareTotal,
+        gastosTotales,
+        gastosUnicosNoMensuales,
+        nota:QUANT_META.nota+' Montos en USD (costo laboral y hardware convertidos del ARS original con el ' +
+          'tipo de cambio de cada mes). "gastosUnicosNoMensuales" no suman a "gastosTotales".',
+      };
+    }
+    case 'obtener_matriz_prorrateo':{
+      if(!ST.matrizData) return {error:ST.matrizError||'La Matriz de gastos no está disponible.'};
+      const cols=ST.matrizCols||MATRIZ_COLS;
+      const filas=ST.matrizData.map(row=>{
+        const concepto=String(Object.values(row)[0]||Object.values(row)[1]||'').trim();
+        if(!concepto) return null;
+        const porcentajes={};
+        cols.forEach(c=>{ porcentajes[c]=parsePct(row[c]); });
+        return {concepto,porcentajes,detalle:row['Detalle']||''};
+      }).filter(Boolean);
+      return {
+        filas,
+        nota:'Porcentaje de prorrateo de cada rubro de gasto indirecto entre las áreas comerciales -- es el ' +
+          'criterio de reparto usado en el EERR, no un monto.',
+      };
+    }
     default:
       return {error:`Herramienta desconocida: ${name}`};
   }
