@@ -5702,6 +5702,21 @@ function rolChatIA(){
 // cada rol antes de declarárselas a Gemini -- esto no es la única
 // barrera, pero alcanza: nunca se expone acá nada que ese rol no vea ya
 // en el resto del dashboard.
+// Filas de la sección "GASTOS DIRECTOS" de un mes (sin el padre de un
+// grupo, ej. "Sueldos y CS Directos") -- mismo criterio que
+// directosLeafRows() de scripts/reportes/extract_data.js (ahí alimenta
+// rubrosVariacionPorArea para los reportes), portado acá para que el chat
+// pueda armar un ranking de rubros DIRECTOS de una sola área sin tener que
+// pasar por el pipeline de reportes.
+function directosLeafRowsChatIA(mes){
+  const d=ST.mesData[mes];
+  if(!d) return [];
+  const rows=d.annotated||[];
+  const idxDirectos=rows.findIndex(r=>r._kind==='section'&&/^GASTOS\s+DIRECTOS$/i.test((r._nom||'').trim()));
+  const idxSubtotal=rows.findIndex(r=>r._kind==='subtotal_dir');
+  if(idxDirectos<0||idxSubtotal<0) return [];
+  return rows.slice(idxDirectos+1,idxSubtotal).filter(r=>(r._kind==='account'||r._kind==='subaccount')&&(!r._parentId||r._child));
+}
 async function ejecutarHerramientaChatIA(name,args){
   args=args||{};
   const kpiMes=m=>{
@@ -5756,6 +5771,48 @@ async function ejecutarHerramientaChatIA(name,args){
       if(!ST.capnData) return {error:'Capital N no está cargado.'};
       if(args.mes&&args.mes!=='__consolidado__') return {mes:args.mes,...getCapNAgg(args.mes)};
       return ST.meses.map(m=>({mes:m,...getCapNAgg(m)}));
+    }
+    case 'obtener_datos_area':{
+      // AREAS ya viene acotado a una sola para un líder de área (ver
+      // aplicarRestriccionesDeRol) -- este chequeo alcanza para que no
+      // pueda pedir datos de otra área, sin tener que leer el rol acá.
+      if(!AREAS.includes(args.area)){
+        return {error:`Área inválida o no disponible para tu rol: "${args.area}". Áreas disponibles: ${AREAS.join(', ')}`};
+      }
+      const isCons=args.mes==='__consolidado__';
+      const meses=isCons?ST.meses:[args.mes];
+      if(!isCons&&!ST.meses.includes(args.mes)){
+        return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
+      }
+      let ingresos=0,egresos=0,resultado=0,gastosDirectos=0,fijos=0,sueldosTotal=0;
+      const rubrosAcumulados={};
+      meses.forEach(m=>{
+        const d=ST.mesData[m];
+        if(!d) return;
+        const a=d.agg[args.area]||{ingresos:0,egresos:0,resultado:0};
+        ingresos+=a.ingresos;egresos+=a.egresos;resultado+=a.resultado;
+        directosLeafRowsChatIA(m).forEach(r=>{
+          const v=getAreaVal(r,args.area);
+          if(!v) return;
+          gastosDirectos+=v;
+          rubrosAcumulados[r._nom]=(rubrosAcumulados[r._nom]||0)+v;
+        });
+        fijos+=calcFijosVariables(m,args.area).fijos;
+        sueldosTotal+=sueldosTotalDePeriodo(m,args.area);
+      });
+      const topRubrosDirectos=Object.entries(rubrosAcumulados)
+        .sort((x,y)=>y[1]-x[1]).slice(0,8)
+        .map(([nombre,monto])=>({nombre,monto}));
+      return {
+        area:args.area, mes:args.mes,
+        ingresos, egresos, resultado,
+        gastosDirectos, resultadoDirecto:ingresos-gastosDirectos,
+        fijos, sueldosTotal,
+        topRubrosDirectos,
+        nota:'ingresos/egresos/resultado incluyen el prorrateo de gastos indirectos entre las 4 áreas; ' +
+          'gastosDirectos/resultadoDirecto/fijos/sueldosTotal/topRubrosDirectos son SOLO lo que esta área ' +
+          'gasta directamente, sin ese prorrateo.',
+      };
     }
     default:
       return {error:`Herramienta desconocida: ${name}`};
