@@ -101,7 +101,8 @@ Cuando te pidan un reporte de un área o de Neix:
 
 ## Cómo conseguís los datos
 No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N y su volcado completo, Quant, matriz de prorrateo, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.
-NUNCA le digas al usuario que no tenés un dato sin antes haber probado los volcados completos disponibles: obtener_eerr_completo (TODAS las filas del EERR de Neix de un mes, con sus notas), obtener_gastos_fijos_completo (si es sobre proveedores o gastos fijos), obtener_capital_n_completo (si es sobre Capital N), obtener_quant_completo (si es sobre Quant) u obtener_matriz_prorrateo (si es sobre cómo se reparte un gasto indirecto entre áreas). Son el respaldo para cualquier pregunta puntual que las demás herramientas no cubran. Solo si después de revisar esos volcados el dato realmente no está, decí que no está disponible.`;
+NUNCA le digas al usuario que no tenés un dato sin antes haber probado los volcados completos disponibles: obtener_eerr_completo (TODAS las filas del EERR de Neix de un mes, con sus notas), obtener_gastos_fijos_completo (si es sobre proveedores o gastos fijos), obtener_capital_n_completo (si es sobre Capital N), obtener_quant_completo (si es sobre Quant) u obtener_matriz_prorrateo (si es sobre cómo se reparte un gasto indirecto entre áreas). Son el respaldo para cualquier pregunta puntual que las demás herramientas no cubran. Solo si después de revisar esos volcados el dato realmente no está, decí que no está disponible.
+Si piden el reporte/PDF/informe de un mes puntual (no un análisis armado por vos, sino EL ARCHIVO), usá obtener_reportes_disponibles y respondé con un link markdown [texto](archivo) al PDF real -- tu respuesta puede llevar links así, se muestran como un botón clickeable.`;
 
 const MODELO = "claude-sonnet-5-5";
 
@@ -306,6 +307,26 @@ const TOOLS = [
       "entre las 4 áreas comerciales. Usar para explicar POR QUÉ un área recibe tal proporción de un gasto " +
       "indirecto. No disponible para líderes de área.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "obtener_reportes_disponibles",
+    description:
+      "Lista de reportes PDF YA GENERADOS y publicados (mes, fecha de generación, ruta del archivo) -- de la " +
+      "compañía, de un área puntual o de Capital N. Usar esta herramienta y SOLO esta cuando piden 'el reporte', " +
+      "'el PDF' o 'mandame/pasame el informe' de un mes: no generes un resumen con otras herramientas como si " +
+      "fuera el reporte, respondé con un link al PDF real. Un líder de área solo puede pedir tipo='area' (y " +
+      "siempre le trae la de su propia área, ignora cualquier otra que pida).",
+    input_schema: {
+      type: "object",
+      properties: {
+        tipo: {
+          type: "string",
+          enum: ["empresa", "area", "capital_n"],
+          description: "'empresa' (consolidado, default para acceso completo), 'area' o 'capital_n'.",
+        },
+        area: { type: "string", enum: ["Mesa", "FAs", "Banca Corporativa", "Banca Privada"] },
+      },
+    },
   },
 ];
 
