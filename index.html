@@ -222,21 +222,26 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 /* CHAT IA */
 #chat-ia-btn{position:fixed;bottom:22px;right:22px;width:54px;height:54px;border-radius:50%;background:var(--bordeaux);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.28);z-index:900;transition:transform .15s}
 #chat-ia-btn:hover{transform:scale(1.07)}
-#chat-ia-panel{position:fixed;bottom:86px;right:22px;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 120px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;z-index:900;font-family:'DM Sans',sans-serif}
+#chat-ia-panel{position:fixed;bottom:86px;right:22px;width:560px;max-width:calc(100vw - 32px);height:min(720px,calc(100vh - 110px));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;z-index:900;font-family:'DM Sans',sans-serif}
 #chat-ia-panel.hidden{display:none}
 .chat-ia-hd{background:var(--grafito);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:13px;flex-shrink:0}
 .chat-ia-hd button{background:none;border:none;color:#fff;cursor:pointer;opacity:.75;font-size:15px;line-height:1;padding:2px}
 .chat-ia-hd button:hover{opacity:1}
-.chat-ia-body{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--crema)}
-.chat-ia-msg{max-width:85%;padding:8px 11px;border-radius:10px;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.chat-ia-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--crema)}
+.chat-ia-msg{max-width:94%;padding:9px 13px;border-radius:10px;font-size:13.5px;line-height:1.5;word-break:break-word}
 .chat-ia-msg.user{align-self:flex-end;background:var(--bordeaux);color:#fff;border-bottom-right-radius:2px}
 .chat-ia-msg.assistant{align-self:flex-start;background:#fff;border:1px solid var(--border);color:var(--text);border-bottom-left-radius:2px}
 .chat-ia-msg.error{align-self:flex-start;background:#F6E3E6;color:var(--bordeaux);border:1px solid var(--bordeaux)}
+.chat-ia-tablewrap{overflow-x:auto;margin:6px 0}
+.chat-ia-table{border-collapse:collapse;width:100%;font-size:12px;font-family:'DM Mono',monospace}
+.chat-ia-table th,.chat-ia-table td{padding:5px 9px;border:1px solid var(--border);text-align:left;white-space:nowrap}
+.chat-ia-table thead{background:var(--crema);font-weight:600;font-family:'DM Sans',sans-serif}
+.chat-ia-table tbody tr:nth-child(even){background:var(--crema)}
 .chat-ia-typing{align-self:flex-start;font-size:12px;color:var(--muted);font-style:italic}
 .chat-ia-ft{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:#fff;flex-shrink:0}
-.chat-ia-ft input{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:12.5px;outline:none;min-width:0}
+.chat-ia-ft input{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;min-width:0}
 .chat-ia-ft input:focus{border-color:var(--bordeaux)}
-.chat-ia-ft button{background:var(--bordeaux);color:#fff;border:none;border-radius:8px;padding:0 14px;cursor:pointer;font-size:12.5px;font-weight:600;flex-shrink:0}
+.chat-ia-ft button{background:var(--bordeaux);color:#fff;border:none;border-radius:8px;padding:0 16px;cursor:pointer;font-size:13px;font-weight:600;flex-shrink:0}
 .chat-ia-ft button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
@@ -5675,20 +5680,61 @@ function toggleChatIA(){
   }
 }
 function escapeHtmlChatIA(s){
-  const esc=String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // Markdown liviano: el system prompt le pide al modelo "números clave en
-  // negrita" (**texto**) -- sin esto se veía el asterisco literal en vez
-  // de la negrita real. Corre DESPUÉS de escapar entities, así que los
-  // <strong> que agrega acá son los únicos tags reales en el mensaje (todo
-  // lo demás que haya escrito el modelo ya quedó como texto plano seguro).
-  return esc.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// Negrita (**texto**) -- el system prompt le pide al modelo "números clave
+// en negrita" y tablas para comparar (ver CELIA en api/chat.js). Corre
+// DESPUÉS de escapar entities, así que los <strong>/<table> que arma esto
+// son los únicos tags reales del mensaje (todo lo demás que haya escrito
+// el modelo ya quedó como texto plano seguro).
+function inlineMdChatIA(s){
+  return escapeHtmlChatIA(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+}
+// Tabla markdown ("| A | B |" + fila separadora "|---|---|" + filas de
+// datos) -- sin esto, una tabla de comparación se veía como un bloque de
+// texto con pipes y guiones sueltos, imposible de leer. Devuelve null si
+// la línea no abre una tabla.
+function tablaMdChatIA(lineas,i){
+  const esFila=l=>/^\s*\|.*\|\s*$/.test(l);
+  const esSeparador=l=>/^\s*\|?[\s:|-]+\|?\s*$/.test(l)&&l.includes('-');
+  if(!esFila(lineas[i])||i+1>=lineas.length||!esSeparador(lineas[i+1])) return null;
+  const partirFila=l=>l.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
+  const header=partirFila(lineas[i]);
+  let j=i+2;
+  const filas=[];
+  while(j<lineas.length&&esFila(lineas[j])){ filas.push(partirFila(lineas[j])); j++; }
+  return {header,filas,next:j};
+}
+function renderMensajeChatIA(texto){
+  const lineas=String(texto==null?'':texto).split('\n');
+  const bloques=[];
+  let textoAcum=[];
+  const flushTexto=()=>{
+    if(textoAcum.length){ bloques.push(textoAcum.map(inlineMdChatIA).join('<br>')); textoAcum=[]; }
+  };
+  let i=0;
+  while(i<lineas.length){
+    const tabla=tablaMdChatIA(lineas,i);
+    if(tabla){
+      flushTexto();
+      const th=tabla.header.map(c=>`<th>${inlineMdChatIA(c)}</th>`).join('');
+      const filasHtml=tabla.filas.map(f=>`<tr>${f.map(c=>`<td>${inlineMdChatIA(c)}</td>`).join('')}</tr>`).join('');
+      bloques.push(`<div class="chat-ia-tablewrap"><table class="chat-ia-table"><thead><tr>${th}</tr></thead><tbody>${filasHtml}</tbody></table></div>`);
+      i=tabla.next;
+    } else {
+      textoAcum.push(lineas[i]);
+      i++;
+    }
+  }
+  flushTexto();
+  return bloques.join('');
 }
 function renderMensajesChatIA(){
   const body=document.getElementById('chat-ia-body');
   if(!body) return;
   const visibles=CHAT_IA.historial.filter(m=>m.role==='user'||m.role==='assistant');
   let html=visibles.length
-    ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${escapeHtmlChatIA(m.text)}</div>`).join('')
+    ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${renderMensajeChatIA(m.text)}</div>`).join('')
     : '<div class="chat-ia-msg assistant">Hola, soy CELIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
   if(CHAT_IA.enviando) html+='<div class="chat-ia-typing">Pensando…</div>';
   body.innerHTML=html;
