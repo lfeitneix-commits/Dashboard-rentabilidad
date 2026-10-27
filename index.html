@@ -5697,13 +5697,23 @@ function toggleChatIA(){
 function escapeHtmlChatIA(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-// Negrita (**texto**) -- el system prompt le pide al modelo "números clave
-// en negrita" y tablas para comparar (ver CELIA en api/chat.js). Corre
-// DESPUÉS de escapar entities, así que los <strong>/<table> que arma esto
-// son los únicos tags reales del mensaje (todo lo demás que haya escrito
-// el modelo ya quedó como texto plano seguro).
+// Negrita (**texto**) y link ([texto](url)) -- el system prompt le pide al
+// modelo "números clave en negrita", tablas para comparar, y un link
+// markdown cuando el usuario pide el PDF de un reporte ya generado (ver
+// obtener_reportes_disponibles/CELIA en api/chat.js). Corre DESPUÉS de
+// escapar entities, así que los <strong>/<a>/<table> que arma esto son los
+// únicos tags reales del mensaje (todo lo demás que haya escrito el modelo
+// ya quedó como texto plano seguro). El href se valida contra una lista
+// blanca de esquemas/rutas (relativo a "reportes/" o http(s) absoluto) y
+// nunca puede traer comillas -- si no matchea, se deja el link sin armar,
+// como texto plano, en vez de arriesgar una inyección en el atributo.
 function inlineMdChatIA(s){
-  return escapeHtmlChatIA(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  let out=escapeHtmlChatIA(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  out=out.replace(/\[([^\]]+)\]\(([^)\s"'<>]+)\)/g,(coincidencia,texto,url)=>{
+    if(!/^(https?:\/\/|reportes\/)/i.test(url)) return coincidencia;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${texto}</a>`;
+  });
+  return out;
 }
 // Tabla markdown ("| A | B |" + fila separadora "|---|---|" + filas de
 // datos) -- sin esto, una tabla de comparación se veía como un bloque de
@@ -5808,6 +5818,7 @@ async function mepDeChatIA(mes){
     return null;
   }
 }
+const NOTA_REPORTES_DISPONIBLES='Esto es la lista de reportes PDF que YA EXISTEN, generados de antemano (no datos para armar un resumen propio). "archivo" es la ruta del PDF publicado -- cuando el usuario pida "el reporte", "el PDF" o "mandame/pasame el informe" de un mes puntual, respondé con un link markdown [texto](archivo) a ESE archivo exacto (el mes más reciente de la lista si no especifica cuál), nunca generes un resumen armado con otras herramientas como si fuera el reporte.';
 async function ejecutarHerramientaChatIA(name,args){
   args=args||{};
   const kpiMes=m=>{
@@ -6103,6 +6114,30 @@ async function ejecutarHerramientaChatIA(name,args){
         nota:'Porcentaje de prorrateo de cada rubro de gasto indirecto entre las áreas comerciales -- es el ' +
           'criterio de reparto usado en el EERR, no un monto.',
       };
+    }
+    case 'obtener_reportes_disponibles':{
+      // Mismo criterio de acceso que listaReportesActual()/
+      // puedeVerReportesCapN() (ver pestaña Reportes Mensuales): un líder
+      // de área siempre ve los reportes de su propia área, pida lo que
+      // pida -- nunca el consolidado de la compañía ni el de otra área.
+      const esArea=ST.role==='lideres'&&!!ST.area;
+      if(args.tipo==='capital_n'){
+        if(!puedeVerReportesCapN()) return {error:'Los reportes de Capital N no están disponibles para tu rol.'};
+        return {tipo:'capital_n',reportes:REPORTES_MENSUALES_CAPN,nota:NOTA_REPORTES_DISPONIBLES};
+      }
+      // Igual que listaReportesActual(): un líder de área ve SIEMPRE los
+      // reportes de su propia área, pida tipo="empresa", tipo="area" con
+      // otra área, o nada -- nunca se la cambia por lo que pida.
+      if(esArea){
+        return {tipo:'area',area:ST.area,reportes:REPORTES_MENSUALES_AREA[ST.area]||[],nota:NOTA_REPORTES_DISPONIBLES};
+      }
+      if(args.tipo==='area'){
+        if(!args.area||!AREAS.includes(args.area)){
+          return {error:`Área inválida: "${args.area}". Áreas disponibles: ${AREAS.join(', ')}`};
+        }
+        return {tipo:'area',area:args.area,reportes:REPORTES_MENSUALES_AREA[args.area]||[],nota:NOTA_REPORTES_DISPONIBLES};
+      }
+      return {tipo:'empresa',reportes:REPORTES_MENSUALES,nota:NOTA_REPORTES_DISPONIBLES};
     }
     default:
       return {error:`Herramienta desconocida: ${name}`};
