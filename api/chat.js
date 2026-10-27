@@ -100,8 +100,8 @@ Cuando te pidan un reporte de un área o de Neix:
 - No das recomendaciones de inversión ni opinás sobre personas: analizás números.
 
 ## Cómo conseguís los datos
-No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.
-NUNCA le digas al usuario que no tenés un dato sin antes haber probado obtener_eerr_completo (volcado de TODAS las filas del EERR de un mes, con sus notas) y, si es sobre proveedores o gastos fijos, obtener_gastos_fijos_completo -- son el respaldo para cualquier pregunta puntual que las demás herramientas no cubran. Solo si después de revisar esos volcados el dato realmente no está, decí que no está disponible.`;
+No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N y su volcado completo, Quant, matriz de prorrateo, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.
+NUNCA le digas al usuario que no tenés un dato sin antes haber probado los volcados completos disponibles: obtener_eerr_completo (TODAS las filas del EERR de Neix de un mes, con sus notas), obtener_gastos_fijos_completo (si es sobre proveedores o gastos fijos), obtener_capital_n_completo (si es sobre Capital N), obtener_quant_completo (si es sobre Quant) u obtener_matriz_prorrateo (si es sobre cómo se reparte un gasto indirecto entre áreas). Son el respaldo para cualquier pregunta puntual que las demás herramientas no cubran. Solo si después de revisar esos volcados el dato realmente no está, decí que no está disponible.`;
 
 const MODELO = "claude-sonnet-5-5";
 
@@ -272,6 +272,41 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "obtener_capital_n_completo",
+    description:
+      "Volcado COMPLETO de todas las filas del EERR de Capital N (Facturación, cada rubro de gasto, " +
+      "Resultado) de un mes puntual o consolidado -- no solo el agregado de obtener_capital_n. Solo " +
+      "disponible para acceso completo o Banca Privada.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mes: { type: "string", description: "Mes en español, o vacío/\"__consolidado__\" para el total" },
+      },
+    },
+  },
+  {
+    name: "obtener_quant_completo",
+    description:
+      "Costos de Quant (centro de costo de trading cuantitativo, no factura): costo laboral, servicios de " +
+      "infraestructura y hardware de un mes puntual o consolidado, más los gastos únicos (obra, FPGA, Codex) " +
+      "que no se prorratean por mes. Solo disponible para acceso completo o líder de Mesa.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mes: { type: "string", description: "Mes en español, o vacío/\"__consolidado__\" para el total" },
+      },
+    },
+  },
+  {
+    name: "obtener_matriz_prorrateo",
+    description:
+      "Matriz de prorrateo: el PORCENTAJE (no monto) con el que cada rubro de gasto indirecto de la " +
+      "estructura común (Back Office, RRHH, IT, Administración, MKTG, Performance, Impuestos, etc.) se reparte " +
+      "entre las 4 áreas comerciales. Usar para explicar POR QUÉ un área recibe tal proporción de un gasto " +
+      "indirecto. No disponible para líderes de área.",
+    input_schema: { type: "object", properties: {} },
+  },
 ];
 
 function herramientasPermitidas(rol) {
@@ -285,11 +320,15 @@ function herramientasPermitidas(rol) {
         "obtener_ranking_proveedores",
         "obtener_evolucion_rubros",
         "obtener_gastos_fijos_completo",
+        "obtener_matriz_prorrateo",
       ].includes(t.name)
     ) {
       return !esArea;
     }
-    if (t.name === "obtener_capital_n") return !esArea || area === "Banca Privada";
+    if (["obtener_capital_n", "obtener_capital_n_completo"].includes(t.name)) {
+      return !esArea || area === "Banca Privada";
+    }
+    if (t.name === "obtener_quant_completo") return !esArea || area === "Mesa";
     return true;
   });
 }
