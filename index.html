@@ -969,6 +969,81 @@ function parseGastosFijosDetalle(csvText){
 // monto real, no una estimación. Enero suma dos pagos (el mes + un abono
 // retroactivo de diciembre 2025). Sacar en cuanto tenga su propia fila en
 // la hoja.
+// Qué hace cada proveedor recurrente de "Gastos Fijos - Proveedor x Mes" --
+// descripciones a mano que pasó la usuaria (un Excel aparte, no vienen del
+// Sheet), para que CELIA pueda explicar PARA QUÉ se le paga a cada uno, no
+// solo cuánto. El match contra el nombre real de la hoja es por
+// normSearch() (sin acentos/mayúsculas) en descripcionProveedorChatIA(),
+// más abajo -- no se arma un mapa normalizado acá arriba porque normSearch
+// todavía no está definida en este punto del archivo.
+const PROVEEDOR_DESCRIPCION_RAW=[
+  {cuenta:'Servicios Contratados',nombre:'1816 Data',descripcion:'Consultora 1816: research macro, económico y financiero (misma suscripción que 1816 SAS, otra razón social)'},
+  {cuenta:'Servicios Contratados',nombre:'1816 SAS',descripcion:null},
+  {cuenta:'Servicios Contratados',nombre:'Liquidesk (Quantex)',descripcion:'Plataforma de Quantex, probablemente software para la mesa o gestión de liquidez'},
+  {cuenta:'Servicios Contratados',nombre:'Marina Muller',descripcion:'Persona física – servicio a definir'},
+  {cuenta:'Servicios Contratados',nombre:'Refinitiv',descripcion:'Market data y terminal (LSEG Workspace/Eikon)'},
+  {cuenta:'Servicios Contratados',nombre:'Celeri Tecnolog (Complif)',descripcion:'Software de compliance: onboarding, KYC y PLD de comitentes'},
+  {cuenta:'Servicios Contratados',nombre:'BCS Sociedad Anónima (PLD/FATCA)',descripcion:'Servicio de PLD y reportes FATCA/CRS'},
+  {cuenta:'Servicios Contratados',nombre:'Lab. de Inv. y D. (NOSIS)',descripcion:'Informes comerciales, crediticios y de identidad para validar comitentes (KYC/PLD)'},
+  {cuenta:'Servicios Contratados',nombre:'Bank S.A. (proc. datos/custodia)',descripcion:'Procesamiento de datos y custodia'},
+  {cuenta:'Servicios Contratados',nombre:'Estudio Gallo',descripcion:'Sistema de back office de la ALyC (Gallo/EGWS)'},
+  {cuenta:'Servicios Contratados',nombre:'Oracle Argentina',descripcion:'Licencias y soporte de base de datos/software'},
+  {cuenta:'Servicios Contratados',nombre:'Costa Victoria',descripcion:'(Adm)'},
+  {cuenta:'Servicios Contratados',nombre:'Visma Argentina',descripcion:'Software de liquidación de sueldos/RRHH'},
+  {cuenta:'Servicios Contratados',nombre:'Belluschi Cande',descripcion:'Persona física – servicio a definir (MKT)'},
+  {cuenta:'Servicios Contratados',nombre:'Interbanking (plus bancos)',descripcion:'Plataforma de banca electrónica para transferencias y pagos con bancos'},
+  {cuenta:'Servicios Contratados',nombre:'Gimenez Ezequiel',descripcion:'Persona física – servicio a definir (Adm?)'},
+  {cuenta:'Servicios Contratados',nombre:'Star Servicios / Interlim (limpieza)',descripcion:'Limpieza de oficina'},
+  {cuenta:'Servicios Contratados',nombre:'Bloomberg L.P.',descripcion:'Terminal Bloomberg'},
+  {cuenta:'Servicios Contratados',nombre:'NYSE Market Inc.',descripcion:'Fees de market data de NYSE (figura también en Suscripciones: chequear doble imputación)'},
+  {cuenta:'Servicios Contratados',nombre:'Macarena García',descripcion:'Persona física – servicio a definir (referidos Cap N)'},
+  {cuenta:'Servicios Contratados',nombre:'Prosegur (alarma)',descripcion:'Alarma y monitoreo'},
+  {cuenta:'Servicios Contratados',nombre:'Tecnet Argentina',descripcion:'Internet Mendoza'},
+  {cuenta:'Honorarios Profesionales',nombre:'Sumarsi SRL',descripcion:'Consultoría o asesoría contable'},
+  {cuenta:'Honorarios Profesionales',nombre:'ARV Group (Fernando Álvarez)',descripcion:'Contador'},
+  {cuenta:'Honorarios Profesionales',nombre:'Rivas Marcelo',descripcion:'Profesional independiente (contador, abogado o consultor) (Adm)'},
+  {cuenta:'Honorarios Profesionales',nombre:'Alvarez Manuel',descripcion:'Profesional independiente (contador, abogado o consultor) (Adm)'},
+  {cuenta:'Honorarios Profesionales',nombre:'Orlievsky Santiago',descripcion:'Profesional independiente (contador, abogado o consultor)'},
+  {cuenta:'Honorarios Profesionales',nombre:'Martini Ana Inés',descripcion:'Profesional independiente (contador, abogado o consultor)'},
+  {cuenta:'Honorarios Profesionales',nombre:'Tanoira Cassagne (TCA)',descripcion:'Estudio jurídico especializado en mercado de capitales'},
+  {cuenta:'Honorarios Profesionales',nombre:'Sofia Santangelo',descripcion:'RRHH'},
+  {cuenta:'Alquileres y Expensas',nombre:'Alquiler P8 Buenavista',descripcion:'Alquiler de la oficina'},
+  {cuenta:'Alquileres y Expensas',nombre:'Expensas P8 Buenavista',descripcion:'Expensas de la oficina'},
+  {cuenta:'Alquileres y Expensas',nombre:'DEI S.A.',descripcion:'Alquiler oficina Mendoza'},
+  {cuenta:'Adicional Obra Social',nombre:'OSDE',descripcion:'Diferencial de prepaga para empleados'},
+  {cuenta:'Electricidad',nombre:'Edenor',descripcion:'Luz de la oficina de CABA'},
+  {cuenta:'Electricidad',nombre:'Edemsa (Mendoza)',descripcion:'Luz de la oficina de Mendoza'},
+  {cuenta:'Telefonia e Internet',nombre:'CPS Comunicación',descripcion:'Internet, enlaces y telefonía'},
+  {cuenta:'Telefonia e Internet',nombre:'Telmex Argentina',descripcion:'Internet, enlaces y telefonía (Claro)'},
+  {cuenta:'Telefonia e Internet',nombre:'Telecom Argentina',descripcion:'Internet, enlaces y telefonía'},
+  {cuenta:'Pagina Web/Publicidad',nombre:'Inargind (SGC)',descripcion:'Mantenimiento web'},
+  {cuenta:'Pagina Web/Publicidad',nombre:'Coding & Company',descripcion:'Desarrollo web'},
+  {cuenta:'Suscripciones',nombre:'Microsoft (NSS S.A.)',descripcion:'Licencias de Microsoft 365, vía revendedor'},
+  {cuenta:'Suscripciones',nombre:'Cámara de Agentes (cuota social)',descripcion:'Cuota social de la cámara de ALyCs'},
+  {cuenta:'Suscripciones',nombre:'Adobe',descripcion:'Licencias de software'},
+  {cuenta:'Suscripciones',nombre:'NYSE Market Inc.',descripcion:'Fees de market data de NYSE (figura también en Suscripciones: chequear doble imputación)'},
+  {cuenta:'Suscripciones',nombre:'All Pago',descripcion:'(?) Posiblemente un procesador de pagos'},
+  {cuenta:'Suscripciones',nombre:'Slack',descripcion:'Licencias de software'},
+  {cuenta:'Gastos de Hardware',nombre:'ITBUY SRL',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Polytech SA',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Bidcom SRL',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Noxiestore SA',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Rednet SRL',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Ghertner Sebastián',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Kudu/Kuda America',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos de Hardware',nombre:'Tendex SA',descripcion:'Proveedor de equipos y accesorios informáticos'},
+  {cuenta:'Gastos Generales',nombre:'Gastos generales (varios)',descripcion:'Gastos varios de oficina'},
+  {cuenta:'Gastos Generales',nombre:'Librería y Papelería',descripcion:'Insumos de librería y papelería'},
+  {cuenta:'Gastos Generales',nombre:'Refrigerios y Cafetería',descripcion:'Café, snacks y refrigerios de oficina'},
+  {cuenta:'Gastos Generales',nombre:'Certificaciones y Legalización',descripcion:'Certificaciones de firma y legalizaciones'},
+  {cuenta:'Gastos Generales',nombre:'Gtos Mant de Oficina',descripcion:'Mantenimiento de la oficina'},
+  {cuenta:'Gastos Generales',nombre:'Correspondencia y Mensajería',descripcion:'Envíos, correo y mensajería'},
+  {cuenta:'Gastos Generales',nombre:'Gtos Grales TC Corporativa',descripcion:'Gastos pagados con tarjeta corporativa'},
+  {cuenta:'Gastos Generales',nombre:'Mantenim Bs Uso',descripcion:'Mantenimiento de bienes de uso'},
+  {cuenta:'Gastos Generales',nombre:'Mantenim Auto',descripcion:'Mantenimiento de vehículo'},
+  {cuenta:'Gastos Generales',nombre:'Utiles y Elementos de Oficina',descripcion:'Útiles y elementos de oficina'},
+  {cuenta:'Donaciones',nombre:'Fundación Padi',descripcion:'Donación'},
+];
 const PROVEEDOR_MANUAL_2026={
   'santangelo sofia':{
     nombre:'Santangelo Sofia',
@@ -5785,6 +5860,10 @@ async function mepDeChatIA(mes){
     return null;
   }
 }
+function descripcionProveedorChatIA(nombre){
+  const info=PROVEEDOR_DESCRIPCION_RAW.find(p=>normSearch(p.nombre)===normSearch(nombre));
+  return info?info.descripcion:null;
+}
 async function ejecutarHerramientaChatIA(name,args){
   args=args||{};
   const kpiMes=m=>{
@@ -5835,7 +5914,7 @@ async function ejecutarHerramientaChatIA(name,args){
       data.cuentas.forEach(c=>{
         c.providers.forEach(p=>{
           if(!normSearch(p.nombre).includes(q)) return;
-          const fila={cuenta:c.nombre,proveedor:p.nombre};
+          const fila={cuenta:c.nombre,proveedor:p.nombre,descripcion:descripcionProveedorChatIA(p.nombre)};
           data.valCols.forEach((mes,i)=>{ fila[mes]=p.vals[i]||0; });
           out.push(fila);
         });
@@ -5850,7 +5929,7 @@ async function ejecutarHerramientaChatIA(name,args){
       data.cuentas.forEach(c=>{
         c.providers.forEach(p=>{
           const total=p.vals.reduce((s,v)=>s+(v||0),0);
-          if(total>0) out.push({proveedor:p.nombre,cuenta:c.nombre,total});
+          if(total>0) out.push({proveedor:p.nombre,cuenta:c.nombre,total,descripcion:descripcionProveedorChatIA(p.nombre)});
         });
       });
       out.sort((a,b)=>b.total-a.total);
@@ -5858,7 +5937,8 @@ async function ejecutarHerramientaChatIA(name,args){
         ranking:out.slice(0,30),
         nota:'Solo incluye proveedores de "Gastos Fijos - Proveedor x Mes" (un subconjunto curado de cuentas ' +
           'fijas, no TODOS los gastos de la compañía -- no incluye, por ejemplo, Comisiones Productores ni ' +
-          'Impuestos, que no se cargan por proveedor). Total = acumulado de los meses cargados del año pedido.',
+          'Impuestos, que no se cargan por proveedor). Total = acumulado de los meses cargados del año pedido. ' +
+          '"descripcion" es null cuando todavía no se cargó qué hace ese proveedor.',
       };
     }
     case 'obtener_capital_n':{
@@ -5973,7 +6053,7 @@ async function ejecutarHerramientaChatIA(name,args){
         const porMes=vals=>Object.fromEntries(data.valCols.map((mes,i)=>[mes,vals[i]||0]));
         return {
           cuenta:c.nombre,
-          proveedores:c.providers.map(p=>({proveedor:p.nombre,valores:porMes(p.vals)})),
+          proveedores:c.providers.map(p=>({proveedor:p.nombre,valores:porMes(p.vals),descripcion:descripcionProveedorChatIA(p.nombre)})),
           sinDiscriminar:c.ajuste?porMes(c.ajuste.vals):null,
           totalCuenta:c.total?porMes(c.total.vals):null,
         };
@@ -5983,7 +6063,8 @@ async function ejecutarHerramientaChatIA(name,args){
         totalGastosFijos:data.grandTotal?Object.fromEntries(data.valCols.map((mes,i)=>[mes,data.grandTotal.vals[i]||0])):null,
         nota:'Volcado completo de "Gastos Fijos - Proveedor x Mes" -- cada cuenta con TODOS sus proveedores y ' +
           'sus montos mes a mes. Es un subconjunto curado de cuentas fijas, no TODOS los gastos de la compañía ' +
-          '(no incluye Sueldos y CS, Comisiones Productores ni Impuestos, que no se cargan por proveedor).',
+          '(no incluye Sueldos y CS, Comisiones Productores ni Impuestos, que no se cargan por proveedor). ' +
+          '"descripcion" es null cuando todavía no se cargó qué hace ese proveedor.',
       };
     }
     case 'obtener_capital_n_completo':{
