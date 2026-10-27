@@ -92,6 +92,17 @@ html,body{height:100%;background:var(--crema);color:var(--text);font-family:'DM 
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px}
 @media(max-width:1100px){.g3{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+/* MOBILE -- el sidebar arranca colapsado en pantallas chicas (ver el check
+   de innerWidth al final del script), acá solo se angosta el resto del
+   layout para aprovechar el poco ancho que queda. */
+@media(max-width:720px){
+  .content{padding:14px 12px 32px}
+  .topbar{padding:0 12px}
+  .kpi-grid,.kpi-grid-areas{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:480px){
+  .kpi-grid,.kpi-grid-areas{grid-template-columns:1fr}
+}
 
 /* CHART CARD */
 .chart-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px}
@@ -103,7 +114,7 @@ html,body{height:100%;background:var(--crema);color:var(--text);font-family:'DM 
 .cc-s{font-size:11px;color:var(--muted);margin-bottom:18px}
 
 /* TABLE CARD */
-.tc{background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:20px}
+.tc{background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow-x:auto;overflow-y:hidden;margin-bottom:20px}
 .tc-hd{padding:11px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .tc-hd-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .tc-hd span{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;font-weight:400}
@@ -5149,6 +5160,14 @@ document.getElementById('sb-toggle').addEventListener('click',()=>{
     Object.values(CH).forEach(c=>{try{c.resize();}catch(e){}});
   }, ms));
 });
+// En el celular el sidebar expandido (224px) se come más de la mitad de la
+// pantalla -- arranca colapsado (mismo ícono angosto que ya existe para el
+// botón de colapsar) para dejarle lugar al contenido. El usuario puede
+// volver a expandirlo a mano con el mismo botón si lo necesita.
+if(window.innerWidth<=720){
+  document.getElementById('sidebar').classList.add('col');
+  document.getElementById('app').classList.add('sbc');
+}
 
 // Also watch for any size change on .main and resize charts
 if(window.ResizeObserver){
