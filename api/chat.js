@@ -150,7 +150,8 @@ const TOOLS = [
     name: "buscar_gasto_por_proveedor",
     description:
       "Busca cuánto se le pagó, mes a mes, a un proveedor o cuenta puntual (ej. \"Tanoira\", \"Edenor\", " +
-      "\"Santangelo\"). No disponible para líderes de área.",
+      "\"Santangelo\"), con una breve descripción de qué servicio presta (cuando está cargada). No disponible " +
+      "para líderes de área.",
     input_schema: {
       type: "object",
       properties: {
@@ -168,9 +169,10 @@ const TOOLS = [
     name: "obtener_ranking_proveedores",
     description:
       "Ranking de proveedores por monto total acumulado del año (de mayor a menor), para responder 'a qué " +
-      "proveedor le pagamos más'. Sale de 'Gastos Fijos - Proveedor x Mes', un subconjunto curado de cuentas " +
-      "fijas -- NO incluye rubros que no se cargan por proveedor (Sueldos y CS, Comisiones Productores, " +
-      "Impuestos). No disponible para líderes de área.",
+      "proveedor le pagamos más'. Incluye una breve descripción de qué servicio presta cada uno (cuando está " +
+      "cargada). Sale de 'Gastos Fijos - Proveedor x Mes', un subconjunto curado de cuentas fijas -- NO incluye " +
+      "rubros que no se cargan por proveedor (Sueldos y CS, Comisiones Productores, Impuestos). No disponible " +
+      "para líderes de área.",
     input_schema: {
       type: "object",
       properties: {
@@ -257,10 +259,11 @@ const TOOLS = [
   {
     name: "obtener_gastos_fijos_completo",
     description:
-      "Volcado COMPLETO de 'Gastos Fijos - Proveedor x Mes': todas las cuentas, con TODOS sus proveedores y " +
-      "sus montos mes a mes (no solo un ranking o una búsqueda puntual). Usar cuando se necesite comparar o " +
-      "listar varios proveedores a la vez, o cuando buscar_gasto_por_proveedor / obtener_ranking_proveedores " +
-      "no alcancen. No disponible para líderes de área.",
+      "Volcado COMPLETO de 'Gastos Fijos - Proveedor x Mes': todas las cuentas, con TODOS sus proveedores, sus " +
+      "montos mes a mes y una breve descripción de qué servicio presta cada uno (cuando está cargada) -- no " +
+      "solo un ranking o una búsqueda puntual. Usar cuando se necesite comparar o listar varios proveedores a " +
+      "la vez, o cuando buscar_gasto_por_proveedor / obtener_ranking_proveedores no alcancen. No disponible " +
+      "para líderes de área.",
     input_schema: {
       type: "object",
       properties: {
