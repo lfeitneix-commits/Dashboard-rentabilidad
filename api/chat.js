@@ -360,6 +360,59 @@ function turnosAClaude(turnos) {
     .filter(Boolean);
 }
 
+// Separa un buffer de texto SSE (lo que manda Claude con stream:true) en
+// eventos "data: {...}" completos -- devuelve el resto del buffer tal cual
+// (línea incompleta, a la espera de más bytes del próximo chunk) para no
+// perder ni duplicar nada entre lecturas sucesivas del stream.
+function extraerEventosSSE(buffer) {
+  const lineas = buffer.split("\n");
+  const resto = lineas.pop();
+  const eventos = [];
+  for (const linea of lineas) {
+    if (!linea.startsWith("data:")) continue;
+    const payload = linea.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      eventos.push(JSON.parse(payload));
+    } catch (e) {
+      // línea cortada a la mitad entre dos chunks -- no debería pasar ya
+      // que extraerEventosSSE solo procesa líneas completas (separadas por
+      // \n), pero un evento mal formado no debe tirar abajo el stream.
+    }
+  }
+  return { eventos, resto };
+}
+
+// Reduce un evento de streaming de Claude a los eventos simplificados que
+// entiende el frontend (ejecutarHerramientaChatIA/enviarMensajeChatIA en
+// index.html): text_delta a medida que se genera cada pedacito de texto,
+// tool_use recién cuando terminó de llegar el JSON completo de sus
+// argumentos (no se puede ejecutar una herramienta con argumentos a medio
+// armar). Separada de la lectura del stream en sí para poder testearla con
+// eventos sintéticos, sin pegarle a la red real.
+function procesarEventoAnthropicStream(evt, estado, emit) {
+  if (evt.type === "content_block_start" && evt.content_block?.type === "tool_use") {
+    estado.toolUse = { id: evt.content_block.id, name: evt.content_block.name, inputJson: "" };
+  } else if (evt.type === "content_block_delta") {
+    if (evt.delta?.type === "text_delta") {
+      emit({ type: "text_delta", text: evt.delta.text });
+    } else if (evt.delta?.type === "input_json_delta" && estado.toolUse) {
+      estado.toolUse.inputJson += evt.delta.partial_json || "";
+    }
+  } else if (evt.type === "content_block_stop" && estado.toolUse) {
+    let args = {};
+    try {
+      args = estado.toolUse.inputJson ? JSON.parse(estado.toolUse.inputJson) : {};
+    } catch (e) {
+      args = {};
+    }
+    emit({ type: "tool_use", name: estado.toolUse.name, args, id: estado.toolUse.id });
+    estado.toolUse = null;
+  } else if (evt.type === "error") {
+    emit({ type: "error", error: evt.error || evt });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
@@ -377,7 +430,7 @@ export default async function handler(req, res) {
   const TIMEOUT_MS = 25000;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  let r, data;
+  let r;
   try {
     r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -396,29 +449,65 @@ export default async function handler(req, res) {
         // una por vuelta -- el frontend (enviarMensajeChatIA) solo sabe
         // ejecutar y reenviar un tool_result a la vez.
         tool_choice: { type: "auto", disable_parallel_tool_use: true },
+        // Streaming: el frontend va mostrando el texto a medida que se
+        // genera, en vez de quedarse en "Pensando..." hasta tener la
+        // respuesta completa.
+        stream: true,
       }),
       signal: controller.signal,
     });
-    data = await r.json();
   } catch (e) {
+    clearTimeout(timeoutId);
     console.error("chat.js: timeout/excepción", e.message);
     return res.status(504).json({ error: `Timeout o error de red: ${e.message}` });
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   if (!r.ok) {
+    clearTimeout(timeoutId);
+    let data = null;
+    try {
+      data = await r.json();
+    } catch (e) {
+      // sin body de error legible -- se informa igual con lo que haya
+    }
     console.error(`chat.js: Claude devolvió ${r.status}`, JSON.stringify(data));
     return res.status(r.status).json({ error: data });
   }
 
-  const toolUse = (data.content || []).find((b) => b.type === "tool_use");
-  if (toolUse) {
-    return res.status(200).json({
-      functionCall: { name: toolUse.name, args: toolUse.input || {}, id: toolUse.id },
-      modelo: MODELO,
-    });
+  // A partir de acá la respuesta HTTP ya está comprometida a 200 -- se
+  // transmite como NDJSON (una línea = un evento JSON) en vez de un único
+  // JSON al final, para que el frontend pueda ir pintando el texto a
+  // medida que llega.
+  res.writeHead(200, {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+  });
+  const emit = (obj) => res.write(JSON.stringify(obj) + "\n");
+
+  const estado = { toolUse: null };
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const { eventos, resto } = extraerEventosSSE(buffer);
+      buffer = resto;
+      eventos.forEach((evt) => procesarEventoAnthropicStream(evt, estado, emit));
+    }
+  } catch (e) {
+    console.error("chat.js: error leyendo el stream de Claude", e.message);
+    emit({ type: "error", error: e.message });
+  } finally {
+    clearTimeout(timeoutId);
   }
-  const textBlock = (data.content || []).find((b) => b.type === "text");
-  return res.status(200).json({ text: textBlock?.text ?? "", modelo: MODELO });
+  res.end();
 }
+
+// Exportadas solo para poder testear el parseo/reducción del stream con
+// eventos sintéticos (ver scripts/reportes o el harness de test del chat),
+// sin pegarle a la red real -- Vercel sigue usando únicamente el default
+// export de arriba.
+export { extraerEventosSSE, procesarEventoAnthropicStream };
