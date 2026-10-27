@@ -100,7 +100,7 @@ Cuando te pidan un reporte de un área o de Neix:
 - No das recomendaciones de inversión ni opinás sobre personas: analizás números.
 
 ## Cómo conseguís los datos
-No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos por proveedor, Capital N, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.`;
+No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.`;
 
 const MODELO = "claude-sonnet-5-5";
 
@@ -164,6 +164,24 @@ const TOOLS = [
     },
   },
   {
+    name: "obtener_ranking_proveedores",
+    description:
+      "Ranking de proveedores por monto total acumulado del año (de mayor a menor), para responder 'a qué " +
+      "proveedor le pagamos más'. Sale de 'Gastos Fijos - Proveedor x Mes', un subconjunto curado de cuentas " +
+      "fijas -- NO incluye rubros que no se cargan por proveedor (Sueldos y CS, Comisiones Productores, " +
+      "Impuestos). No disponible para líderes de área.",
+    input_schema: {
+      type: "object",
+      properties: {
+        anio: {
+          type: "string",
+          enum: ["actual", "2025"],
+          description: "Año a buscar: \"actual\" (año en curso) o \"2025\" (cerrado). Default \"actual\".",
+        },
+      },
+    },
+  },
+  {
     name: "obtener_evolucion_rubros",
     description:
       "Evolución mes a mes de TODOS los rubros de gasto de la compañía (uno al lado del otro, no uno por " +
@@ -224,7 +242,11 @@ function herramientasPermitidas(rol) {
   const esArea = !!(rol && rol.esArea);
   const area = rol && rol.area;
   return TOOLS.filter((t) => {
-    if (["obtener_ranking_rubros", "buscar_gasto_por_proveedor", "obtener_evolucion_rubros"].includes(t.name)) {
+    if (
+      ["obtener_ranking_rubros", "buscar_gasto_por_proveedor", "obtener_ranking_proveedores", "obtener_evolucion_rubros"].includes(
+        t.name,
+      )
+    ) {
       return !esArea;
     }
     if (t.name === "obtener_capital_n") return !esArea || area === "Banca Privada";

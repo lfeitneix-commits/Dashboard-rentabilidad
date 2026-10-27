@@ -5834,6 +5834,25 @@ async function ejecutarHerramientaChatIA(name,args){
       });
       return out.length?out:{error:`No se encontró ningún proveedor que coincida con "${args.nombre}".`};
     }
+    case 'obtener_ranking_proveedores':{
+      if(args.anio!=='2025') await loadGastosFijosDetalleLazy();
+      const data=args.anio==='2025'?getGastosFijos2025():ST.gastosFijosDetalle;
+      if(!data) return {error:'El detalle de gastos por proveedor no está disponible.'};
+      const out=[];
+      data.cuentas.forEach(c=>{
+        c.providers.forEach(p=>{
+          const total=p.vals.reduce((s,v)=>s+(v||0),0);
+          if(total>0) out.push({proveedor:p.nombre,cuenta:c.nombre,total});
+        });
+      });
+      out.sort((a,b)=>b.total-a.total);
+      return {
+        ranking:out.slice(0,30),
+        nota:'Solo incluye proveedores de "Gastos Fijos - Proveedor x Mes" (un subconjunto curado de cuentas ' +
+          'fijas, no TODOS los gastos de la compañía -- no incluye, por ejemplo, Comisiones Productores ni ' +
+          'Impuestos, que no se cargan por proveedor). Total = acumulado de los meses cargados del año pedido.',
+      };
+    }
     case 'obtener_capital_n':{
       if(!ST.capnData) return {error:'Capital N no está cargado.'};
       if(args.mes&&args.mes!=='__consolidado__') return {mes:args.mes,...getCapNAgg(args.mes)};
