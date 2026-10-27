@@ -96,6 +96,25 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "obtener_datos_area",
+    description:
+      "Datos de UNA sola área (Mesa, FAs, Banca Corporativa o Banca Privada) en un mes puntual o " +
+      "\"__consolidado__\": ingresos/egresos/resultado totales (incluyen el prorrateo de gastos indirectos " +
+      "entre las 4 áreas), gastos directos y resultado directo (SOLO lo que esa área gasta directamente, sin " +
+      "ese prorrateo), costos fijos directos y sueldos y CS directos del área, y el ranking de los rubros " +
+      "directos que más gastó esa área. Usar esta herramienta (no obtener_kpis_mes ni obtener_ranking_rubros, " +
+      "que son de toda la compañía) para cualquier pregunta sobre sueldos, gastos o resultado de un área " +
+      "puntual. Para un líder de área, solo devuelve datos de su propia área (si pide otra, da error).",
+    input_schema: {
+      type: "object",
+      properties: {
+        mes: { type: "string", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\"" },
+        area: { type: "string", enum: ["Mesa", "FAs", "Banca Corporativa", "Banca Privada"] },
+      },
+      required: ["mes", "area"],
+    },
+  },
 ];
 
 function herramientasPermitidas(rol) {
