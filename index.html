@@ -1762,19 +1762,22 @@ function kpiGrid(data,capn){
   // se saca esa fila, y si hay Cap N (Banca Privada) se sube la
   // tarjeta a la fila principal en vez de dejarla huérfana abajo.
   const soloUnArea=AREAS.length===1;
+  const notaFormula=`<div style="font-size:12px;color:var(--muted);line-height:1.5;margin:-6px 0 16px;padding:0 2px"><strong style="color:var(--grafito)">Fórmula del Resultado:</strong> Facturación Real Equipos (Mesa ya descuenta aranceles mercados, costo financiero cauciones, alquileres, corredores y conversiones) + Resultado Traders + Resultado Comitentes − Gastos (contabilidad). Excluye Capital N.</div>`;
   if(soloUnArea){
     return`<div class="kpi-grid" style="${capn?'grid-template-columns:repeat(4,1fr)':''}">
       <div class="kc ca"><div class="kl">Ingresos totales</div><div class="kv neu">${$c(tI,true)}</div><div class="kh">Facturación</div></div>
       <div class="kc"><div class="kl">Egresos totales</div><div class="kv neu">${$c(tE,true)}</div><div class="kh">${pct(tE,tI)} de ingresos</div></div>
       <div class="kc ${tR>=0?'cv':''}"><div class="kl">Resultado neto</div><div class="kv ${sgn(tR)}">${$c(tR,true)}</div><div class="kh">Margen ${mg.toFixed(1)}%</div></div>
       ${capn?capnCard:''}
-    </div>`;
+    </div>
+    ${notaFormula}`;
   }
   return`<div class="kpi-grid">
     <div class="kc ca"><div class="kl">Ingresos totales</div><div class="kv neu">${$c(tI,true)}</div><div class="kh">Facturación</div></div>
     <div class="kc"><div class="kl">Egresos totales</div><div class="kv neu">${$c(tE,true)}</div><div class="kh">${pct(tE,tI)} de ingresos</div></div>
     <div class="kc ${tR>=0?'cv':''}"><div class="kl">Resultado neto</div><div class="kv ${sgn(tR)}">${$c(tR,true)}</div><div class="kh">Margen ${mg.toFixed(1)}%</div></div>
   </div>
+  ${notaFormula}
   <div class="kpi-grid-areas">
     ${AREAS.map(a=>ac(a,'')).join('')}
     ${capn?capnCard:''}
@@ -1870,9 +1873,6 @@ function renderResumenContent(agg,label,isConsolidado,mes){
   const capnParaEsteRol=(ST.role==='lideres'&&ST.area!=='Banca Privada')?null:getCapNAgg(capnMes);
   return`<div class="sec-hd"><div class="sec-title">${label}</div><div class="sec-sub">Facturación y gastos por área · USD</div></div>
     ${kpiGrid(agg,capnParaEsteRol)}
-    <div style="font-size:12px;color:var(--muted);line-height:1.5;margin:-10px 0 20px;padding:0 2px">
-      <strong style="color:var(--grafito)">Fórmula del Resultado:</strong> Facturación Real Equipos (Mesa ya descuenta aranceles mercados, costo financiero cauciones, alquileres, corredores y conversiones) + Resultado Traders + Resultado Comitentes − Gastos (contabilidad). Excluye Capital N.
-    </div>
     <div class="g2">
       <div class="cc"><div class="cc-t">Ingresos · Egresos · Resultado</div><div class="cc-s">por área</div><div style="height:250px"><canvas id="ch-g"></canvas></div></div>
       <div class="cc"><div class="cc-t">Estructura de costos</div><div class="cc-s">Fijos · Variables</div><div style="height:250px"><canvas id="ch-cost"></canvas></div></div>
