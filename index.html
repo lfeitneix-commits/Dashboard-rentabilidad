@@ -361,6 +361,20 @@ const CAPN_GID='314640513';
 const CLASIF_GID='263291172';
 const GASTOS_FIJOS_DETALLE_GID='548055577';
 const QUANT_COSTOLABORAL_GID='866448178';
+// Mayor contable detallado (hojas "Gastos MM.26", una por mes -- gid fijo
+// por mes, no cambia) -- fuente más granular que "Gastos Fijos Detalle"
+// (que es una vista curada por proveedor de un subconjunto de cuentas
+// fijas): movimiento por movimiento, con fecha y concepto tal cual lo
+// carga Administración. Portado de scripts/reportes/extract_data.js
+// (ledgerDe), que ya lo usa para el Anexo de los reportes PDF -- acá se
+// expone al chat (obtener_mayor_contable) para separar qué compone un
+// monto agregado del EERR (ej. varios viajes mezclados en una sola fila
+// de "Viajes").
+const GASTOS_LEDGER_GID={
+  Enero:'504407038',Febrero:'1383245355',Marzo:'460907963',Abril:'617795229',
+  Mayo:'1112341850',Junio:'1053178830',Julio:'937435377',Agosto:'373585666',
+  Septiembre:'1998710674',
+};
 // Glosario "qué es cada cuenta" por proveedor/gasto (hoja "Aclaración de
 // cuentas") -- se usa solo para líderes de área, para no mostrarles la nota
 // mensual "cruda" de una cuenta con desglose por área (podría hablar de
@@ -5845,6 +5859,40 @@ async function mepDeChatIA(mes){
     return null;
   }
 }
+async function mayorContableChatIA(mes,mep){
+  const detalle={};
+  const ledgerGid=GASTOS_LEDGER_GID[mes];
+  if(!ledgerGid) return detalle;
+  try{
+    const res=await fetch(BASE+ledgerGid);
+    const text=await res.text();
+    const {rows}=parseCSV(text);
+    let cuentaActual=null,saldoPrevio=0;
+    rows.forEach(r=>{
+      const v=Object.values(r);
+      const col0=String(v[0]||'').trim();
+      const concepto=String(v[3]||'').trim();
+      const mCta=/^Cta:\s*[\d.]+\s+(.+)$/.exec(col0);
+      if(mCta){
+        cuentaActual=mCta[1].trim();
+        if(!detalle[cuentaActual]) detalle[cuentaActual]=[];
+        saldoPrevio=parseNum(v[6]);
+        return;
+      }
+      if(!cuentaActual) return;
+      if(!concepto||concepto==='TOTALES DEL PERIODO'){ cuentaActual=null; return; }
+      const saldo=parseNum(v[6]);
+      const montoArs=saldo-saldoPrevio;
+      saldoPrevio=saldo;
+      if(montoArs!==0){
+        detalle[cuentaActual].push({fecha:String(v[1]||'').trim(),concepto,montoUSD:montoArs/mep});
+      }
+    });
+  }catch(e){
+    console.error(`No se pudo obtener el mayor contable de ${mes} (no bloqueante):`,e.message);
+  }
+  return detalle;
+}
 const NOTA_REPORTES_DISPONIBLES='Esto es la lista de reportes PDF que YA EXISTEN, generados de antemano (no datos para armar un resumen propio). "archivo" es la ruta del PDF publicado -- cuando el usuario pida "el reporte", "el PDF" o "mandame/pasame el informe" de un mes puntual, respondé con un link markdown [texto](archivo) a ESE archivo exacto (el mes más reciente de la lista si no especifica cuál), nunca generes un resumen armado con otras herramientas como si fuera el reporte.';
 async function ejecutarHerramientaChatIA(name,args){
   args=args||{};
@@ -6165,6 +6213,50 @@ async function ejecutarHerramientaChatIA(name,args){
         return {tipo:'area',area:args.area,reportes:REPORTES_MENSUALES_AREA[args.area]||[],nota:NOTA_REPORTES_DISPONIBLES};
       }
       return {tipo:'empresa',reportes:REPORTES_MENSUALES,nota:NOTA_REPORTES_DISPONIBLES};
+    }
+    case 'obtener_mayor_contable':{
+      if(!ST.meses.includes(args.mes)){
+        return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
+      }
+      const dolarMEP=await mepDeChatIA(args.mes);
+      if(dolarMEP==null){
+        return {error:`No se pudo obtener el tipo de cambio de "${args.mes}" para convertir el mayor contable a USD.`};
+      }
+      const detalle=await mayorContableChatIA(args.mes,dolarMEP);
+      const cuentasDisponibles=Object.keys(detalle);
+      if(!cuentasDisponibles.length){
+        return {error:`No se pudo obtener el mayor contable de "${args.mes}".`};
+      }
+      const qCuenta=args.cuenta?normSearch(args.cuenta):null;
+      const qConcepto=args.concepto?normSearch(args.concepto):null;
+      if(!qCuenta&&!qConcepto){
+        return {
+          mes:args.mes,
+          cuentasDisponibles,
+          nota:'Volvé a llamar esta herramienta con "cuenta" (nombre de cuenta, ej. "Gastos de Viajes Mesa") y/o ' +
+            '"concepto" (texto a buscar dentro de los movimientos, ej. "ushuaia") para traer los movimientos.',
+        };
+      }
+      const cuentasFiltradas=qCuenta?cuentasDisponibles.filter(c=>normSearch(c).includes(qCuenta)):cuentasDisponibles;
+      if(qCuenta&&!cuentasFiltradas.length){
+        return {error:`No se encontró ninguna cuenta del mayor contable que coincida con "${args.cuenta}". Cuentas disponibles: ${cuentasDisponibles.join(', ')}`};
+      }
+      const cuentas={};
+      cuentasFiltradas.forEach(c=>{
+        const movs=qConcepto?detalle[c].filter(m=>normSearch(m.concepto).includes(qConcepto)):detalle[c];
+        if(movs.length) cuentas[c]=movs;
+      });
+      if(!Object.keys(cuentas).length){
+        return {error:`No se encontraron movimientos${args.concepto?` que coincidan con "${args.concepto}"`:''} en "${args.mes}"${args.cuenta?` dentro de "${args.cuenta}"`:''}.`};
+      }
+      return {
+        mes:args.mes,
+        cuentas,
+        nota:'Mayor contable: movimiento por movimiento, con fecha y concepto tal cual lo carga Administración, ' +
+          'montos convertidos de ARS a USD con el MEP del mes -- es la fuente MÁS granular que hay, más que el ' +
+          'EERR o Gastos Fijos Detalle. Útil para separar qué compone un monto agregado de una fila del EERR ' +
+          '(ej. varios viajes mezclados en "Viajes"), buscando por texto en "concepto".',
+      };
     }
     default:
       return {error:`Herramienta desconocida: ${name}`};
