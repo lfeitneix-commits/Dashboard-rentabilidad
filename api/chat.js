@@ -333,15 +333,18 @@ const TOOLS = [
   {
     name: "obtener_mayor_contable",
     description:
-      "Mayor contable de un mes: movimiento por movimiento (fecha, concepto, monto en USD), la fuente MÁS " +
-      "granular que hay -- más que el EERR o Gastos Fijos Detalle. Usar cuando un monto agregado del EERR mezcla " +
-      "varias cosas y hay que separarlas (ej. 'cuánto de la cuenta Viajes es un viaje puntual'): buscá por texto " +
-      "en 'concepto' (ej. 'ushuaia') con o sin 'cuenta'. Sin ningún filtro, devuelve solo la lista de cuentas " +
-      "disponibles ese mes (para no traer todo el mayor de una). No disponible para líderes de área.",
+      "Mayor contable: movimiento por movimiento (fecha, mes, concepto, monto en USD), la fuente MÁS granular " +
+      "que hay -- más que el EERR o Gastos Fijos Detalle. Usar cuando un monto agregado del EERR mezcla varias " +
+      "cosas y hay que separarlas (ej. 'cuánto de la cuenta Viajes es un viaje puntual'): buscá por texto en " +
+      "'concepto' (ej. 'ushuaia') con o sin 'cuenta'. IMPORTANTE: para 'cuánto gastamos en X este año' o " +
+      "cualquier pregunta que no sea de un mes puntual, usá mes='__consolidado__' UNA sola vez -- NUNCA la " +
+      "llames mes por mes en un loop, se te acaban las vueltas de herramientas antes de poder responder. Sin " +
+      "'cuenta' ni 'concepto', devuelve solo la lista de cuentas disponibles (para no traer todo el mayor de " +
+      "una). No disponible para líderes de área.",
     input_schema: {
       type: "object",
       properties: {
-        mes: { type: "string", description: "Nombre del mes en español (ej. \"Junio\")" },
+        mes: { type: "string", description: "Nombre del mes en español (ej. \"Junio\"), o \"__consolidado__\" para buscar en todos los meses cargados a la vez" },
         cuenta: { type: "string", description: "Nombre (o parte) de una cuenta del mayor, ej. \"Gastos de Viajes Mesa\"" },
         concepto: { type: "string", description: "Texto a buscar dentro del concepto de cada movimiento, ej. \"ushuaia\"" },
       },

@@ -6215,23 +6215,38 @@ async function ejecutarHerramientaChatIA(name,args){
       return {tipo:'empresa',reportes:REPORTES_MENSUALES,nota:NOTA_REPORTES_DISPONIBLES};
     }
     case 'obtener_mayor_contable':{
-      if(!ST.meses.includes(args.mes)){
+      const isCons=!args.mes||args.mes==='__consolidado__';
+      if(!isCons&&!ST.meses.includes(args.mes)){
         return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
       }
-      const dolarMEP=await mepDeChatIA(args.mes);
-      if(dolarMEP==null){
-        return {error:`No se pudo obtener el tipo de cambio de "${args.mes}" para convertir el mayor contable a USD.`};
-      }
-      const detalle=await mayorContableChatIA(args.mes,dolarMEP);
+      const meses=isCons?ST.meses:[args.mes];
+      // Un mes por llamada obligaría a preguntar "todo el año" mes a mes --
+      // 9 vueltas de ida y vuelta con Claude solo para juntar la búsqueda,
+      // contra el tope de vueltas encadenadas del chat (MAX_VUELTAS en
+      // enviarMensajeChatIA). Acá se traen y combinan TODOS los meses del
+      // scope en paralelo, en una sola llamada de herramienta.
+      const porMes=await Promise.all(meses.map(async m=>{
+        const mep=await mepDeChatIA(m);
+        if(mep==null) return null;
+        const detalleMes=await mayorContableChatIA(m,mep);
+        return {mes:m,detalleMes};
+      }));
+      const detalle={};
+      porMes.filter(Boolean).forEach(({mes,detalleMes})=>{
+        Object.entries(detalleMes).forEach(([cuenta,movs])=>{
+          if(!detalle[cuenta]) detalle[cuenta]=[];
+          movs.forEach(mv=>detalle[cuenta].push({mes,...mv}));
+        });
+      });
       const cuentasDisponibles=Object.keys(detalle);
       if(!cuentasDisponibles.length){
-        return {error:`No se pudo obtener el mayor contable de "${args.mes}".`};
+        return {error:`No se pudo obtener el mayor contable de "${isCons?'__consolidado__':args.mes}".`};
       }
       const qCuenta=args.cuenta?normSearch(args.cuenta):null;
       const qConcepto=args.concepto?normSearch(args.concepto):null;
       if(!qCuenta&&!qConcepto){
         return {
-          mes:args.mes,
+          mes:isCons?'__consolidado__':args.mes,
           cuentasDisponibles,
           nota:'Volvé a llamar esta herramienta con "cuenta" (nombre de cuenta, ej. "Gastos de Viajes Mesa") y/o ' +
             '"concepto" (texto a buscar dentro de los movimientos, ej. "ushuaia") para traer los movimientos.',
@@ -6247,15 +6262,16 @@ async function ejecutarHerramientaChatIA(name,args){
         if(movs.length) cuentas[c]=movs;
       });
       if(!Object.keys(cuentas).length){
-        return {error:`No se encontraron movimientos${args.concepto?` que coincidan con "${args.concepto}"`:''} en "${args.mes}"${args.cuenta?` dentro de "${args.cuenta}"`:''}.`};
+        return {error:`No se encontraron movimientos${args.concepto?` que coincidan con "${args.concepto}"`:''}${isCons?' en ningún mes cargado':` en "${args.mes}"`}${args.cuenta?` dentro de "${args.cuenta}"`:''}.`};
       }
       return {
-        mes:args.mes,
+        mes:isCons?'__consolidado__':args.mes,
         cuentas,
-        nota:'Mayor contable: movimiento por movimiento, con fecha y concepto tal cual lo carga Administración, ' +
-          'montos convertidos de ARS a USD con el MEP del mes -- es la fuente MÁS granular que hay, más que el ' +
-          'EERR o Gastos Fijos Detalle. Útil para separar qué compone un monto agregado de una fila del EERR ' +
-          '(ej. varios viajes mezclados en "Viajes"), buscando por texto en "concepto".',
+        nota:'Mayor contable: movimiento por movimiento, con fecha, mes y concepto tal cual lo carga ' +
+          'Administración, montos convertidos de ARS a USD con el MEP de cada mes -- es la fuente MÁS granular ' +
+          'que hay, más que el EERR o Gastos Fijos Detalle. Útil para separar qué compone un monto agregado de ' +
+          'una fila del EERR (ej. varios viajes mezclados en "Viajes"), buscando por texto en "concepto". Para ' +
+          '"cuánto gastamos en X este año" usá __consolidado__ UNA sola vez, no mes por mes.',
       };
     }
     default:
