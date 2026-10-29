@@ -6281,11 +6281,37 @@ async function ejecutarHerramientaChatIA(name,args){
       return {error:`Herramienta desconocida: ${name}`};
   }
 }
+// Traduce lo que haya devuelto el backend (un string plano, {type,message},
+// o el JSON de error completo de Anthropic {type:"error",error:{type,
+// message}}) a un mensaje concreto -- antes CUALQUIER falla (key inválida,
+// sin crédito, Anthropic saturado, timeout, error de red) mostraba el mismo
+// "el modelo está saturado" sin distinción, así que había que adivinar la
+// causa real cada vez. El fallback de la última línea es a propósito el
+// mismo texto de siempre, para una causa realmente desconocida.
+function mensajeErrorChatIA(errorInfo){
+  let tipo=null,msg=null;
+  if(typeof errorInfo==='string'){
+    msg=errorInfo;
+  } else if(errorInfo&&typeof errorInfo==='object'){
+    const e=errorInfo.error&&typeof errorInfo.error==='object'?errorInfo.error:errorInfo;
+    tipo=e.type||null;
+    msg=e.message||null;
+  }
+  if(tipo==='overloaded_error') return 'Claude está saturado del lado de Anthropic en este momento. Probá de nuevo en uno o dos minutos.';
+  if(tipo==='rate_limit_error') return 'Se alcanzó el límite de uso de la API de Claude por ahora. Probá de nuevo en unos minutos.';
+  if(tipo==='authentication_error') return 'La API key de Anthropic no es válida. Hay que revisarla en la configuración de Vercel.';
+  if(tipo==='permission_error') return 'La API key de Anthropic no tiene permiso para este modelo. Revisar la cuenta de Anthropic.';
+  if(msg&&/credit balance/i.test(msg)) return 'Se quedó sin crédito la cuenta de Anthropic. Hay que recargar en console.anthropic.com → Billing.';
+  if(msg&&/timeout/i.test(msg)) return 'Se agotó el tiempo de espera esperando a Claude. Probá de nuevo.';
+  if(tipo==='invalid_request_error') return 'La solicitud a Claude fue inválida. Si se repite, avisale a quien mantiene el dashboard.';
+  return 'El modelo está saturado, probá de nuevo en un rato';
+}
 // Una vuelta = una llamada a /api/chat, que ahora responde en streaming
 // (NDJSON, una línea por evento) en vez de un único JSON al final -- lee el
 // body de a pedazos y va mostrando el texto a medida que llega. Devuelve
-// {texto, toolCall, huboError} con lo que pasó en esa vuelta puntual;
-// enviarMensajeChatIA decide qué hacer con cada caso.
+// {texto, toolCall, huboError, errorInfo} con lo que pasó en esa vuelta
+// puntual; enviarMensajeChatIA decide qué hacer con cada caso y usa
+// errorInfo (vía mensajeErrorChatIA) para mostrar la causa real.
 async function leerVueltaStreamChatIA(){
   let r;
   try{
@@ -6295,11 +6321,15 @@ async function leerVueltaStreamChatIA(){
       body:JSON.stringify({turnos:CHAT_IA.historial,rol:rolChatIA()}),
     });
   }catch(e){
-    return {texto:'',toolCall:null,huboError:true};
+    return {texto:'',toolCall:null,huboError:true,errorInfo:e.message};
   }
-  if(!r.ok||!r.body) return {texto:'',toolCall:null,huboError:true};
+  if(!r.ok||!r.body){
+    let errorInfo=null;
+    try{ const data=await r.json(); errorInfo=data.error||data; }catch(e){ /* sin body legible */ }
+    return {texto:'',toolCall:null,huboError:true,errorInfo};
+  }
 
-  let toolCall=null,huboError=false;
+  let toolCall=null,huboError=false,errorInfo=null;
   const reader=r.body.getReader();
   const decoder=new TextDecoder();
   let buffer='';
@@ -6321,13 +6351,15 @@ async function leerVueltaStreamChatIA(){
           toolCall={name:evt.name,args:evt.args,id:evt.id};
         } else if(evt.type==='error'){
           huboError=true;
+          errorInfo=evt.error;
         }
       }
     }
   }catch(e){
     huboError=true;
+    errorInfo=errorInfo||e.message;
   }
-  return {texto:CHAT_IA.streamText,toolCall,huboError};
+  return {texto:CHAT_IA.streamText,toolCall,huboError,errorInfo};
 }
 async function enviarMensajeChatIA(){
   if(CHAT_IA.enviando) return;
@@ -6347,9 +6379,9 @@ async function enviarMensajeChatIA(){
     let resuelto=false;
     for(let vuelta=0;vuelta<MAX_VUELTAS&&!resuelto;vuelta++){
       CHAT_IA.streamText='';
-      const {texto:textoVuelta,toolCall,huboError}=await leerVueltaStreamChatIA();
+      const {texto:textoVuelta,toolCall,huboError,errorInfo}=await leerVueltaStreamChatIA();
       if(huboError){
-        CHAT_IA.historial.push({role:'assistant',text:'El modelo está saturado, probá de nuevo en un rato',error:true});
+        CHAT_IA.historial.push({role:'assistant',text:mensajeErrorChatIA(errorInfo),error:true});
         resuelto=true;
         break;
       }
@@ -6373,14 +6405,16 @@ async function enviarMensajeChatIA(){
         resuelto=true;
         break;
       }
-      CHAT_IA.historial.push({role:'assistant',text:'El modelo está saturado, probá de nuevo en un rato',error:true});
+      // Ni texto ni tool_use -- no es un error de la API en sí (huboError ya
+      // se manejó arriba), es una respuesta vacía inesperada del modelo.
+      CHAT_IA.historial.push({role:'assistant',text:'Claude no devolvió ninguna respuesta. Probá de nuevo.',error:true});
       resuelto=true;
     }
     if(!resuelto){
-      CHAT_IA.historial.push({role:'assistant',text:'El modelo está saturado, probá de nuevo en un rato',error:true});
+      CHAT_IA.historial.push({role:'assistant',text:'La pregunta necesitó demasiados pasos y no se pudo cerrar. Probá dividirla en preguntas más puntuales.',error:true});
     }
   } catch(e){
-    CHAT_IA.historial.push({role:'assistant',text:'El modelo está saturado, probá de nuevo en un rato',error:true});
+    CHAT_IA.historial.push({role:'assistant',text:mensajeErrorChatIA(e.message),error:true});
   }
   CHAT_IA.enviando=false;
   CHAT_IA.streamText='';
