@@ -286,15 +286,26 @@ const APP = context.__APP__;
     return rows.slice(idxDirectos + 1, idxSubtotal).filter(r =>
       (r._kind === 'account' || r._kind === 'subaccount') && (!r._parentId || r._child));
   }
-  // Total de gastos DIRECTOS de un área en un mes (suma de TODAS las filas
-  // de directosLeafRows, no solo las que superan RUBRO_AREA_MONTO_MIN como
-  // rubrosVariacionPorArea) -- para el reporte por área: un líder de área
-  // no controla el prorrateo de indirectos entre las 4 áreas, así que
-  // "Resultado" ahí tiene más sentido como Facturación menos SOLO lo que
-  // esa área gasta directamente, no Facturación menos Gastos Totales
-  // (Directos + Indirectos prorrateados, que es lo que usa kpiForArea).
+  // Total de gastos DIRECTOS de un área en un mes -- para el reporte por
+  // área: un líder de área no controla el prorrateo de indirectos entre las
+  // 4 áreas, así que "Resultado" ahí tiene más sentido como Facturación
+  // menos SOLO lo que esa área gasta directamente, no Facturación menos
+  // Gastos Totales (Directos + Indirectos prorrateados, que es lo que usa
+  // kpiForArea).
+  // OJO -- NO sumar directosLeafRows(mes) acá (bug real, encontrado en
+  // producción vía el chat IA): esa lista excluye cualquier fila "parent"
+  // sin hijos desglosados por área ese mes, para no contar doble cuando sí
+  // los tiene -- pero si un parent (ej. "Viajes") NO tiene desglose ese
+  // mes, el monto vive solo en esa fila y queda afuera de la suma entera.
+  // Encontrado en FAs/Mayo: directosLeafRows sumaba USD 272.819,71 mientras
+  // que la fila "GASTOS DIRECTOS" de la hoja (mismo criterio que ya usa
+  // directosIndirectosPorArea de abajo para el gasto directo "real") dice
+  // USD 279.223,19 -- exactamente los USD 6.403,48 del viaje de Facu y
+  // Bauti (el mismo de #367) sin desglosar por área ese mes.
   function gastoDirectoPorArea(mes, area) {
-    return directosLeafRows(mes).reduce((s, r) => s + getAreaVal(r, area), 0);
+    const d = ST.mesData[mes];
+    if (!d || !d.directosRow) return 0;
+    return getAreaVal(d.directosRow, area);
   }
   // Promedio histórico de un rubro DIRECTO de un área puntual, en los meses
   // previos a mesActual -- mismo criterio que historialRubro() arriba, pero
