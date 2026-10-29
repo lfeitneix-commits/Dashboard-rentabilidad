@@ -5896,6 +5896,20 @@ async function mayorContableChatIA(mes,mep){
   }
   return detalle;
 }
+// Portado de extract_data.js (proveedorCanonico), ya validado ahí para el
+// Anexo de los reportes PDF -- el mayor contable trae un movimiento por
+// línea, muchas veces varias por el mismo proveedor en el mes (un
+// comprobante "TC: NNNN" distinto cada vez, o una reversión de provisión
+// seguida de la carga real), lo que separaba en varias filas sueltas algo
+// que es conceptualmente un solo proveedor/productor. Esto saca el número
+// de comprobante/factura y cualquier prefijo "TC: NNNN" para poder sumar
+// por nombre real.
+function proveedorCanonicoChatIA(concepto){
+  const m=/^(COMPRAS|PAGOS)\s+(.+?)\s+\d{1,6}-\d{2,8}\b/i.exec(concepto);
+  const nombre=m?m[2].trim():(concepto.replace(/\s*TC:\s*\d+.*$/i,'').trim()||concepto);
+  const mTC=/^TC:\s*\d+\s+(.+)$/i.exec(nombre);
+  return mTC?mTC[1].trim():nombre;
+}
 const NOTA_REPORTES_DISPONIBLES='Esto es la lista de reportes PDF que YA EXISTEN, generados de antemano (no datos para armar un resumen propio). "archivo" es la ruta del PDF publicado -- cuando el usuario pida "el reporte", "el PDF" o "mandame/pasame el informe" de un mes puntual, respondé con un link markdown [texto](archivo) a ESE archivo exacto (el mes más reciente de la lista si no especifica cuál), nunca generes un resumen armado con otras herramientas como si fuera el reporte.';
 async function ejecutarHerramientaChatIA(name,args){
   args=args||{};
@@ -6267,6 +6281,32 @@ async function ejecutarHerramientaChatIA(name,args){
       if(!Object.keys(cuentas).length){
         return {error:`No se encontraron movimientos${args.concepto?` que coincidan con "${args.concepto}"`:''}${isCons?' en ningún mes cargado':` en "${args.mes}"`}${args.cuenta?` dentro de "${args.cuenta}"`:''}.`};
       }
+      if(args.agrupar){
+        const cuentasAgrupadas={};
+        Object.entries(cuentas).forEach(([c,movs])=>{
+          const porProveedor={};
+          movs.forEach(mv=>{
+            const prov=proveedorCanonicoChatIA(mv.concepto);
+            porProveedor[prov]=(porProveedor[prov]||0)+mv.montoUSD;
+          });
+          cuentasAgrupadas[c]=Object.entries(porProveedor)
+            .map(([proveedor,total])=>({proveedor,total}))
+            .sort((a,b)=>Math.abs(b.total)-Math.abs(a.total));
+        });
+        return {
+          mes:isCons?'__consolidado__':args.mes,
+          cuentas:cuentasAgrupadas,
+          agrupadoPorProveedor:true,
+          nota:'Movimientos del mayor contable AGRUPADOS y sumados por proveedor/productor real (mismo criterio ' +
+            'ya usado en los reportes PDF: saca números de comprobante y prefijos "TC: NNNN" para sumar varias ' +
+            'líneas del mismo proveedor/productor en una sola). Usar para "detalle por proveedor/asesor/' +
+            'productor" de una cuenta, en vez de obtener_ranking_proveedores/buscar_gasto_por_proveedor cuando ' +
+            'esa cuenta no está en Gastos Fijos Detalle (ej. Comisiones Productores de FAs vive en las cuentas ' +
+            'del mayor "Loc. Servicios Productores" y "Honorarios x Serv Diversos", no en Gastos Fijos Detalle). ' +
+            'Entradas como "Reversión Provisión" o similares NO son un proveedor real -- es la reversión contable ' +
+            'de la provisión estimada del mes anterior, no la muestres como si fuera un proveedor/productor más.',
+        };
+      }
       return {
         mes:isCons?'__consolidado__':args.mes,
         cuentas,
@@ -6274,7 +6314,8 @@ async function ejecutarHerramientaChatIA(name,args){
           'Administración, montos convertidos de ARS a USD con el MEP de cada mes -- es la fuente MÁS granular ' +
           'que hay, más que el EERR o Gastos Fijos Detalle. Útil para separar qué compone un monto agregado de ' +
           'una fila del EERR (ej. varios viajes mezclados en "Viajes"), buscando por texto en "concepto". Para ' +
-          '"cuánto gastamos en X este año" usá __consolidado__ UNA sola vez, no mes por mes.',
+          '"cuánto gastamos en X este año" usá __consolidado__ UNA sola vez, no mes por mes. Pasá agrupar=true ' +
+          'para sumar por proveedor/productor real en vez de listar cada movimiento suelto.',
       };
     }
     default:
