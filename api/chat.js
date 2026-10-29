@@ -550,13 +550,13 @@ export default async function handler(req) {
       body: JSON.stringify({
         model: MODELO,
         max_tokens: 2048,
-        // Determinismo antes que variedad: CELIA responde sobre datos
-        // financieros reales, no texto creativo -- la misma pregunta con
-        // los mismos datos debería dar la misma respuesta (o muy parecida)
-        // cada vez, no una distinta según el muestreo. temperature más
-        // baja que el default (1) reduce esa variabilidad en qué
-        // herramienta elige y cómo redondea/prioriza.
-        temperature: 0.2,
+        // NO agregar "temperature" acá -- se probó (PR #373) para reducir
+        // variabilidad entre respuestas, pero este modelo la rechaza con
+        // invalid_request_error ("temperature is deprecated for this
+        // model"), lo que rompía CUALQUIER mensaje, incluso "Hola". Revertido
+        // en producción el mismo día. Si hace falta más consistencia, buscar
+        // otro mecanismo (ej. ajustar el system prompt) en vez de este
+        // parámetro.
         system: SYSTEM_PROMPT + contextoRolPrompt(rol),
         messages,
         tools,
