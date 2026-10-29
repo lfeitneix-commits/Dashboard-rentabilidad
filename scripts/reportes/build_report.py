@@ -614,6 +614,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(kpis)
+    story.append(Spacer(1, 4))
+    story.append(Paragraph(
+        "<b>Fórmula del Resultado:</b> Facturación Real Equipos (Mesa ya descuenta aranceles mercados, costo "
+        "financiero cauciones, alquileres, corredores y conversiones) + Resultado Traders + Resultado "
+        "Comitentes − Gastos (contabilidad). Excluye Capital N.",
+        styles['NotaChica'],
+    ))
 
     # ── Resultado acumulado del año en curso -- suma de los mismos
     # "resultado" por mes que ya arma kpiTrend para el gráfico de
