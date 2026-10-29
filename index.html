@@ -6022,8 +6022,20 @@ async function ejecutarHerramientaChatIA(name,args){
       meses.forEach(m=>{
         const d=ST.mesData[m];
         if(!d) return;
-        const a=d.agg[args.area]||{ingresos:0,egresos:0,resultado:0,gastos_ind:0};
-        ingresos+=a.ingresos;egresos+=a.egresos;resultado+=a.resultado;gastosIndirectos+=a.gastos_ind;
+        const a=d.agg[args.area]||{ingresos:0};
+        // OJO: NO usar a.resultado/a.gastos_ind/a.egresos acá -- buildAgg los
+        // pisa (gastos_ind=0, resultado=ingresos-gastos_dir) cuando
+        // ST.role==='lideres', porque esa vista es la que usa el dashboard
+        // para NO mostrarle a un líder un "Resultado" que ya incluya el
+        // prorrateo de indirectos. Pero gastosIndirectos/resultadoAntesImpuestos/
+        // impuestos de abajo SÍ salen directo de la hoja (getAreaVal sobre las
+        // filas reales), sin filtrar por rol -- mezclar ambas fuentes daba un
+        // resultado (bug real, encontrado en producción) que ignoraba el
+        // prorrateo de indirectos mientras el resto de los campos de esta
+        // misma respuesta sí lo reflejaban (ingresos-gastosDirectos=559.068
+        // vs. resultadoAntesImpuestos-impuestos=362.596 para Mesa/Enero).
+        ingresos+=a.ingresos;
+        gastosIndirectos+=getAreaVal(d.indirectosRow,args.area);
         impuestos+=getAreaVal(d.impuestosRow,args.area);
         resultadoAntesImpuestos+=getAreaVal(d.resAntesRow,args.area);
         directosLeafRowsChatIA(m).forEach(r=>{
@@ -6035,6 +6047,8 @@ async function ejecutarHerramientaChatIA(name,args){
         fijos+=calcFijosVariables(m,args.area).fijos;
         sueldosTotal+=sueldosTotalDePeriodo(m,args.area);
       });
+      resultado=resultadoAntesImpuestos-impuestos;
+      egresos=ingresos-resultado;
       const topRubrosDirectos=Object.entries(rubrosAcumulados)
         .sort((x,y)=>y[1]-x[1]).slice(0,8)
         .map(([nombre,monto])=>({nombre,monto}));

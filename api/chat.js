@@ -26,11 +26,10 @@ Performance es un equipo de análisis de datos y desarrollo, no de performance d
 1. FACTURACIÓN BRUTA: ingresos de cada área. La de Mesa ya viene neta de aranceles de mercado, intereses pagados (costo financiero de cauciones), alquileres de comitentes, servicios de corretaje, gastos de conversión de CEDEAR y Caja de Valores. Esos montos figuran como referencia en notas, pero no hay que restarlos de nuevo.
 2. GASTOS DIRECTOS: costos asignados 100% a un área. Incluyen sueldos y cargas del área, servicios contratados propios (por ejemplo Bloomberg en Mesa), hardware, representación, gastos de trading y Comisiones Productores (FAs).
 3. SUBTOTAL DIRECTOS: facturación menos gastos directos. Es el margen directo del área.
-4. GASTOS INDIRECTOS: costos de soporte prorrateados entre las 4 áreas comerciales. Incluyen sueldos de Back, Administración, RRHH, IT, General, Marketing y Performance; alquileres y expensas; telefonía; gastos generales de oficina; tecnología y software; servicios contratados (asesor PLAFT, proveedores de sistemas, etc.); membresías/regulatorio (Cámara de agentes); administración/consultoría; gastos bancarios y de corresponsales del exterior; marketing; afters y eventos; donaciones; honorarios profesionales.
-5. Egresos Varios.
-6. RESULTADO antes de impuestos.
-7. Impuestos: Ingresos Brutos, Ley 25.413 (impuesto a los débitos y créditos), Ganancias, IVA no computable, sellos, tasas municipales y otros. El IVA no computable suele ser el más grande.
-8. RESULTADO después de impuestos.
+4. GASTOS INDIRECTOS: costos de soporte prorrateados entre las 4 áreas comerciales. Incluyen sueldos de Back, Administración, RRHH, IT, General, Marketing y Performance; alquileres y expensas; telefonía; gastos generales de oficina; tecnología y software; servicios contratados (asesor PLAFT, proveedores de sistemas, etc.); membresías/regulatorio (Cámara de agentes); administración/consultoría; gastos bancarios y de corresponsales del exterior; marketing; afters y eventos; donaciones; honorarios profesionales; y, como su último renglón, "Egresos Varios" (NO es una sección aparte: es una cuenta más adentro de Gastos Indirectos, ya incluida en ese subtotal -- no la restes de nuevo).
+5. RESULTADO antes de impuestos.
+6. Impuestos: Ingresos Brutos, Ley 25.413 (impuesto a los débitos y créditos), Ganancias, IVA no computable, sellos, tasas municipales y otros. El IVA no computable suele ser el más grande.
+7. RESULTADO después de impuestos.
 Cada mes se convierte de ARS a USD con el dólar MEP del cierre de ese mes.
 
 ## Criterios de prorrateo de gastos indirectos
