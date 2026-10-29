@@ -5870,7 +5870,7 @@ async function mayorContableChatIA(mes,mep){
     const res=await fetch(BASE+ledgerGid);
     const text=await res.text();
     const {rows}=parseCSV(text);
-    let cuentaActual=null,saldoPrevio=0;
+    let cuentaActual=null;
     rows.forEach(r=>{
       const v=Object.values(r);
       const col0=String(v[0]||'').trim();
@@ -5879,14 +5879,26 @@ async function mayorContableChatIA(mes,mep){
       if(mCta){
         cuentaActual=mCta[1].trim();
         if(!detalle[cuentaActual]) detalle[cuentaActual]=[];
-        saldoPrevio=parseNum(v[6]);
         return;
       }
       if(!cuentaActual) return;
       if(!concepto||concepto==='TOTALES DEL PERIODO'){ cuentaActual=null; return; }
-      const saldo=parseNum(v[6]);
-      const montoArs=saldo-saldoPrevio;
-      saldoPrevio=saldo;
+      // El monto de cada movimiento es DEBE + HABER de esa misma fila (HABER
+      // ya viene con su propio signo en la celda, ej. "-$ 260.597.849,49" --
+      // no hace falta restarlo, solo sumarlo) -- NO la diferencia de SALDO
+      // entre filas, que fue el enfoque original (portado de extract_data.js
+      // / ledgerDe) y resultó estar mal: la columna SALDO de esta hoja NO
+      // trae el acumulado real en cada fila, la mayoría vienen en "$0.00"/
+      // "-" y solo se completa cada tanto (probablemente al cerrar un lote
+      // de carga) -- diferenciar esas filas placeholder perdía movimientos
+      // enteros (ej. una fila con SALDO "-" después de otra con SALDO "-"
+      // da delta 0 y se descarta, aunque la fila sí tenga un DEBE real) o
+      // le asignaba a una sola fila el monto de varias juntas. Verificado
+      // contra la hoja real: sumar DEBE+HABER fila por fila reconstruye
+      // EXACTO cada checkpoint de SALDO que sí viene completo.
+      const debe=parseNum(v[4]);
+      const haber=parseNum(v[5]);
+      const montoArs=debe+haber;
       if(montoArs!==0){
         detalle[cuentaActual].push({fecha:String(v[1]||'').trim(),concepto,montoUSD:montoArs/mep});
       }
