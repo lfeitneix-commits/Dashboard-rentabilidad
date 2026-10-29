@@ -343,13 +343,18 @@ const TOOLS = [
       "cualquier pregunta que no sea de un mes puntual, usá mes='__consolidado__' UNA sola vez -- NUNCA la " +
       "llames mes por mes en un loop, se te acaban las vueltas de herramientas antes de poder responder. Sin " +
       "'cuenta' ni 'concepto', devuelve solo la lista de cuentas disponibles (para no traer todo el mayor de " +
-      "una). No disponible para líderes de área.",
+      "una). Pasá agrupar=true para que te devuelva el total por proveedor/productor real en vez de cada " +
+      "movimiento suelto -- usalo para 'detalle por proveedor/asesor/productor' de una cuenta que no está en " +
+      "Gastos Fijos Detalle, por ejemplo Comisiones Productores de FAs: ese detalle vive en las cuentas del " +
+      "mayor 'Loc. Servicios Productores' y 'Honorarios x Serv Diversos', no en Gastos Fijos Detalle ni en " +
+      "ninguna otra herramienta. No disponible para líderes de área.",
     input_schema: {
       type: "object",
       properties: {
         mes: { type: "string", description: "Nombre del mes en español (ej. \"Junio\"), o \"__consolidado__\" para buscar en todos los meses cargados a la vez" },
         cuenta: { type: "string", description: "Nombre (o parte) de una cuenta del mayor, ej. \"Gastos de Viajes Mesa\"" },
         concepto: { type: "string", description: "Texto a buscar dentro del concepto de cada movimiento, ej. \"ushuaia\"" },
+        agrupar: { type: "boolean", description: "true para agrupar y sumar los movimientos por proveedor/productor real en vez de listarlos sueltos" },
       },
       required: ["mes"],
     },
