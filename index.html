@@ -5552,6 +5552,7 @@ async function loadData(){
           // Computed after annotateRows
           const annotated=annotateRows(rows,nameCol,numCol,notesCol);
           const subtotalRow=annotated.find(r=>r._kind==='subtotal_dir'&&/^SUBTOTAL\s+DIRECTOS$/i.test(r._nom));
+          const directosRow=annotated.find(r=>r._kind==='section'&&/^GASTOS\s+DIRECTOS$/i.test(r._nom));
           const indirectosRow=annotated.find(r=>r._kind==='section'&&/^GASTOS\s+INDIRECTOS$/i.test(r._nom));
           const impuestosRow=annotated.find(r=>r._kind==='skip'&&/^Impuestos$/i.test(r._nom));
           const totalGastosCell=(subtotalRow&&indirectosRow)
@@ -5565,7 +5566,7 @@ async function loadData(){
             agg:buildAgg(rows,nameCol,numCol,notesCol),
             annotated,
             nameCol,numCol,notesCol,headers,rows,
-            totalGastosCell,subtotalRow,indirectosRow,impuestosRow,resAntesRow,resDespuesRow,gastosTotalesRow,
+            totalGastosCell,subtotalRow,directosRow,indirectosRow,impuestosRow,resAntesRow,resDespuesRow,gastosTotalesRow,
           };
           if(!ST.meses.includes(SHEETS[i].mes)) ST.meses.push(SHEETS[i].mes);
           loaded++;
@@ -6035,13 +6036,23 @@ async function ejecutarHerramientaChatIA(name,args){
         // misma respuesta sí lo reflejaban (ingresos-gastosDirectos=559.068
         // vs. resultadoAntesImpuestos-impuestos=362.596 para Mesa/Enero).
         ingresos+=a.ingresos;
+        // gastosDirectos sale de la fila "GASTOS DIRECTOS" de la hoja (igual
+        // que gastosIndirectos de arriba), NO de sumar las filas sueltas de
+        // directosLeafRowsChatIA -- esa suma excluye cualquier fila "parent"
+        // que no tenga hijos desglosados para esta área ese mes (para no
+        // contar doble cuando sí los tiene), pero cuando NO hay desglose el
+        // monto vive solo en la fila parent y quedaba afuera (bug real,
+        // encontrado en producción: FAs/Mayo subestimaba gastosDirectos en
+        // USD 6.403,48 porque "Viajes" no tenía hijos ese mes y se
+        // descartaba entera). directosLeafRowsChatIA se sigue usando solo
+        // para el desglose de topRubrosDirectos, no para el total.
+        gastosDirectos+=getAreaVal(d.directosRow,args.area);
         gastosIndirectos+=getAreaVal(d.indirectosRow,args.area);
         impuestos+=getAreaVal(d.impuestosRow,args.area);
         resultadoAntesImpuestos+=getAreaVal(d.resAntesRow,args.area);
         directosLeafRowsChatIA(m).forEach(r=>{
           const v=getAreaVal(r,args.area);
           if(!v) return;
-          gastosDirectos+=v;
           rubrosAcumulados[r._nom]=(rubrosAcumulados[r._nom]||0)+v;
         });
         fijos+=calcFijosVariables(m,args.area).fijos;
