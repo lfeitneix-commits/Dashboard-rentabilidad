@@ -361,6 +361,28 @@ const TOOLS = [
   },
 ];
 
+// El SYSTEM_PROMPT es estático (no sabe quién pregunta) -- sin esto, un
+// líder de área que pregunta "¿cómo viene mi área?" obliga al modelo a
+// adivinar cuál es su área probando herramientas una por una hasta que
+// alguna no le de error de permisos (visto en la práctica: funcionó de
+// casualidad, pero es frágil y le hace gastar vueltas de herramienta al
+// pedo). El rol YA viaja en cada request (rolChatIA() en index.html) y ya
+// se usa para filtrar qué herramientas puede llamar (herramientasPermitidas
+// de abajo) -- acá simplemente también se lo contamos en texto.
+function contextoRolPrompt(rol) {
+  const esArea = !!(rol && rol.esArea);
+  const area = rol && rol.area;
+  if (esArea && area) {
+    return (
+      `\n\n## Usuario actual\nQuien te está consultando ahora es el líder/responsable del área ${area} (login de área, acceso restringido a esa área). ` +
+      `Cuando pregunte por "mi área", "nosotros", "nuestro resultado", etc., referite a ${area} directamente -- no se lo preguntes ni lo adivines probando herramientas con otras áreas.`
+    );
+  }
+  return (
+    `\n\n## Usuario actual\nQuien te está consultando ahora tiene acceso completo (no es un login de un área puntual): podés responder sobre cualquier área o el consolidado de la compañía.`
+  );
+}
+
 function herramientasPermitidas(rol) {
   const esArea = !!(rol && rol.esArea);
   const area = rol && rol.area;
@@ -513,7 +535,7 @@ export default async function handler(req) {
       body: JSON.stringify({
         model: MODELO,
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + contextoRolPrompt(rol),
         messages,
         tools,
         // Un análisis/reporte puede necesitar varias herramientas, pero de a
