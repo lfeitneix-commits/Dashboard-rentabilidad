@@ -518,10 +518,26 @@ export default async function handler(req) {
 
   // Tope de tiempo -- sin esto, una respuesta lenta puede quedar colgando
   // hasta el límite de duración de la función en vez de devolver un error
-  // legible.
-  const TIMEOUT_MS = 25000;
+  // legible. OJO: antes esto era 25000 (25s), pensado como margen de
+  // seguridad bajo el límite de Vercel -- pero el límite real de Edge
+  // Functions es: hay que EMPEZAR a responder (primer byte) dentro de los
+  // 25s, y una vez que se empezó a streamear se puede seguir hasta 300s en
+  // total (ver changelog de Vercel, "new execution duration limit for edge
+  // functions", vigente desde marzo 2025). Acá el primer byte sale apenas
+  // Claude confirma 200 y arranca su propio stream (antes de este timeout,
+  // normalmente en < 1s), así que cortar a los 25s TOTALES (incluyendo todo
+  // el tiempo de lectura del stream después de eso) mataba respuestas que
+  // todavía estaban generándose bien -- visto en producción: esto es lo que
+  // hacía aparecer "el modelo está saturado" cuando en realidad Claude
+  // simplemente estaba tardando una vuelta larga, no caído ni limitado.
+  // 120s deja margen generoso de sobra bajo el límite real de 300s.
+  const TIMEOUT_MS = 120000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let vencioNuestroTimeout = false;
+  const timeoutId = setTimeout(() => {
+    vencioNuestroTimeout = true;
+    controller.abort();
+  }, TIMEOUT_MS);
   let r;
   try {
     r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -534,6 +550,13 @@ export default async function handler(req) {
       body: JSON.stringify({
         model: MODELO,
         max_tokens: 2048,
+        // Determinismo antes que variedad: CELIA responde sobre datos
+        // financieros reales, no texto creativo -- la misma pregunta con
+        // los mismos datos debería dar la misma respuesta (o muy parecida)
+        // cada vez, no una distinta según el muestreo. temperature más
+        // baja que el default (1) reduce esa variabilidad en qué
+        // herramienta elige y cómo redondea/prioriza.
+        temperature: 0.2,
         system: SYSTEM_PROMPT + contextoRolPrompt(rol),
         messages,
         tools,
@@ -551,6 +574,9 @@ export default async function handler(req) {
   } catch (e) {
     clearTimeout(timeoutId);
     console.error("chat.js: timeout/excepción", e.message);
+    if (vencioNuestroTimeout) {
+      return jsonError(504, { error: { type: "internal_timeout", message: e.message } });
+    }
     return jsonError(504, { error: `Timeout o error de red: ${e.message}` });
   }
 
@@ -592,7 +618,11 @@ export default async function handler(req) {
         }
       } catch (e) {
         console.error("chat.js: error leyendo el stream de Claude", e.message);
-        emit({ type: "error", error: e.message });
+        if (vencioNuestroTimeout) {
+          emit({ type: "error", error: { type: "internal_timeout", message: e.message } });
+        } else {
+          emit({ type: "error", error: e.message });
+        }
       } finally {
         clearTimeout(timeoutId);
         streamController.close();

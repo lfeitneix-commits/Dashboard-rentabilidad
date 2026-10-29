@@ -6375,6 +6375,7 @@ function mensajeErrorChatIA(errorInfo){
     tipo=e.type||null;
     msg=e.message||null;
   }
+  if(tipo==='internal_timeout') return 'La pregunta tardó más de 2 minutos en responderse y se cortó -- no es que el modelo esté saturado, esta consulta puntual necesitó demasiados pasos. Probá dividirla en preguntas más chicas.';
   if(tipo==='overloaded_error') return 'Claude está saturado del lado de Anthropic en este momento. Probá de nuevo en uno o dos minutos.';
   if(tipo==='rate_limit_error') return 'Se alcanzó el límite de uso de la API de Claude por ahora. Probá de nuevo en unos minutos.';
   if(tipo==='authentication_error') return 'La API key de Anthropic no es válida. Hay que revisarla en la configuración de Vercel.';
