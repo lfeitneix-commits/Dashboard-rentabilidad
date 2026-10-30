@@ -2317,9 +2317,24 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
     const secExpanded=!currentSecId||currentSecTipo==='ing'||ST.expandedSecs.has(currentSecId);
     const subExpanded=!currentSubId||ST.expandedSubs.has(currentSubId);
     const parentVisible=searchMode||(secExpanded&&subExpanded);
-    const hiddenStyle=parentVisible?'':' style="display:none"';
 
     const isMuted=row._muted||/ya\s+descontado|incluido\s+fac\.?\s*mesa/i.test(getConsNote(row)||row._allNotes||row._note||'');
+    // Un solo atributo style, no dos -- antes esto se armaba como
+    // `${hiddenStyle}...style="${isMuted?...:''}"`, dos atributos style=""
+    // en la misma etiqueta cuando la fila estaba oculta Y muteada a la vez.
+    // El parser de HTML descarta el segundo style= duplicado al convertir
+    // el string en DOM (vía innerHTML), así que una cuenta "ya descontada"
+    // que arranca colapsada perdía el gris/itálica para siempre -- alternar
+    // la sección (toggleSection) solo cambia el display del nodo ya
+    // creado, no vuelve a generar su HTML. Recién con un re-render completo
+    // (ST.expandedSecs ya marcada como abierta, entonces sin display:none
+    // que concatenar) el style= único salía bien formado y se veía
+    // correcto -- de ahí que pareciera "arreglarse solo" al cambiar de
+    // pestaña y volver. Encontrado por la propia usuaria en producción.
+    const rowStylePieces=[];
+    if(!parentVisible) rowStylePieces.push('display:none');
+    if(isMuted) rowStylePieces.push('color:#9A8E7D','font-style:italic');
+    const hiddenStyle=rowStylePieces.length?` style="${rowStylePieces.join(';')}"`:'';
     const flattenParent=(ST.role==='lideres'&&PARENTS_SIN_DESPLEGABLE_LIDERES.has(row._nom)&&!(ST.area==='FAs'&&MZA_SPLIT_PARENTS.has(row._nom)))||PARENTS_SIN_DESPLEGABLE.has(row._nom);
     const notaMostrar=notaLiderSegura(row,rows,isConsolidado,mesF);
 
@@ -2332,7 +2347,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
 
     if((row._kind==='account'||row._kind==='subaccount')&&row._parent&&!flattenParent){
       const parentOpen=ST.expandedRows.has(row._parentId);
-      html+=`<tr class="row-parent ${secClass} ${subClass}${parentOpen?' open':''}"${hiddenStyle} data-pid="${row._parentId}" onclick="toggleParent('${row._parentId}',this)" style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
+      html+=`<tr class="row-parent ${secClass} ${subClass}${parentOpen?' open':''}"${hiddenStyle} data-pid="${row._parentId}" onclick="toggleParent('${row._parentId}',this)">
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num}</td>`:''}
         <td><div class="name-wrap"><span class="toggle-icon">▶</span>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</div></td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
@@ -2350,7 +2365,7 @@ function buildDetalleTable(mesF,tipoF,areaF,searchQ){
         ${notesCol?notaCellHTML(notaMostrar):''}
       </tr>`;
     } else {
-      html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle} style="${isMuted?'color:#9A8E7D;font-style:italic':''}">
+      html+=`<tr class="row-parent ${secClass} ${subClass}"${hiddenStyle}>
         ${showNumCol?`<td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${row._num||''}</td>`:''}
         <td>${row._nom}${searchMode&&row._tipo?` <span style="font-size:9px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;opacity:.8">${row._tipo==='dir'?'· directo':row._tipo==='ind'?'· indirecto':''}</span>`:''}${hasDist(row)?`<span class="dist-badge" data-tip="${getDistNote(row)}">✦</span>`:''}</td>
         ${vals.map(v=>`<td class="r">${v?fmtD(v):'—'}</td>`).join('')}
