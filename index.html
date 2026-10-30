@@ -6576,6 +6576,19 @@ function mensajeErrorChatIA(errorInfo){
   if(tipo==='authentication_error') return 'La API key de Anthropic no es válida. Hay que revisarla en la configuración de Vercel.';
   if(tipo==='permission_error') return 'La API key de Anthropic no tiene permiso para este modelo. Revisar la cuenta de Anthropic.';
   if(msg&&/credit balance/i.test(msg)) return 'Se quedó sin crédito la cuenta de Anthropic. Hay que recargar en console.anthropic.com → Billing.';
+  // Anthropic devuelve esto como invalid_request_error (no como
+  // rate_limit_error), así que sin este chequeo específico caía en el
+  // genérico "la solicitud fue inválida" de más abajo -- engañoso, porque
+  // no hay nada mal armado en la pregunta: es un límite de GASTO/USO que
+  // alguien configuró en la cuenta de Anthropic (Settings → Limits), no un
+  // problema puntual de esta consulta. El mensaje de Anthropic ya trae la
+  // fecha exacta en la que se libera de nuevo -- se la mostramos tal cual.
+  if(msg&&/usage limits/i.test(msg)){
+    const fecha=/regain access on ([^.]+)/i.exec(msg);
+    return fecha
+      ? `Se alcanzó el límite de uso configurado en la cuenta de Anthropic (no es un problema de esta pregunta). Se recupera el acceso el ${fecha[1]}. Si hace falta antes, hay que subir el límite en console.anthropic.com → Settings → Limits.`
+      : 'Se alcanzó el límite de uso configurado en la cuenta de Anthropic (no es un problema de esta pregunta). Hay que subir el límite en console.anthropic.com → Settings → Limits, o esperar a que se reinicie.';
+  }
   if(msg&&/timeout/i.test(msg)) return 'Se agotó el tiempo de espera esperando a Claude. Probá de nuevo.';
   if(tipo==='invalid_request_error') return 'La solicitud a Claude fue inválida. Si se repite, avisale a quien mantiene el dashboard.';
   return 'El modelo está saturado, probá de nuevo en un rato';
