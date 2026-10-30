@@ -245,6 +245,8 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
   #chat-ia-panel{bottom:80px;right:12px;left:12px;width:auto;max-width:none;height:70vh}
 }
 #chat-ia-panel.hidden{display:none}
+#chat-ia-panel.minimizado{height:auto}
+#chat-ia-panel.minimizado .chat-ia-body,#chat-ia-panel.minimizado .chat-ia-ft{display:none}
 .chat-ia-hd{background:var(--grafito);color:#fff;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:13px;flex-shrink:0}
 .chat-ia-hd-actions{display:flex;align-items:center;gap:6px}
 .chat-ia-hd button{background:none;border:none;color:#fff;cursor:pointer;opacity:.75;font-size:15px;line-height:1;padding:2px;display:flex;align-items:center}
@@ -5722,7 +5724,7 @@ document.getElementById('logout-btn').addEventListener('click',()=>location.relo
 // que necesita -- ver TOOLS en api/chat.js -- y acá abajo
 // (ejecutarHerramientaChatIA) se la resolvemos contra ST, que es donde
 // viven los datos reales (el servidor no los tiene).
-const CHAT_IA={abierto:false,historial:[],enviando:false,streamText:'',sesionId:null,sesiones:[],vista:'chat',historialQuery:''};
+const CHAT_IA={abierto:false,historial:[],enviando:false,streamText:'',sesionId:null,sesiones:[],vista:'chat',historialQuery:'',minimizado:false};
 const CHAT_IA_SESIONES_KEY='celia_sesiones';
 const CHAT_IA_MAX_SESIONES=30;
 function nuevaSesionIdChatIA(){
@@ -5870,6 +5872,7 @@ function initChatIA(){
   panel.innerHTML=`<div class="chat-ia-hd"><span>CELIA · Neix</span><div class="chat-ia-hd-actions">
       <button type="button" id="chat-ia-historial" aria-label="Historial de conversaciones" title="Historial de conversaciones"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 4.8V8l2.6 1.6"/></svg></button>
       <button type="button" id="chat-ia-nueva" aria-label="Nueva conversación" title="Nueva conversación"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2v12M2 8h12"/></svg></button>
+      <button type="button" id="chat-ia-minimizar" aria-label="Minimizar" title="Minimizar"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 8h10"/></svg></button>
       <button type="button" id="chat-ia-close" aria-label="Cerrar">✕</button>
     </div></div>
     <div class="chat-ia-body" id="chat-ia-body"></div>
@@ -5882,6 +5885,7 @@ function initChatIA(){
   document.getElementById('chat-ia-close').addEventListener('click',toggleChatIA);
   document.getElementById('chat-ia-historial').addEventListener('click',toggleHistorialChatIA);
   document.getElementById('chat-ia-nueva').addEventListener('click',nuevaConversacionChatIA);
+  document.getElementById('chat-ia-minimizar').addEventListener('click',toggleMinimizarChatIA);
   document.getElementById('chat-ia-send').addEventListener('click',enviarMensajeChatIA);
   // Historial de conversaciones anteriores (celia_sesiones en localStorage,
   // solo de este navegador) -- si hay alguna guardada, retoma la más
@@ -5918,9 +5922,25 @@ function toggleChatIA(){
   const panel=document.getElementById('chat-ia-panel');
   if(panel) panel.classList.toggle('hidden',!CHAT_IA.abierto);
   if(CHAT_IA.abierto){
+    // Arranca siempre expandido al reabrir desde el botón flotante -- que
+    // haya quedado minimizado la vez anterior no debería sorprender a
+    // alguien que lo vuelve a abrir de cero.
+    CHAT_IA.minimizado=false;
+    if(panel) panel.classList.remove('minimizado');
     const input=document.getElementById('chat-ia-input');
     if(input) setTimeout(()=>input.focus(),50);
   }
+}
+// Minimizar deja solo la barra del header visible (como la barra de título
+// de una ventana) en vez de cerrar el chat entero -- para sacarlo de en
+// medio un momento sin perder la conversación en pantalla ni tener que
+// reabrirlo desde el botón flotante.
+function toggleMinimizarChatIA(){
+  CHAT_IA.minimizado=!CHAT_IA.minimizado;
+  const panel=document.getElementById('chat-ia-panel');
+  if(panel) panel.classList.toggle('minimizado',CHAT_IA.minimizado);
+  const btn=document.getElementById('chat-ia-minimizar');
+  if(btn) btn.classList.toggle('activo',CHAT_IA.minimizado);
 }
 function escapeHtmlChatIA(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
