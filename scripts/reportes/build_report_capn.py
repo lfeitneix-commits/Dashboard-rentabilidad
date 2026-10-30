@@ -583,8 +583,10 @@ def build_capn(data, mes_label, out_path):
         plain_table(["Concepto", actual['mes'], "% sobre Facturación"], rows,
                     [CONTENT_W - 50 * mm - 50 * mm, 50 * mm, 50 * mm])
         story.append(Paragraph(
-            "Fijos: Alquiler, Sueldos y CS, Contabilidad, MTI. Variables: el resto de los conceptos de gasto "
-            "(no incluye el desglose de Facturación Bruta por bróker).",
+            "Fijos: Alquiler, Sueldos y CS, Contabilidad, MTI. Variables: Eventos, Productores, "
+            "Referenciamiento, Provisión Otros Gastos -- no son gastos mensuales fijos, así que es normal "
+            "que den USD 0 en un mes sin ninguno de esos movimientos (no incluye el desglose de "
+            "Facturación Bruta por bróker).",
             styles['NotaChica'],
         ))
 
