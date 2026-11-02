@@ -376,6 +376,14 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 const BASE='https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4gdsYZTOZlI1jllNuQ2mBWBjabHVL5vJ9dPGVso5lnUVOOuRsQ_xhKVfa0XYDlKpPGr61FUnO3kvy/pub?output=csv&gid=';
 const SHEETS=[{mes:'Enero',gid:'226754153'},{mes:'Febrero',gid:'1511706532'},{mes:'Marzo',gid:'1921579671'},{mes:'Abril',gid:'921185054'},{mes:'Mayo',gid:'1385764727'},{mes:'Junio',gid:'519131833'},{mes:'Julio',gid:'470383575'},{mes:'Agosto',gid:'1511632388'},{mes:'Septiembre',gid:'510011893'}];
 const CAPN_GID='314640513';
+// Clasificación Fijo/Variable de Capital N -- única fuente para
+// calcFijosVariablesCapN() y ch-capnan3 (antes cada uno tenía su propia
+// copia de este Set/regex; quedaron idénticas por casualidad hasta acá,
+// pero el riesgo real es que alguien edite una sin la otra -- ver #389).
+const CAPN_FIJOS_SET=new Set(['Alquiler','Sueldos y CS','Contabilidad','MTI']);
+// "Aranceles ..."/"Otros Ar..." son el desglose de FACTURACIÓN BRUTA por
+// bróker (un INGRESO, no un gasto) -- ver el fix de #389.
+const CAPN_EXCLUIR_RE=/^(FACTURACI|GASTOS|RESULTADO|Aranceles|Otros Ar)/i;
 const CLASIF_GID='263291172';
 const GASTOS_FIJOS_DETALLE_GID='548055577';
 const QUANT_COSTOLABORAL_GID='866448178';
@@ -4461,21 +4469,13 @@ function getConsolidadoDetalle(){
 // qué no se usa la columna "CONSOLIDADO CAP N" del Sheet directamente).
 function calcFijosVariablesCapN(col,d){
   const cols=Array.isArray(col)?col:[col];
-  const FIJOS_CAPN=new Set(['Alquiler','Sueldos y CS','Contabilidad','MTI']);
   let fijos=0,variables=0;
   d.rows.forEach(row=>{
     const nom=String(row['']||'').trim();
-    // "Aranceles ..."/"Otros Ar..." son el desglose de FACTURACIÓN BRUTA
-    // por bróker (un INGRESO), no un gasto -- sin excluirlos acá quedaban
-    // sumados a "Variables", inflándolo (bug real, encontrado en #273 y
-    // corregido ahí mismo para el reporte PDF -- capnConceptos() en
-    // extract_data.js y el filtro de ch-capnan3 un poco más abajo en esta
-    // misma función YA excluyen estas filas -- a esta función se le había
-    // quedado afuera el fix).
-    if(!nom||/^(FACTURACI|GASTOS|RESULTADO|Aranceles|Otros Ar)/i.test(nom)) return;
+    if(!nom||CAPN_EXCLUIR_RE.test(nom)) return;
     const v=cols.reduce((s,c)=>s+(c?parseNum(row[c]||''):0),0);
     if(v===0) return;
-    if(FIJOS_CAPN.has(nom)) fijos+=v;
+    if(CAPN_FIJOS_SET.has(nom)) fijos+=v;
     else variables+=v;
   });
   return{fijos,variables};
@@ -4603,17 +4603,19 @@ function rebuildAnalisisCapN(){
       }
     }
 
-    // ch-capnan3: Desglose de gastos por concepto
+    // ch-capnan3: Desglose de gastos por concepto -- mismas CAPN_EXCLUIR_RE/
+    // CAPN_FIJOS_SET que calcFijosVariablesCapN (ch-capnan1, de al lado),
+    // para que los dos gráficos de esta pantalla sigan sumando lo mismo
+    // aunque cambie qué cuentas son "fijas" en Capital N (ver #389/auditoría).
     dc('ch-capnan3');const el3=document.getElementById('ch-capnan3');
     if(el3){
       const gastoRows=d.rows.filter(r=>{
         const n=String(r['']||'').trim();
-        return n&&!/^(FACTURACI|GASTOS|RESULTADO|Aranceles|Otros Ar)/i.test(n)&&n!=='';
+        return n&&!CAPN_EXCLUIR_RE.test(n);
       });
       const labels=gastoRows.map(r=>String(r['']||'').trim());
       const vals=gastoRows.map(r=>getV(r));
-      const FIJOS_SET=new Set(['Alquiler','Sueldos y CS','Contabilidad','MTI']);
-      const colors=labels.map(l=>FIJOS_SET.has(l)?'#476785':'#9A8E7D');
+      const colors=labels.map(l=>CAPN_FIJOS_SET.has(l)?'#476785':'#9A8E7D');
       rc('ch-capnan3',new Chart(el3,{type:'bar',
         data:{labels,datasets:[{data:vals,backgroundColor:colors,borderRadius:4}]},
         options:{responsive:true,maintainAspectRatio:false,
