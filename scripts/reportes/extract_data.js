@@ -690,7 +690,6 @@ const APP = context.__APP__;
       const text = await res.text();
       const { rows } = APP.parseCSV(text);
       let cuentaActual = null;
-      let saldoPrevio = 0;
       rows.forEach(r => {
         const v = Object.values(r);
         const col0 = String(v[0] || '').trim();
@@ -699,7 +698,6 @@ const APP = context.__APP__;
         if (mCta) {
           cuentaActual = mCta[1].trim();
           if (!detalle[cuentaActual]) detalle[cuentaActual] = [];
-          saldoPrevio = parseNum(v[6]);
           return;
         }
         if (!cuentaActual) return;
@@ -707,9 +705,24 @@ const APP = context.__APP__;
           cuentaActual = null;
           return;
         }
-        const saldo = parseNum(v[6]);
-        const montoArs = saldo - saldoPrevio;
-        saldoPrevio = saldo;
+        // El monto de cada movimiento es DEBE + HABER de esa misma fila
+        // (HABER ya viene con su propio signo en la celda) -- NO la
+        // diferencia de SALDO entre filas (enfoque viejo de acá, bug real):
+        // la columna SALDO de esta hoja no trae el acumulado en cada fila,
+        // la mayoría vienen en "-" y solo se completa cada tanto (al cerrar
+        // un lote de carga), así que diferenciarla asignaba montos
+        // fantasma a filas sueltas -- ej. "Serv. Contratados Mesa" en Julio
+        // mostraba un "-USD 56.411" para 1816 DATA que no existe en la
+        // hoja real, solo era el efecto de restar un SALDO "-" (0) contra
+        // el checkpoint siguiente. Mismo fix ya aplicado en
+        // mayorContableChatIA (index.html) para el chat de CELIA -- portado
+        // acá para que el Anexo de los reportes PDF use la misma fuente
+        // correcta. Verificado contra la hoja real: sumar DEBE+HABER fila
+        // por fila reconstruye EXACTO cada checkpoint de SALDO que sí viene
+        // completo.
+        const debe = parseNum(v[4]);
+        const haber = parseNum(v[5]);
+        const montoArs = debe + haber;
         if (montoArs !== 0) {
           detalle[cuentaActual].push({
             fecha: String(v[1] || '').trim(),
