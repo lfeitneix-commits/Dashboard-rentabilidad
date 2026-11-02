@@ -736,6 +736,22 @@ def build_area(data, area, mes_label, out_path):
     # gastó esta área en ese proveedor", es "de qué se compone esa cuenta
     # en toda la empresa". Se aclara en el título de la sección para no
     # sugerir una precisión que el dato no tiene.
+    # ── Rubros directos que más VARIARON (subas Y bajas) -- a diferencia de
+    # rubros_suben_area (arriba, solo usado para el bullet "el rubro directo
+    # que más subió" de Análisis del mes), esta lista alimenta la tabla y el
+    # Anexo de acá abajo. Antes la tabla solo mostraba subas y, en un mes
+    # donde absolutamente ningún rubro directo subió (ej. Mesa/Agosto, con
+    # facturación negativa ese mes), quedaba vacía y desaparecía entera --
+    # a pedido, ahora se muestra el ranking completo ordenado por magnitud
+    # de variación (mismo criterio que "Cuentas/Proveedores con mayor
+    # variación" del consolidado), para tener en cuenta también lo que más
+    # bajó. ──
+    rubros_variaron_area = sorted(
+        (r for r in rubros_area if r['deltaPct'] is not None),
+        key=lambda r: abs(r['deltaPct']),
+        reverse=True,
+    )
+
     cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
     ledger_detalle = data.get('gastosLedgerDetalle') or {}
     ledger_agrupado = data.get('gastosLedgerAgrupado') or {}
@@ -744,7 +760,7 @@ def build_area(data, area, mes_label, out_path):
     anexo_entries = []
     anexo_reales = {}
     vistos_lower = set()
-    for r in rubros_suben_area:
+    for r in rubros_variaron_area:
         nl = r['nombre'].strip().lower()
         if nl in vistos_lower:
             continue
@@ -769,20 +785,22 @@ def build_area(data, area, mes_label, out_path):
             return Paragraph(html, nombre_style)
         return Paragraph(nombre, nombre_style)
 
-    # ── Top rubros DIRECTOS que más subieron en esta área (ya calculado
-    # por extract_data.js en rubrosVariacionPorArea), con la misma columna
-    # "vs. Histórico" que el reporte consolidado. ──
-    if rubros_suben_area:
+    # ── Top rubros DIRECTOS que más variaron en esta área (ya calculado por
+    # extract_data.js en rubrosVariacionPorArea), con la misma columna "vs.
+    # Histórico" que el reporte consolidado. Subas y bajas juntas, ordenadas
+    # por magnitud -- ver el comentario de rubros_variaron_area más arriba. ──
+    if rubros_variaron_area:
         with keep_together():
             story.append(Anchor('sec_top_rubros_directos'))
-            section_title("TOP RUBROS DIRECTOS QUE MÁS SUBIERON")
+            section_title("TOP RUBROS DIRECTOS QUE MÁS VARIARON")
             mes_ant_label = anterior['mes'] if anterior else ''
             mes_act_label = actual['mes']
-            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct']), historico_cell(r)] for r in rubros_suben_area]
+            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct']), historico_cell(r)] for r in rubros_variaron_area]
             data_table(["Rubro", mes_ant_label, mes_act_label, "Variación", "vs. Histórico"], rows,
                        [CONTENT_W - 24 * mm - 24 * mm - 28 * mm - 44 * mm, 24 * mm, 24 * mm, 28 * mm, 44 * mm], var_colidx=3)
             story.append(Paragraph(
-                "Solo gastos directos del área (no incluye indirectos prorrateados entre las 4 áreas).",
+                "Solo gastos directos del área (no incluye indirectos prorrateados entre las 4 áreas). Incluye "
+                "subas y bajas, ordenado por magnitud de variación.",
                 styles['NotaChica'],
             ))
 
@@ -945,7 +963,7 @@ def build_area(data, area, mes_label, out_path):
                             ParagraphStyle('anexoNotaArea', fontName='DMSans', fontSize=8, textColor=MUTED),
                         ))
                 story.append(Paragraph(
-                    '<a href="#sec_top_rubros_directos"><u>&#8593; Volver a "Top rubros directos que más subieron"</u></a>',
+                    '<a href="#sec_top_rubros_directos"><u>&#8593; Volver a "Top rubros directos que más variaron"</u></a>',
                     styles['anexoVolver'],
                 ))
 
