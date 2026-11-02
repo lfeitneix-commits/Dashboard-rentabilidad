@@ -41,6 +41,19 @@ from build_report import (
 
 
 def build_area(data, area, mes_label, out_path):
+    # Mismo criterio y mismo motivo que build_report.py (decisión del
+    # usuario, nunca portada acá hasta ahora -- encontrado por auditoría):
+    # "Gastos de Representación" es gasto puntual por evento, no algo con
+    # un promedio histórico que tenga sentido comparar mes a mes, así que
+    # se apaga a propósito la detección de "salto atípico" para él. Acá
+    # son sus variantes por área (hijas de "Gastos de Representación
+    # Directos" -- ver PARENT_CHILDREN en index.html), que es como
+    # aparecen en rubrosVariacionPorArea.
+    RUBROS_SIN_ANALISIS_ATIPICO = {
+        'Gastos Representacion Mesa', 'Gastos Representacion FAs',
+        'Gastos Representacion BC', 'Gastos Representacion BP',
+        'Gastos Representacion Mza', 'Eventos empresariales',
+    }
     story = []
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle('KpiLabel', fontName='DMSans-Bold', fontSize=8, textColor=GRAFITO, alignment=TA_CENTER))
@@ -296,7 +309,7 @@ def build_area(data, area, mes_label, out_path):
         # el rubro es un salto atípico vs. su propio promedio histórico
         # (ver historialRubroArea() en extract_data.js), marcarlo acá en
         # vez de en una columna de "variación" que ya muestra otra cosa.
-        if r.get('ratioVsHistorico') is None:
+        if r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO or r.get('ratioVsHistorico') is None:
             return Paragraph('<font color="#9A8E7D">N/D</font>', styles['VarCell'])
         if not r.get('esAtipico'):
             return Paragraph('<font color="#9A8E7D">en línea</font>', styles['VarCell'])
@@ -383,7 +396,7 @@ def build_area(data, area, mes_label, out_path):
     rubros_suben_area = [r for r in rubros_area if r['deltaPct'] is not None and r['deltaPct'] > 0]
 
     def nota_historico(r):
-        if r.get('ratioVsHistorico') is None:
+        if r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO or r.get('ratioVsHistorico') is None:
             return ''
         n_hist = r['historicoMesesCount']
         promedio_txt = num(r['promedioHistorico'])
@@ -472,7 +485,7 @@ def build_area(data, area, mes_label, out_path):
         # racha.
         mejor = None
         for r in rubros:
-            if r['nombre'] in excluidos:
+            if r['nombre'] in excluidos or r['nombre'] in RUBROS_SIN_ANALISIS_ATIPICO:
                 continue
             serie = r.get('serie')
             if not serie:
@@ -581,7 +594,8 @@ def build_area(data, area, mes_label, out_path):
     # (3) Relleno por materialidad -- otros rubros directos atípicos,
     # ordenados por delta en USD, solo si sobra lugar en los 5.
     atipicos_area = sorted(
-        (r for r in rubros_area if r['nombre'] not in ya_mencionado and r.get('esAtipico')),
+        (r for r in rubros_area if r['nombre'] not in ya_mencionado
+         and r['nombre'] not in RUBROS_SIN_ANALISIS_ATIPICO and r.get('esAtipico')),
         key=lambda r: abs(r['actual'] - r['anterior']),
         reverse=True,
     )[:3]
