@@ -665,9 +665,12 @@ const APP = context.__APP__;
   // convierten a USD con el MEP del mes correspondiente; si no se pudo
   // obtener ese tipo de cambio, se omite esta sección para ese mes (no
   // se adivina un monto en USD sin saber el tipo de cambio real). El
-  // monto de cada movimiento sale de la diferencia de SALDO entre filas
-  // (no de sumar DEBE/HABER a mano): es exactamente lo que ya calculó la
-  // hoja, con cualquier convención de signo que use.
+  // monto de cada movimiento sale de sumar DEBE+HABER de esa misma fila
+  // (ver ledgerDe más abajo) -- NO de la diferencia de SALDO entre filas,
+  // que fue el enfoque original acá y resultó ser un bug real (#388): esa
+  // columna no trae el acumulado real en cada fila, la mayoría vienen en
+  // "-" y solo se completa cada tanto, así que diferenciarla asignaba
+  // montos fantasma a filas sueltas.
   //
   // Se trae mesActual Y mesAnterior (antes solo mesActual) -- para que
   // una cuenta "ledger" (sin fila propia en Gastos Fijos Detalle, ej.
