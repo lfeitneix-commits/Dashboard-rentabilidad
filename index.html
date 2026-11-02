@@ -4041,7 +4041,13 @@ function calcFijosVariables(mes,areaOverride){
   const meses=isCons?ST.meses:[mes];
   let fijos=0,semifijos=0,variables=0;
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
-  const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
+  // Mismo SKIP_RE que calcRubros() (incluye GASTOS TOTALES -- la fila de
+  // cierre del EERR, no una cuenta real) -- antes le faltaba ese patrón acá:
+  // sin la hoja "Clasificación de gastos" cargada (ST.clasifData vacío por
+  // un fetch fallido, ver loadData), el fallback fila-por-fila de abajo
+  // sumaría esa fila entera a "variables" vía getCategoriaFor (sin
+  // clasificar → variable por default), cosa que calcRubros ya evitaba.
+  const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|GASTOS?\s+TOTALES?|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
 
   meses.forEach(m=>{
     const md=ST.mesData[m];
