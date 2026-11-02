@@ -4041,7 +4041,13 @@ function calcFijosVariables(mes,areaOverride){
   const meses=isCons?ST.meses:[mes];
   let fijos=0,semifijos=0,variables=0;
   const PARENT_NAMES=new Set(Object.keys(PARENT_CHILDREN));
-  const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
+  // Mismo SKIP_RE que calcRubros() (incluye GASTOS TOTALES -- la fila de
+  // cierre del EERR, no una cuenta real) -- antes le faltaba ese patrón acá:
+  // sin la hoja "Clasificación de gastos" cargada (ST.clasifData vacío por
+  // un fetch fallido, ver loadData), el fallback fila-por-fila de abajo
+  // sumaría esa fila entera a "variables" vía getCategoriaFor (sin
+  // clasificar → variable por default), cosa que calcRubros ya evitaba.
+  const SKIP_RE=/^(FACTURACI[OÓ]N|GASTOS DIRECTOS|GASTOS INDIRECTOS|GASTOS?\s+TOTALES?|SUBTOTAL|RESULTADO|DÓLAR|TOTAL DE GASTOS)/i;
 
   meses.forEach(m=>{
     const md=ST.mesData[m];
@@ -4221,28 +4227,24 @@ function drawCharts(tab){
             tooltip:{callbacks:{label:c=>` ${c.label}: ${$c(c.raw)} (${tTot8?(c.raw/tTot8*100).toFixed(1):0}%)`}}}}}));
     }
 
-    // ch-an9: Evolución gastos fijos por rubro (solo consolidado)
+    // ch-an9: Evolución gastos fijos por rubro (solo consolidado) -- usa
+    // calcRubros() (fuente de verdad: ST.clasifRubros, ver comentario en
+    // getCategoriaFor) para cada mes, en vez de reclasificar fila por fila
+    // acá con GASTOS_FIJOS/NOMBRE_A_RUBRO_FIJO a secas -- esas listas son
+    // solo el respaldo documentado para cuentas que todavía no estén en la
+    // hoja "Clasificación de gastos", no la fuente principal. Usar solo el
+    // respaldo acá (bug real, encontrado por auditoría) subestimaba Fijos
+    // en este gráfico vs. la torta "Fijos vs. Variables" de al lado (misma
+    // pantalla, sí usa calcFijosVariables/calcRubros) por montos de USD
+    // 10k a 50k TODOS los meses -- las dos nunca sumaban lo mismo.
     dc('ch-an9');const an9=document.getElementById('ch-an9');
     if(an9&&isCons2){
+      const rfPorMes=ST.meses.map(m=>calcRubros(m).rf);
       const COLS_F=['rgba(0,63,97,.85)','rgba(0,63,97,.62)','rgba(0,63,97,.40)','rgba(0,63,97,.20)'];
       const rbF=Object.keys(RUBROS_FIJOS);
       const datasets=rbF.map((rubro,i)=>({
         label:rubro,
-        data:ST.meses.map(m=>{
-          const md=ST.mesData[m];if(!md)return 0;
-          const PNAMES=new Set(Object.keys(PARENT_CHILDREN));
-          const CF2=new Map();Object.entries(PARENT_CHILDREN).forEach(([p,ch])=>{if(GASTOS_FIJOS.has(p))ch.forEach(c=>CF2.set(c,true));});
-          let tot=0;
-          filasDirectasLideres(md).forEach(row=>{
-            const nom=String(row['']||row[md.nameCol]||'').trim();
-            if(!nom||PNAMES.has(nom))return;
-            const esFijo=GASTOS_FIJOS.has(nom)||(CF2.has(nom)?CF2.get(nom):false);
-            if(!esFijo)return;
-            if(NOMBRE_A_RUBRO_FIJO[nom]!==rubro)return;
-            tot+=AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
-          });
-          return tot;
-        }),
+        data:rfPorMes.map(rf=>rf[rubro]||0),
         borderColor:COLS_F[i],backgroundColor:COLS_F[i].replace('.85)','.15)').replace('.62)','.12)').replace('.40)','.08)').replace('.20)','.05)'),
         pointBackgroundColor:COLS_F[i],pointRadius:4,tension:.3,borderWidth:2,fill:false,
       }));

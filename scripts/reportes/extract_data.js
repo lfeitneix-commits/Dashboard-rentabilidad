@@ -372,16 +372,16 @@ const APP = context.__APP__;
   // reusa tal cual para ingresos/egresos/resultado, sin reimplementar la
   // lógica -- igual que con el resto del dashboard.
   //
-  // calcFijosVariablesCapN() (pestaña "Análisis Capital N") NO se reusa acá:
-  // su regex de exclusión (/^(FACTURACI|GASTOS|RESULTADO)/i) no excluye las
-  // filas "Aranceles ..." (el desglose de FACTURACIÓN BRUTA por bróker --
-  // WSC, Insigneo, IBKR, MS, EM, CP -- que entre todas suman exactamente la
-  // Facturación Bruta del mes), así que esas filas de INGRESO caen en el
-  // bucket "variables" como si fueran gasto, inflándolo por un orden de
-  // magnitud (visto en Enero: "variables" daba ~160k vs. GASTOS real de
-  // ~30k). Achicado acá con el filtro correcto (capnConceptos, abajo), que
-  // además excluye "Otros Aranceles"/"Aranceles por Sociedades" por el mismo
-  // motivo.
+  // calcFijosVariablesCapN() (pestaña "Análisis Capital N") NO se reusa acá
+  // (se recalcula con capnConceptos, abajo) porque esto corre fuera del
+  // navegador -- node vm no comparte nada con el DOM de esa pestaña, no por
+  // una diferencia de criterio: las dos excluyen las filas "Aranceles ...
+  // /Otros Ar..." (el desglose de FACTURACIÓN BRUTA por bróker -- WSC,
+  // Insigneo, IBKR, MS, EM, CP -- que entre todas suman exactamente la
+  // Facturación Bruta del mes) desde que se corrigió el bug real de
+  // calcFijosVariablesCapN en #389 (antes esas filas de INGRESO cayan en el
+  // bucket "variables" como si fueran gasto, inflándolo hasta ~8x -- ej.
+  // Enero daba ~160k en vez de los ~21k reales).
   const capnData = ST.capnData;
   const CAPN_MONTO_MIN = 300;
   const CAPN_FIJOS = new Set(['Alquiler', 'Sueldos y CS', 'Contabilidad', 'MTI']);
