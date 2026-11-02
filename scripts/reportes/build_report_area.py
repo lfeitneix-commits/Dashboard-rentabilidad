@@ -12,10 +12,12 @@ de toda la empresa), pero con el mismo tipo de análisis, aplicado a esta
 bullets priorizados -- señales críticas primero, panorama base después,
 rubros DIRECTOS atípicos de relleno si sobra lugar; mismo criterio que
 build_report.py, ya no hay caja de "Alertas del mes" aparte), evolución
-de los últimos meses EN GRÁFICO, y Unit Economics (snapshot + evolución).
-Sin Anexo ni "Excepciones/No recurrentes" -- esas sí dependen de datos
-que no están abiertos por área en el Sheet (el mayor contable, los
-proveedores).
+de los últimos meses EN GRÁFICO, Unit Economics (snapshot + evolución) y
+Anexo de detalle de cuentas (desglose por proveedor/movimiento de los
+rubros de "Top rubros directos", igual que el consolidado -- ver más
+abajo). Sin "Excepciones/No recurrentes" -- esa sí depende de datos que
+no están abiertos por área en el Sheet (el mayor contable solo abre por
+Directo/Indirecto, no por área puntual).
 """
 import argparse
 import json
@@ -23,7 +25,7 @@ from contextlib import contextmanager
 
 from reportlab.lib.units import mm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, KeepTogether, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.graphics import renderPDF
@@ -31,9 +33,10 @@ from reportlab.graphics.shapes import Drawing, String, Line, Circle
 
 from build_report import (
     num, usd, usd2, AREA_COLOR, AREAS,
-    GRAFITO, BORDEAUX, VERDE, MUTED, AZUL, CREMA, BORDER,
+    GRAFITO, BORDEAUX, VERDE, MUTED, AZUL, AZUL_HEX, CREMA, BORDER,
     VERDE_TINT, BORDEAUX_TINT, MUTED_TINT,
     PAGE_W, PAGE_H, HEADER_H, MARGIN, CONTENT_W, logo, logo_target_h,
+    Anchor, cuenta_slug,
 )
 
 
@@ -47,6 +50,8 @@ def build_area(data, area, mes_label, out_path):
     styles.add(ParagraphStyle('NotaChica', fontName='DMSans', fontSize=8, textColor=MUTED, leftIndent=0))
     styles.add(ParagraphStyle('BulletCustom', fontName='DMSans', fontSize=9.5, leading=14, textColor=GRAFITO, leftIndent=4))
     styles.add(ParagraphStyle('H2White', fontName='DMSans-Bold', fontSize=11.5, textColor=colors.white))
+    styles.add(ParagraphStyle('AnexoCuenta', fontName='DMSans-Bold', fontSize=11.5, textColor=GRAFITO))
+    styles.add(ParagraphStyle('anexoVolver', fontName='DMSans', fontSize=8, textColor=AZUL))
 
     area_color = AREA_COLOR.get(area, BORDEAUX)
 
@@ -721,15 +726,59 @@ def build_area(data, area, mes_label, out_path):
                         fmt_axis=lambda v: f"{v:.1f}x",
                     )
 
+    # ── Anexo: de qué proveedores/movimientos se compone cada rubro de
+    # "Top rubros directos" -- mismo mecanismo y mismas fuentes que el
+    # reporte consolidado (ver el comentario largo de anexo_entries en
+    # build_report.py), aplicado acá a los rubros DIRECTOS de esta área
+    # puntual. OJO: el desglose en sí (gastosLedgerDetalle/Agrupado,
+    # gastosFijosDetalleCuentas) es de la cuenta a nivel TODA LA EMPRESA --
+    # el Sheet no abre el mayor contable por área -- así que no es "lo que
+    # gastó esta área en ese proveedor", es "de qué se compone esa cuenta
+    # en toda la empresa". Se aclara en el título de la sección para no
+    # sugerir una precisión que el dato no tiene.
+    cuentas_detalle = data.get('gastosFijosDetalleCuentas') or {}
+    ledger_detalle = data.get('gastosLedgerDetalle') or {}
+    ledger_agrupado = data.get('gastosLedgerAgrupado') or {}
+    cuentas_por_nombre = {k.strip().lower(): k for k in cuentas_detalle.keys()}
+    ledger_por_nombre = {k.strip().lower(): k for k in ledger_detalle.keys()}
+    anexo_entries = []
+    anexo_reales = {}
+    vistos_lower = set()
+    for r in rubros_suben_area:
+        nl = r['nombre'].strip().lower()
+        if nl in vistos_lower:
+            continue
+        canon = None
+        if nl in ledger_por_nombre and ledger_detalle.get(ledger_por_nombre[nl]):
+            canon = ledger_por_nombre[nl]
+            anexo_entries.append((canon, 'ledger'))
+        elif nl in cuentas_por_nombre and cuentas_detalle.get(cuentas_por_nombre[nl]):
+            canon = cuentas_por_nombre[nl]
+            anexo_entries.append((canon, 'providers'))
+        if canon:
+            vistos_lower.add(nl)
+            anexo_reales[canon] = (r['anterior'], r['actual'])
+    anexo_entries.sort(key=lambda e: e[0])
+    anexo_nombres = {e[0] for e in anexo_entries}
+    nombre_style = ParagraphStyle('rubroNombreArea', fontName='DMSans', fontSize=9.5, textColor=GRAFITO)
+
+    def nombre_cell(nombre):
+        match = ledger_por_nombre.get(nombre.strip().lower()) or cuentas_por_nombre.get(nombre.strip().lower())
+        if match and match in anexo_nombres:
+            html = f'<a href="#{cuenta_slug(match)}" color="{AZUL_HEX}"><u>{nombre}</u></a>'
+            return Paragraph(html, nombre_style)
+        return Paragraph(nombre, nombre_style)
+
     # ── Top rubros DIRECTOS que más subieron en esta área (ya calculado
     # por extract_data.js en rubrosVariacionPorArea), con la misma columna
     # "vs. Histórico" que el reporte consolidado. ──
     if rubros_suben_area:
         with keep_together():
+            story.append(Anchor('sec_top_rubros_directos'))
             section_title("TOP RUBROS DIRECTOS QUE MÁS SUBIERON")
             mes_ant_label = anterior['mes'] if anterior else ''
             mes_act_label = actual['mes']
-            rows = [[r['nombre'], num(r['anterior']), num(r['actual']), var_cell(r['deltaPct']), historico_cell(r)] for r in rubros_suben_area]
+            rows = [[nombre_cell(r['nombre']), num(r['anterior']), num(r['actual']), var_cell(r['deltaPct']), historico_cell(r)] for r in rubros_suben_area]
             data_table(["Rubro", mes_ant_label, mes_act_label, "Variación", "vs. Histórico"], rows,
                        [CONTENT_W - 24 * mm - 24 * mm - 28 * mm - 44 * mm, 24 * mm, 24 * mm, 28 * mm, 44 * mm], var_colidx=3)
             story.append(Paragraph(
@@ -803,6 +852,102 @@ def build_area(data, area, mes_label, out_path):
         with keep_together():
             section_title("EVOLUCIÓN UNIT ECONOMICS · FACTURACIÓN / COMITENTE")
             trend_chart(meses_ue, serie_ue('facturacionMes'), fmt_axis=fmt_axis_usd2)
+
+    # ── Anexo · Detalle de cuentas -- mismo armado que build_report.py
+    # (ver el comentario largo ahí), con el agregado de la aclaración de
+    # que el desglose es a nivel compañía, no solo de esta área (ver el
+    # comentario de más arriba donde se arma anexo_entries). Página nueva,
+    # igual que el consolidado: es la referencia a la que te manda el link
+    # de "Top rubros directos", no una continuación del cuerpo. ──
+    if anexo_entries:
+        story.append(PageBreak())
+        section_title("ANEXO · DETALLE DE CUENTAS")
+        story.append(Paragraph(
+            "De qué proveedores/conceptos se compone cada cuenta de \"Top rubros directos\". Este desglose es "
+            "a nivel de TODA LA EMPRESA (el Sheet no abre el mayor contable por área) -- no es solo lo que "
+            "gastó esta área en esa cuenta. No todas las cuentas tienen este desglose disponible. Tocá el "
+            "nombre de un rubro en la tabla de arriba para volver acá directamente.",
+            styles['NotaChica'],
+        ))
+        story.append(Spacer(1, 4))
+        MAX_FILAS_ANEXO = 10
+
+        def filas_a_mostrar(detalle_list):
+            ordenado = sorted(detalle_list, key=lambda p: abs(p['actual'] - p['anterior']), reverse=True)
+            if len(ordenado) <= MAX_FILAS_ANEXO:
+                return ordenado, None
+            resto = ordenado[MAX_FILAS_ANEXO:]
+            resto_resumen = (len(resto), sum(p['anterior'] for p in resto), sum(p['actual'] for p in resto))
+            return ordenado[:MAX_FILAS_ANEXO], resto_resumen
+
+        mes_ant_label = anterior['mes'] if anterior else ''
+        mes_act_label = actual['mes']
+        for nombre, tipo in anexo_entries:
+            with keep_together():
+                story.append(Spacer(1, 10))
+                story.append(Anchor(cuenta_slug(nombre)))
+                cuenta_t = Table([[Paragraph(nombre, styles['AnexoCuenta'])]], colWidths=[CONTENT_W], rowHeights=[7 * mm])
+                cuenta_t.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+                    ('LINEBEFORE', (0, 0), (0, 0), 3, area_color),
+                    ('LINEBELOW', (0, 0), (-1, 0), 0.6, BORDER),
+                    ('LEFTPADDING', (0, 0), (0, 0), 10),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                story.append(cuenta_t)
+                story.append(Spacer(1, 4))
+                if tipo == 'providers':
+                    detalle_list = cuentas_detalle[nombre]
+                    principales, resto_resumen = filas_a_mostrar(detalle_list)
+                    rows = [[p['nombre'], num(p['anterior']), num(p['actual'])] for p in principales]
+                    if resto_resumen:
+                        n_resto, resto_ant, resto_act = resto_resumen
+                        rows.append([f"+ {n_resto} proveedores más (menor variación)", num(resto_ant), num(resto_act)])
+                    plain_table(["Proveedor / Concepto", mes_ant_label, mes_act_label], rows,
+                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                else:
+                    detalle_list = ledger_agrupado[nombre]
+
+                    def nombre_con_detalle(p):
+                        return f"{p['nombre']} - {p['detalle']}" if p.get('detalle') else p['nombre']
+                    principales, resto_resumen = filas_a_mostrar(detalle_list)
+                    rows = [[nombre_con_detalle(p), num(p['anterior']), num(p['actual'])] for p in principales]
+                    if resto_resumen:
+                        n_resto, resto_ant, resto_act = resto_resumen
+                        rows.append([f"+ {n_resto} proveedores más (menor variación)", num(resto_ant), num(resto_act)])
+                    story.append(Paragraph(
+                        "Movimientos reales del mes, agrupados por proveedor/concepto (convertidos de ARS a "
+                        "USD con el tipo de cambio de cada mes):",
+                        styles['NotaChica'],
+                    ))
+                    story.append(Spacer(1, 2))
+                    plain_table(["Proveedor / Concepto", mes_ant_label, mes_act_label], rows,
+                                [CONTENT_W - 64 * mm, 32 * mm, 32 * mm])
+                # Mismo chequeo de reconciliación que el consolidado, salvo que
+                # acá "el real" es el total de la cuenta a nivel compañía (misma
+                # fuente que el consolidado), así que puede no reconciliar con
+                # el monto de arriba por una razón EXTRA a las del consolidado:
+                # el de arriba es solo lo directo de esta área, el de acá es
+                # toda la empresa -- no reconciliar acá es ESPERABLE, no un
+                # error, así que no se repite esa advertencia por área.
+                real = anexo_reales.get(nombre)
+                if real:
+                    real_ant, real_act = real
+                    sum_ant = sum(p['anterior'] for p in detalle_list)
+                    sum_act = sum(p['actual'] for p in detalle_list)
+                    tol_ant = max(1.0, abs(real_ant) * 0.02)
+                    tol_act = max(1.0, abs(real_act) * 0.02)
+                    if abs(real_ant - sum_ant) > tol_ant or abs(real_act - sum_act) > tol_act:
+                        story.append(Spacer(1, 2))
+                        story.append(Paragraph(
+                            "Nota: el total de arriba es solo el gasto DIRECTO de esta área; este desglose es "
+                            "de la cuenta completa a nivel compañía, así que puede no coincidir.",
+                            ParagraphStyle('anexoNotaArea', fontName='DMSans', fontSize=8, textColor=MUTED),
+                        ))
+                story.append(Paragraph(
+                    '<a href="#sec_top_rubros_directos"><u>&#8593; Volver a "Top rubros directos que más subieron"</u></a>',
+                    styles['anexoVolver'],
+                ))
 
     doc = SimpleDocTemplate(
         out_path, pagesize=(PAGE_W, PAGE_H),
