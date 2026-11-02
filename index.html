@@ -4454,7 +4454,14 @@ function calcFijosVariablesCapN(col,d){
   let fijos=0,variables=0;
   d.rows.forEach(row=>{
     const nom=String(row['']||'').trim();
-    if(!nom||/^(FACTURACI|GASTOS|RESULTADO)/i.test(nom)) return;
+    // "Aranceles ..."/"Otros Ar..." son el desglose de FACTURACIÓN BRUTA
+    // por bróker (un INGRESO), no un gasto -- sin excluirlos acá quedaban
+    // sumados a "Variables", inflándolo (bug real, encontrado en #273 y
+    // corregido ahí mismo para el reporte PDF -- capnConceptos() en
+    // extract_data.js y el filtro de ch-capnan3 un poco más abajo en esta
+    // misma función YA excluyen estas filas -- a esta función se le había
+    // quedado afuera el fix).
+    if(!nom||/^(FACTURACI|GASTOS|RESULTADO|Aranceles|Otros Ar)/i.test(nom)) return;
     const v=cols.reduce((s,c)=>s+(c?parseNum(row[c]||''):0),0);
     if(v===0) return;
     if(FIJOS_CAPN.has(nom)) fijos+=v;
