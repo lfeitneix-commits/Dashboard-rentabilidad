@@ -13,15 +13,15 @@ REPO = Path(__file__).parent
 
 # ---------- LÍDERES POR ÁREA (completá nombre y mail) ----------
 LIDERES = {
-    "Mesa":              {"nombre": "Nacho",   "mail": "lfeit@neix.com.ar"},
-    "FAs":               {"nombre": "Sole",    "mail": "lfeit@neix.com.ar"},
-    "Banca Corporativa": {"nombre": "Facu",  "mail": "lfeit@neix.com.ar"},
-    "Banca Privada":     {"nombre": "Nica", "mail": "lfeit@neix.com.ar"},
-    "Capital N":         {"nombre": "Nica", "mail": "lfeit@neix.com.ar"},
+    "Mesa":              {"nombre": "Nacho",   "mail": "imendiberri@neix.com.ar"},
+    "FAs":               {"nombre": "Sole",    "mail": "ssicouly@neix.com.ar"},
+    "Banca Corporativa": {"nombre": "Facu",  "mail": "fl@neix.com.ar"},
+    "Banca Privada":     {"nombre": "Nica", "mail": "nfurlani@neix.com.ar"},
+    "Capital N":         {"nombre": "Nica", "mail": "nfurlani@neix.com.ar"},
 }
 # Si dos áreas tienen el mismo mail, van juntas en UN solo mail con los dos PDFs.
 # ---------------------------------------------------------------
-CC = [x for x in os.environ.get("MAIL_CC", "").split(",") if x]
+CC = ["lm@neix.com.ar"]
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.office365.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
