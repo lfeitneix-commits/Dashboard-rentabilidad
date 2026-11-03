@@ -11,7 +11,7 @@ from email.message import EmailMessage
 
 REPO = Path(__file__).parent
 
-PARA = ["lfeit@neix.com.ar"]
+PARA = ["lm@neix.com.ar","eg@neix.com.ar"]
 CC = [x for x in os.environ.get("MAIL_CC", "").split(",") if x]
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.office365.com")
