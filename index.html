@@ -5892,7 +5892,7 @@ function initChatIA(){
   const panel=document.createElement('div');
   panel.id='chat-ia-panel';
   panel.className='hidden';
-  panel.innerHTML=`<div class="chat-ia-hd"><span>CELIA · Neix</span><div class="chat-ia-hd-actions">
+  panel.innerHTML=`<div class="chat-ia-hd"><span>NEIA · Neix</span><div class="chat-ia-hd-actions">
       <button type="button" id="chat-ia-historial" aria-label="Historial de conversaciones" title="Historial de conversaciones"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="M8 4.8V8l2.6 1.6"/></svg></button>
       <button type="button" id="chat-ia-nueva" aria-label="Nueva conversación" title="Nueva conversación"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2v12M2 8h12"/></svg></button>
       <button type="button" id="chat-ia-minimizar" aria-label="Minimizar" title="Minimizar"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 8h10"/></svg></button>
@@ -6049,7 +6049,7 @@ function renderMensajesChatIA(){
   const visibles=CHAT_IA.historial.filter(m=>m.role==='user'||m.role==='assistant');
   let html=visibles.length
     ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${renderMensajeChatIA(m.text)}</div>`).join('')
-    : '<div class="chat-ia-msg assistant">Hola, soy CELIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
+    : '<div class="chat-ia-msg assistant">Hola, soy NEIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
   if(CHAT_IA.enviando){
     // Mientras llega la respuesta en vivo (streaming) se va mostrando el
     // texto a medida que se genera, como si lo estuviera tipeando -- recién
