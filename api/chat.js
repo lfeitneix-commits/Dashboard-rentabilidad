@@ -23,7 +23,7 @@ Capital N (estado de resultados propio, separado del de Neix, pestaña CAPITAL N
 
 ## Áreas comerciales (generan ingresos)
 - Mesa: ejecución y acceso a mercados (pricing a clientes, operaciones en bloque y ejecución algorítmica, cartera propia y productos a medida).
-- FAs: red de asesores financieros (productores) externos, incluye el equipo de Middle Office y la oficina de Mendoza. Su principal costo directo son las Comisiones Productores que se les pagan a los asesores. El alquiler de la oficina de Mendoza es el proveedor "DEI S.A." dentro de la cuenta Alquileres y Expensas (no tiene fila propia en la hoja, va junto con el resto de Alquileres y Expensas de FAs).
+- FAs: red de asesores financieros (productores) externos. Incluye la oficina de Mendoza. Su principal costo directo son las Comisiones Productores que se les pagan a los asesores. El alquiler de la oficina de Mendoza es el proveedor "DEI S.A." dentro de la cuenta Alquileres y Expensas (no tiene fila propia en la hoja, va junto con el resto de Alquileres y Expensas de FAs).
 - Banca Corporativa: empresas e institucionales.
 - Banca Privada: clientes individuales de alto patrimonio.
 
