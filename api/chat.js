@@ -111,6 +111,7 @@ Cuando te pidan un reporte de un área o de Neix:
 
 ## Cómo conseguís los datos
 No tenés los números de memoria: los pedís con las herramientas disponibles (KPIs de un mes o consolidado, evolución mensual, ranking de rubros, datos de un área puntual con sus sueldos/fijos/rubros directos, evolución de rubros, gastos y ranking por proveedor, Capital N y su volcado completo, Quant, matriz de prorrateo, tipo de cambio MEP). Para un reporte o comparativo llamalas las veces que haga falta (varios meses, varias áreas) antes de responder, en vez de contestar con lo primero que conseguiste. Nunca des un número sin haberlo consultado primero en esta misma conversación.
+Tenés un límite de pasos (vueltas de ida y vuelta) por pregunta. Si necesitás varios meses de UNA misma área (un trimestre, un semestre, "los últimos N meses"), usá el parámetro "meses" de obtener_datos_area para traerlos TODOS en una sola llamada por área, en vez de llamarla una vez por mes -- esto último agota el límite de pasos antes de poder responder en comparaciones de varias áreas x varios meses (ej. "tercer trimestre vs. segundo por área").
 NUNCA le digas al usuario que no tenés un dato sin antes haber probado los volcados completos disponibles: obtener_eerr_completo (TODAS las filas del EERR de Neix de un mes, con sus notas), obtener_gastos_fijos_completo (si es sobre proveedores o gastos fijos), obtener_capital_n_completo (si es sobre Capital N), obtener_quant_completo (si es sobre Quant) u obtener_matriz_prorrateo (si es sobre cómo se reparte un gasto indirecto entre áreas). Son el respaldo para cualquier pregunta puntual que las demás herramientas no cubran. Solo si después de revisar esos volcados el dato realmente no está, decí que no está disponible.
 Si piden el reporte/PDF/informe de un mes puntual (no un análisis armado por vos, sino EL ARCHIVO), usá obtener_reportes_disponibles y respondé con un link markdown [texto](archivo) al PDF real -- tu respuesta puede llevar links así, se muestran como un botón clickeable.
 Si un monto agregado del EERR mezcla varias cosas y no podés separarlas con las otras herramientas (ej. una cuenta de gasto que junta dos viajes distintos, o cualquier "no sé exactamente cuánto es de X"), probá obtener_mayor_contable antes de darte por vencida: es el movimiento por movimiento de la contabilidad real, buscable por texto en el concepto (ej. "ushuaia"), mucho más granular que cualquier otra herramienta.
@@ -219,19 +220,27 @@ const TOOLS = [
   {
     name: "obtener_datos_area",
     description:
-      "Datos de UNA sola área (Mesa, FAs, Banca Corporativa o Banca Privada) en un mes puntual o " +
-      "\"__consolidado__\": ingresos (Facturación Bruta), gastosIndirectos, egresos, impuestos, " +
-      "resultadoAntesImpuestos y resultado (después de impuestos) -- estos 6 YA incluyen el prorrateo de " +
-      "gastos indirectos entre las 4 áreas -- más gastosDirectos, resultadoDirecto, fijos (costos fijos " +
-      "directos), sueldosTotal (sueldos y CS directos) y topRubrosDirectos (ranking) -- estos 5 son SOLO lo " +
-      "que esa área gasta directamente, sin ese prorrateo. Usar esta herramienta (no obtener_kpis_mes ni " +
-      "obtener_ranking_rubros, que son de toda la compañía) para cualquier pregunta sobre sueldos, gastos, " +
-      "impuestos o resultado de un área puntual. Para un líder de área, solo devuelve datos de su propia " +
-      "área (si pide otra, da error).",
+      "Datos de UNA sola área (Mesa, FAs, Banca Corporativa o Banca Privada) en un mes puntual, en un " +
+      "conjunto de meses sumados (parámetro \"meses\", ej. un trimestre) o en \"__consolidado__\": ingresos " +
+      "(Facturación Bruta), gastosIndirectos, egresos, impuestos, resultadoAntesImpuestos y resultado " +
+      "(después de impuestos) -- estos 6 YA incluyen el prorrateo de gastos indirectos entre las 4 áreas -- " +
+      "más gastosDirectos, resultadoDirecto, fijos (costos fijos directos), sueldosTotal (sueldos y CS " +
+      "directos) y topRubrosDirectos (ranking) -- estos 5 son SOLO lo que esa área gasta directamente, sin " +
+      "ese prorrateo. Usar esta herramienta (no obtener_kpis_mes ni obtener_ranking_rubros, que son de toda " +
+      "la compañía) para cualquier pregunta sobre sueldos, gastos, impuestos o resultado de un área puntual. " +
+      "Para comparar trimestres/semestres o cualquier rango de varios meses por área, pasá \"meses\" con la " +
+      "lista de esos meses en UNA sola llamada por área/período en vez de llamar la herramienta mes por mes " +
+      "-- cada llamada de más consume una vuelta del límite de pasos de la conversación. Para un líder de " +
+      "área, solo devuelve datos de su propia área (si pide otra, da error).",
     input_schema: {
       type: "object",
       properties: {
-        mes: { type: "string", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\"" },
+        mes: { type: "string", description: "Nombre del mes en español (ej. \"Agosto\") o \"__consolidado__\". Se ignora si se pasa \"meses\"." },
+        meses: {
+          type: "array",
+          items: { type: "string" },
+          description: "Lista de meses en español a sumar en esta misma llamada (ej. [\"Julio\",\"Agosto\",\"Septiembre\"] para el tercer trimestre). Preferir esto sobre llamar la herramienta una vez por mes cuando se necesitan varios meses de la misma área.",
+        },
         area: { type: "string", enum: ["Mesa", "FAs", "Banca Corporativa", "Banca Privada"] },
       },
       required: ["mes", "area"],
