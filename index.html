@@ -6245,18 +6245,17 @@ async function ejecutarHerramientaChatIA(name,args){
       return ST.meses.map(m=>({mes:m,...getCapNAgg(m)}));
     }
     case 'obtener_datos_area':{
-      // AREAS ya viene acotado a una sola para un líder de área (ver
-      // aplicarRestriccionesDeRol) -- este chequeo alcanza para que no
-      // pueda pedir datos de otra área, sin tener que leer el rol acá.
-      if(!AREAS.includes(args.area)){
-        return {error:`Área inválida o no disponible para tu rol: "${args.area}". Áreas disponibles: ${AREAS.join(', ')}`};
-      }
-      // "meses" (lista) permite pedir un trimestre/semestre/rango de una sola
-      // área en UNA sola llamada -- sin esto, comparar 2 trimestres por área
-      // necesitaba 1 llamada por mes por área (6 meses x 4 áreas = 24),
-      // superando MAX_VUELTAS (12) y cortando la respuesta a la mitad (bug
-      // real, visto en vivo: "Comparame la rentabilidad del tercer trimestre
-      // contra la del segundo por área" nunca llegaba a cerrar).
+      // "meses" (lista) permite pedir un trimestre/semestre/rango de una
+      // área en UNA sola llamada, y "areas" (lista) permite pedir varias
+      // áreas en UNA sola llamada -- combinados, "2 trimestres x 4 áreas"
+      // se resuelve en 2 llamadas (una por trimestre, con las 4 áreas
+      // adentro) en vez de hasta 24 (una por mes por área). Esto existe
+      // porque depender de que el modelo "decida" batchear por su cuenta
+      // no alcanzaba en la práctica (bug real, visto en vivo dos veces:
+      // "Comparame la rentabilidad del tercer trimestre contra la del
+      // segundo por área" agotaba MAX_VUELTAS igual, aun con "meses" ya
+      // disponible) -- con "areas" la herramienta hace el trabajo de
+      // juntar todo sin depender de que el modelo arme el loop bien.
       const mesesPedidos=Array.isArray(args.meses)&&args.meses.length?args.meses:null;
       const isCons=!mesesPedidos&&args.mes==='__consolidado__';
       let meses;
@@ -6272,65 +6271,94 @@ async function ejecutarHerramientaChatIA(name,args){
           return {error:`No hay datos cargados para "${args.mes}". Meses disponibles: ${ST.meses.join(', ')}`};
         }
       }
-      let ingresos=0,egresos=0,resultado=0,gastosIndirectos=0,impuestos=0,resultadoAntesImpuestos=0;
-      let gastosDirectos=0,fijos=0,sueldosTotal=0;
-      const rubrosAcumulados={};
-      meses.forEach(m=>{
-        const d=ST.mesData[m];
-        if(!d) return;
-        const a=d.agg[args.area]||{ingresos:0};
-        // OJO: NO usar a.resultado/a.gastos_ind/a.egresos acá -- buildAgg los
-        // pisa (gastos_ind=0, resultado=ingresos-gastos_dir) cuando
-        // ST.role==='lideres', porque esa vista es la que usa el dashboard
-        // para NO mostrarle a un líder un "Resultado" que ya incluya el
-        // prorrateo de indirectos. Pero gastosIndirectos/resultadoAntesImpuestos/
-        // impuestos de abajo SÍ salen directo de la hoja (getAreaVal sobre las
-        // filas reales), sin filtrar por rol -- mezclar ambas fuentes daba un
-        // resultado (bug real, encontrado en producción) que ignoraba el
-        // prorrateo de indirectos mientras el resto de los campos de esta
-        // misma respuesta sí lo reflejaban (ingresos-gastosDirectos=559.068
-        // vs. resultadoAntesImpuestos-impuestos=362.596 para Mesa/Enero).
-        ingresos+=a.ingresos;
-        // gastosDirectos sale de la fila "GASTOS DIRECTOS" de la hoja (igual
-        // que gastosIndirectos de arriba), NO de sumar las filas sueltas de
-        // directosLeafRowsChatIA -- esa suma excluye cualquier fila "parent"
-        // que no tenga hijos desglosados para esta área ese mes (para no
-        // contar doble cuando sí los tiene), pero cuando NO hay desglose el
-        // monto vive solo en la fila parent y quedaba afuera (bug real,
-        // encontrado en producción: FAs/Mayo subestimaba gastosDirectos en
-        // USD 6.403,48 porque "Viajes" no tenía hijos ese mes y se
-        // descartaba entera). directosLeafRowsChatIA se sigue usando solo
-        // para el desglose de topRubrosDirectos, no para el total.
-        gastosDirectos+=getAreaVal(d.directosRow,args.area);
-        gastosIndirectos+=getAreaVal(d.indirectosRow,args.area);
-        impuestos+=getAreaVal(d.impuestosRow,args.area);
-        resultadoAntesImpuestos+=getAreaVal(d.resAntesRow,args.area);
-        directosLeafRowsChatIA(m).forEach(r=>{
-          const v=getAreaVal(r,args.area);
-          if(!v) return;
-          rubrosAcumulados[r._nom]=(rubrosAcumulados[r._nom]||0)+v;
+      const periodoLabel=mesesPedidos?mesesPedidos.join(' + '):args.mes;
+
+      // Calcula los datos de UNA área para los "meses" ya resueltos arriba
+      // -- misma lógica de siempre, solo separada en función para poder
+      // repetirla por cada área pedida sin duplicar el código.
+      function calcularDatosArea(area){
+        let ingresos=0,gastosIndirectos=0,impuestos=0,resultadoAntesImpuestos=0;
+        let gastosDirectos=0,fijos=0,sueldosTotal=0;
+        const rubrosAcumulados={};
+        meses.forEach(m=>{
+          const d=ST.mesData[m];
+          if(!d) return;
+          const a=d.agg[area]||{ingresos:0};
+          // OJO: NO usar a.resultado/a.gastos_ind/a.egresos acá -- buildAgg los
+          // pisa (gastos_ind=0, resultado=ingresos-gastos_dir) cuando
+          // ST.role==='lideres', porque esa vista es la que usa el dashboard
+          // para NO mostrarle a un líder un "Resultado" que ya incluya el
+          // prorrateo de indirectos. Pero gastosIndirectos/resultadoAntesImpuestos/
+          // impuestos de abajo SÍ salen directo de la hoja (getAreaVal sobre las
+          // filas reales), sin filtrar por rol -- mezclar ambas fuentes daba un
+          // resultado (bug real, encontrado en producción) que ignoraba el
+          // prorrateo de indirectos mientras el resto de los campos de esta
+          // misma respuesta sí lo reflejaban (ingresos-gastosDirectos=559.068
+          // vs. resultadoAntesImpuestos-impuestos=362.596 para Mesa/Enero).
+          ingresos+=a.ingresos;
+          // gastosDirectos sale de la fila "GASTOS DIRECTOS" de la hoja (igual
+          // que gastosIndirectos de arriba), NO de sumar las filas sueltas de
+          // directosLeafRowsChatIA -- esa suma excluye cualquier fila "parent"
+          // que no tenga hijos desglosados para esta área ese mes (para no
+          // contar doble cuando sí los tiene), pero cuando NO hay desglose el
+          // monto vive solo en la fila parent y quedaba afuera (bug real,
+          // encontrado en producción: FAs/Mayo subestimaba gastosDirectos en
+          // USD 6.403,48 porque "Viajes" no tenía hijos ese mes y se
+          // descartaba entera). directosLeafRowsChatIA se sigue usando solo
+          // para el desglose de topRubrosDirectos, no para el total.
+          gastosDirectos+=getAreaVal(d.directosRow,area);
+          gastosIndirectos+=getAreaVal(d.indirectosRow,area);
+          impuestos+=getAreaVal(d.impuestosRow,area);
+          resultadoAntesImpuestos+=getAreaVal(d.resAntesRow,area);
+          directosLeafRowsChatIA(m).forEach(r=>{
+            const v=getAreaVal(r,area);
+            if(!v) return;
+            rubrosAcumulados[r._nom]=(rubrosAcumulados[r._nom]||0)+v;
+          });
+          fijos+=calcFijosVariables(m,area).fijos;
+          sueldosTotal+=sueldosTotalDePeriodo(m,area);
         });
-        fijos+=calcFijosVariables(m,args.area).fijos;
-        sueldosTotal+=sueldosTotalDePeriodo(m,args.area);
-      });
-      resultado=resultadoAntesImpuestos-impuestos;
-      egresos=ingresos-resultado;
-      const topRubrosDirectos=Object.entries(rubrosAcumulados)
-        .sort((x,y)=>y[1]-x[1]).slice(0,8)
-        .map(([nombre,monto])=>({nombre,monto}));
-      return {
-        area:args.area, mes:mesesPedidos?mesesPedidos.join(' + '):args.mes, meses,
-        ingresos, gastosIndirectos, egresos, resultadoAntesImpuestos, impuestos,
-        resultado,
-        gastosDirectos, resultadoDirecto:ingresos-gastosDirectos,
-        fijos, sueldosTotal,
-        topRubrosDirectos,
-        nota:'ingresos/egresos/gastosIndirectos/resultadoAntesImpuestos/impuestos/resultado (resultado = ' +
-          'después de impuestos) incluyen el prorrateo de gastos indirectos entre las 4 áreas; ' +
-          'gastosDirectos/resultadoDirecto/fijos/sueldosTotal/topRubrosDirectos son SOLO lo que esta área ' +
-          'gasta directamente, sin ese prorrateo (no hay todavía un criterio de prorrateo de impuestos por ' +
-          'área definido aparte del ya incluido en impuestos/resultadoAntesImpuestos).',
-      };
+        const resultado=resultadoAntesImpuestos-impuestos;
+        const egresos=ingresos-resultado;
+        const topRubrosDirectos=Object.entries(rubrosAcumulados)
+          .sort((x,y)=>y[1]-x[1]).slice(0,8)
+          .map(([nombre,monto])=>({nombre,monto}));
+        return {
+          area, mes:periodoLabel, meses,
+          ingresos, gastosIndirectos, egresos, resultadoAntesImpuestos, impuestos,
+          resultado,
+          gastosDirectos, resultadoDirecto:ingresos-gastosDirectos,
+          fijos, sueldosTotal,
+          topRubrosDirectos,
+        };
+      }
+
+      const NOTA_CAMPOS='ingresos/egresos/gastosIndirectos/resultadoAntesImpuestos/impuestos/resultado (resultado = ' +
+        'después de impuestos) incluyen el prorrateo de gastos indirectos entre las 4 áreas; ' +
+        'gastosDirectos/resultadoDirecto/fijos/sueldosTotal/topRubrosDirectos son SOLO lo que esa área ' +
+        'gasta directamente, sin ese prorrateo (no hay todavía un criterio de prorrateo de impuestos por ' +
+        'área definido aparte del ya incluido en impuestos/resultadoAntesImpuestos).';
+
+      const areasPedidas=Array.isArray(args.areas)&&args.areas.length?args.areas:null;
+      if(areasPedidas){
+        // AREAS ya viene acotado a una sola para un líder de área (ver
+        // aplicarRestriccionesDeRol) -- este chequeo alcanza para que no
+        // pueda pedir datos de otra área, sin tener que leer el rol acá.
+        const noPermitidas=areasPedidas.filter(a=>!AREAS.includes(a));
+        if(noPermitidas.length){
+          return {error:`Área inválida o no disponible para tu rol: ${noPermitidas.map(a=>`"${a}"`).join(', ')}. Áreas disponibles: ${AREAS.join(', ')}`};
+        }
+        return {
+          periodo:periodoLabel, meses,
+          porArea:areasPedidas.map(calcularDatosArea),
+          nota:NOTA_CAMPOS,
+        };
+      }
+
+      if(!AREAS.includes(args.area)){
+        return {error:`Área inválida o no disponible para tu rol: "${args.area}". Áreas disponibles: ${AREAS.join(', ')}`};
+      }
+      return {...calcularDatosArea(args.area), nota:NOTA_CAMPOS};
     }
     case 'obtener_tipo_cambio':{
       const isCons=args.mes==='__consolidado__';
