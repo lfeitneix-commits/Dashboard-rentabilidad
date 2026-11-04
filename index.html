@@ -275,6 +275,7 @@ tbody tr[style*="display: none"],tbody tr[style*="display:none"]{visibility:hidd
 .chat-ia-table thead{background:var(--crema);font-weight:600;font-family:'DM Sans',sans-serif}
 .chat-ia-table tbody tr:nth-child(even){background:var(--crema)}
 .chat-ia-typing{align-self:flex-start;font-size:12px;color:var(--muted);font-style:italic}
+.chat-ia-paso{align-self:flex-start;font-size:12px;color:var(--muted)}
 .chat-ia-ft{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:#fff;flex-shrink:0;align-items:flex-end}
 .chat-ia-ft textarea{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;min-width:0;resize:none;max-height:140px;overflow-y:auto;line-height:1.4}
 .chat-ia-ft textarea:focus{border-color:var(--bordeaux)}
@@ -5747,7 +5748,7 @@ document.getElementById('logout-btn').addEventListener('click',()=>location.relo
 // que necesita -- ver TOOLS en api/chat.js -- y acá abajo
 // (ejecutarHerramientaChatIA) se la resolvemos contra ST, que es donde
 // viven los datos reales (el servidor no los tiene).
-const CHAT_IA={abierto:false,historial:[],enviando:false,streamText:'',sesionId:null,sesiones:[],vista:'chat',historialQuery:'',minimizado:false};
+const CHAT_IA={abierto:false,historial:[],enviando:false,streamText:'',pasos:[],sesionId:null,sesiones:[],vista:'chat',historialQuery:'',minimizado:false};
 const CHAT_IA_SESIONES_KEY='celia_sesiones';
 const CHAT_IA_MAX_SESIONES=30;
 function nuevaSesionIdChatIA(){
@@ -6051,6 +6052,12 @@ function renderMensajesChatIA(){
     ? visibles.map(m=>`<div class="chat-ia-msg ${m.role==='user'?'user':(m.error?'error':'assistant')}">${renderMensajeChatIA(m.text)}</div>`).join('')
     : '<div class="chat-ia-msg assistant">Hola, soy NEIA, la asistente de controlling de Neix. Preguntame sobre la rentabilidad y los costos del dashboard.</div>';
   if(CHAT_IA.enviando){
+    // En una pregunta que encadena varias llamadas a herramientas (ver
+    // MAX_VUELTAS en enviarMensajeChatIA), se va mostrando qué ya se buscó
+    // en cada vuelta anterior -- así una pregunta "pesada" se ve construirse
+    // paso a paso en vez de quedar con un "Pensando..." fijo y sin
+    // información hasta que esté lista toda la respuesta.
+    html+=CHAT_IA.pasos.map(p=>`<div class="chat-ia-paso">✓ ${escapeHtmlChatIA(p)}</div>`).join('');
     // Mientras llega la respuesta en vivo (streaming) se va mostrando el
     // texto a medida que se genera, como si lo estuviera tipeando -- recién
     // si todavía no llegó ni una palabra (por ejemplo, mientras se ejecuta
@@ -6067,6 +6074,37 @@ function renderMensajesChatIA(){
 }
 function rolChatIA(){
   return {esArea:ST.role==='lideres'&&!!ST.area,area:ST.area||null};
+}
+// Etiqueta en criollo de qué está buscando cada llamada a herramienta, para
+// mostrar en el chat mientras se resuelve una pregunta de varios pasos (ver
+// CHAT_IA.pasos en enviarMensajeChatIA) -- sin esto, una pregunta que
+// encadena 3 o 4 llamadas se veía como un "Pensando..." fijo sin ningún
+// indicio de que se estaba avanzando.
+function etiquetaPasoChatIA(nombre,args){
+  args=args||{};
+  const periodo=Array.isArray(args.meses)&&args.meses.length?args.meses.join(' + '):(args.mes||null);
+  const area=Array.isArray(args.areas)&&args.areas.length?args.areas.join(', '):(args.area||null);
+  const conArea=area?` de ${area}`:'';
+  const conPeriodo=periodo&&periodo!=='__consolidado__'?` (${periodo})`:'';
+  switch(nombre){
+    case 'obtener_kpis_mes': return `KPIs${conPeriodo}`;
+    case 'obtener_evolucion_mensual': return 'Evolución mensual';
+    case 'obtener_ranking_rubros': return `Ranking de rubros${conPeriodo}`;
+    case 'buscar_gasto_por_proveedor': return `Buscando gasto de "${args.nombre||'proveedor'}"`;
+    case 'obtener_ranking_proveedores': return 'Ranking de proveedores';
+    case 'obtener_evolucion_rubros': return 'Evolución de rubros';
+    case 'obtener_capital_n': return `Datos de Capital N${conPeriodo}`;
+    case 'obtener_datos_area': return `Datos${conArea}${conPeriodo}`;
+    case 'obtener_tipo_cambio': return `Tipo de cambio${conPeriodo}`;
+    case 'obtener_eerr_completo': return `EERR completo${conPeriodo}`;
+    case 'obtener_gastos_fijos_completo': return 'Gastos fijos';
+    case 'obtener_capital_n_completo': return `Capital N completo${conPeriodo}`;
+    case 'obtener_quant_completo': return `Datos de Quant${conPeriodo}`;
+    case 'obtener_matriz_prorrateo': return 'Matriz de prorrateo';
+    case 'obtener_reportes_disponibles': return 'Buscando reportes disponibles';
+    case 'obtener_mayor_contable': return `Mayor contable${args.concepto?` ("${args.concepto}")`:''}${conPeriodo}`;
+    default: return nombre;
+  }
 }
 // Ejecuta del lado del dashboard la herramienta que Gemini pidió. El
 // backend (api/chat.js) ya filtra qué herramientas puede llegar a pedir
@@ -6735,6 +6773,7 @@ async function enviarMensajeChatIA(){
   ajustarAlturaInputChatIA();
   CHAT_IA.historial.push({role:'user',text:texto});
   CHAT_IA.enviando=true;
+  CHAT_IA.pasos=[];
   const sendBtn=document.getElementById('chat-ia-send');
   if(sendBtn) sendBtn.disabled=true;
   input.disabled=true;
@@ -6756,6 +6795,8 @@ async function enviarMensajeChatIA(){
         // mensaje propio -- ya se lo mostró en vivo, no tendría sentido
         // hacerlo desaparecer.
         if(textoVuelta) CHAT_IA.historial.push({role:'assistant',text:textoVuelta});
+        CHAT_IA.pasos.push(etiquetaPasoChatIA(toolCall.name,toolCall.args));
+        renderMensajesChatIA();
         // id/thoughtSignature son detalles propios de cada proveedor (Claude
         // usa id para emparejar el tool_use con su tool_result, Gemini usa
         // thoughtSignature) -- se guardan tal cual en el turno y el backend
@@ -6783,6 +6824,7 @@ async function enviarMensajeChatIA(){
   }
   CHAT_IA.enviando=false;
   CHAT_IA.streamText='';
+  CHAT_IA.pasos=[];
   if(sendBtn) sendBtn.disabled=false;
   input.disabled=false;
   renderMensajesChatIA();
