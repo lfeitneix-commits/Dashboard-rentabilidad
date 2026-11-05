@@ -781,10 +781,14 @@ const QUANT_HARDWARE={
 };
 // Obra sin fecha por ítem — se convierte con el promedio de los 6 meses del período.
 const QUANT_OBRA_ARS=65877000.00;
-// Gastos únicos/no mensuales de Quant (obra + FPGA + Codex) -- única fuente
-// para la pestaña Quant (extraBox) y el tool de CELIA obtener_quant_completo,
+// Gastos únicos/no mensuales de Quant (obra + FPGA + el acumulado histórico
+// de Codex previo a que pasara a suscripción mensual) -- única fuente para
+// la pestaña Quant (extraBox) y el tool de CELIA obtener_quant_completo,
 // que antes tenían cada uno su propia copia idéntica-por-casualidad de esta
-// lista (mismo riesgo que CAPN_FIJOS_SET -- ver #392/auditoría).
+// lista (mismo riesgo que CAPN_FIJOS_SET -- ver #392/auditoría). El costo
+// mensual de Codex en sí (Suscripciones x 6, desde Agosto 2026) vive en
+// QUANT_SERVICIOS, junto con el resto de los servicios recurrentes -- antes
+// estaba acá y no sumaba a "Gastos Totales" de ningún mes.
 function quantGastosUnicosNoMensuales(){
   const mesesObra=['Enero','Febrero','Marzo','Abril','Mayo','Junio'];
   const tcPromObra=mesesObra.reduce((s,m)=>s+QUANT_TC_MENSUAL[m],0)/mesesObra.length;
@@ -794,8 +798,7 @@ function quantGastosUnicosNoMensuales(){
     {concepto:'Obra - Oficina Quant (Cámaras y controles de acceso)',importe:2400.00,periodo:'por única vez'},
     {concepto:'Placa FPGA',importe:3464.00,periodo:'en Aduana'},
     {concepto:'Placa FPGA',importe:2345.00,periodo:'en camino'},
-    {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'acumulado Marzo–Julio 2026'},
-    {concepto:'OpenAI – Codex (Suscripciones x 6)',importe:1200.00,periodo:'recurrente mensual desde Agosto 2026'},
+    {concepto:'OpenAI – Codex (AMEX Administración)',importe:36426.54,periodo:'acumulado Marzo–Julio 2026, previo a la suscripción mensual'},
   ];
 }
 const QUANT_SERVICIOS={
@@ -808,8 +811,9 @@ const QUANT_SERVICIOS={
     {servicio:'Beeks',costo:360.00,desde:'Ene 2026',obs:'VPS'},
     {servicio:'Colocation BYMA',costo:2048.00,desde:'Ene 2026',obs:'½ rack en BYMA'},
     {servicio:'Cirion Enlace',costo:700.00,desde:'Proyectado',obs:'Enlace dedicado COLOCATION ↔ BEEKS (en proceso de instalación)'},
+    {servicio:'OpenAI – Codex (Suscripciones x 6)',costo:1200.00,desde:'Agosto 2026',obs:'6 suscripciones ChatGPT/Codex del equipo de Quant'},
   ],
-  total:4253.00,
+  total:5453.00,
 };
 const AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
 const TODAS_AREAS=['Mesa','FAs','Banca Corporativa','Banca Privada'];
@@ -3945,19 +3949,19 @@ function buildQuantInversionInicialHtml(){
   // Se separa en dos grupos -- una compra de hardware/obra es plata que ya
   // salió una vez y no vuelve a salir; un servicio/suscripción es plata que
   // sigue saliendo todos los meses. Mezclarlos en una sola lista no deja ver
-  // cuál es el compromiso real hacia adelante. Los 4 ítems "únicos" y los 2
-  // "recurrentes" salen de quantGastosUnicosNoMensuales() (única fuente,
-  // compartida con la pestaña Quant y el tool de CELIA).
-  const [obraItem,camarasItem,fpga1Item,fpga2Item,codexAmexItem,codexSuscItem]=quantGastosUnicosNoMensuales();
+  // cuál es el compromiso real hacia adelante. Los 4 ítems "únicos" y el
+  // acumulado histórico de Codex salen de quantGastosUnicosNoMensuales()
+  // (única fuente, compartida con la pestaña Quant y el tool de CELIA); el
+  // costo mensual de Codex ya está adentro de QUANT_SERVICIOS.total.
+  const [obraItem,camarasItem,fpga1Item,fpga2Item,codexAmexItem]=quantGastosUnicosNoMensuales();
   const RESUMEN_ITEMS=[
     {concepto:'Total Hardware adquirido',importe:totalHardwareUsd,periodo:'Ene–Ago 2026, TC de cada mes de compra',tipo:'unica'},
     {...obraItem,tipo:'unica'},
     {...camarasItem,tipo:'unica'},
     {...fpga1Item,tipo:'unica'},
     {...fpga2Item,tipo:'unica'},
-    {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion)',tipo:'recurrente'},
+    {concepto:'Servicios de infraestructura (mensual)',importe:QUANT_SERVICIOS.total,periodo:'Recurrente mensual (incluido Cirion y Codex)',tipo:'recurrente'},
     {...codexAmexItem,tipo:'recurrente'},
-    {...codexSuscItem,tipo:'recurrente'},
   ];
   const resumenRowHTML=r=>`<tr>
       <td style="font-size:12px;font-weight:500">${r.concepto}</td>
@@ -4980,13 +4984,14 @@ function rebuildQuant(){
   // convierte con el TC promedio de Ene-Jun, FPGA todavía no tiene fecha
   // de llegada) -- mismos 4 ítems que "Inversión Inicial", se muestran
   // aparte y fijos, sin variar según el mes/Consolidado elegido arriba,
-  // porque no se pueden atribuir de forma justa a un solo mes. Costos
-  // recurrentes (Codex) que no vienen con fecha mensual propia (son montos
-  // acumulados de un rango de meses, no un valor por mes como Costo
-  // Laboral/Infraestructura) -- también aparte, fijos. Los 6 ítems salen de
+  // porque no se pueden atribuir de forma justa a un solo mes. El acumulado
+  // histórico de Codex (previo a que pasara a suscripción mensual, un monto
+  // de un rango de meses, no un valor por mes) va aparte por el mismo
+  // motivo -- el costo mensual de Codex en sí ya está en QUANT_SERVICIOS y
+  // SÍ suma a "Gastos totales" de arriba. Los 5 ítems salen de
   // quantGastosUnicosNoMensuales() (única fuente, compartida con el tool de
   // CELIA y con "Resumen Quant" más arriba en esta pantalla).
-  const [OBRA_FPGA_ITEMS,CODEX_ITEMS]=(()=>{
+  const [OBRA_FPGA_ITEMS,CODEX_HISTORICO_ITEMS]=(()=>{
     const todos=quantGastosUnicosNoMensuales();
     return[todos.slice(0,4),todos.slice(4)];
   })();
@@ -5002,7 +5007,7 @@ function rebuildQuant(){
     vistaPills+
     `</div>`+html+`<div style="padding:0 32px 24px">`+
     extraBox('Gastos únicos (no mensuales)',OBRA_FPGA_ITEMS)+
-    extraBox('Otros costos recurrentes (montos acumulados)',CODEX_ITEMS)+
+    extraBox('Codex -- acumulado histórico (previo a la suscripción mensual)',CODEX_HISTORICO_ITEMS)+
     `</div>`;
 }
 

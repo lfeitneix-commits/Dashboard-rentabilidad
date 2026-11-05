@@ -326,8 +326,9 @@ const TOOLS = [
     name: "obtener_quant_completo",
     description:
       "Costos de Quant (centro de costo de trading cuantitativo, no factura): costo laboral, servicios de " +
-      "infraestructura y hardware de un mes puntual o consolidado, más los gastos únicos (obra, FPGA, Codex) " +
-      "que no se prorratean por mes. Solo disponible para acceso completo o líder de Mesa.",
+      "infraestructura (incluye Codex, suscripción mensual) y hardware de un mes puntual o consolidado, más " +
+      "los gastos únicos de obra/FPGA y el acumulado histórico de Codex previo a la suscripción mensual, que " +
+      "no se prorratean por mes. Solo disponible para acceso completo o líder de Mesa.",
     input_schema: {
       type: "object",
       properties: {
