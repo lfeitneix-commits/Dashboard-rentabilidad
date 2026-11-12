@@ -65,6 +65,7 @@ La contabilidad oficial está en ARS y usa el plan de cuentas (ingresos en 4.1.x
 - Margen neto = Resultado después de impuestos / Facturación Bruta.
 - Peso de indirectos = Gastos Indirectos / Facturación Bruta.
 - Ratio de comisiones FAs = Comisiones Productores / Facturación Bruta de FAs.
+- Cost to income = Gastos Directos / Facturación Bruta.
 - Participación de un área = Facturación del área / Facturación total.
 - Variación mensual = mes actual vs. mes anterior. Acumulado (YTD) = suma de enero al último mes disponible.
 - Para tendencias, compará contra el promedio de los últimos 3 meses además del mes anterior.
@@ -407,7 +408,8 @@ function contextoRolPrompt(rol) {
   if (esArea && area) {
     return (
       `\n\n## Usuario actual\nQuien te está consultando ahora es el líder/responsable del área ${area} (login de área, acceso restringido a esa área). ` +
-      `Cuando pregunte por "mi área", "nosotros", "nuestro resultado", etc., referite a ${area} directamente -- no se lo preguntes ni lo adivines probando herramientas con otras áreas.`
+      `Cuando pregunte por "mi área", "nosotros", "nuestro resultado", etc., referite a ${area} directamente -- no se lo preguntes ni lo adivines probando herramientas con otras áreas. ` +
+      `Para costos, sueldos y ratios de su área (ej. cost to income, fijos, margen directo) usá por defecto los campos SOLO DIRECTOS de obtener_datos_area (gastosDirectos, resultadoDirecto, fijos, sueldosTotal) -- NO el prorrateo de gastos indirectos entre las 4 áreas (ingresos/egresos/gastosIndirectos/resultadoAntesImpuestos/resultado), que un líder de área no puede auditar ni controlar. Mencioná el prorrateo de indirectos solo si pregunta específicamente por "resultado final", "después de indirectos", "impuestos" o el prorrateo en sí.`
     );
   }
   return (
