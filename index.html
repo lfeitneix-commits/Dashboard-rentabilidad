@@ -2639,15 +2639,18 @@ function renderAnalisis(){
   const ratioFijos=tI?(fv.fijos/tI*100):0;
   const suelTot=sueldosTotalDePeriodo(mes);
   const ratioSueldos=tI?(suelTot/tI*100):0;
+  // Cost to income: igual en cualquier área (o consolidado para acceso
+  // completo) -- a diferencia de los otros dos ratios de abajo, que por
+  // ahora solo tienen sentido pedido/validado para FAs.
+  const totalDirectos=AREAS.reduce((s,a)=>s+(agg[a]?.gastos_dir||0),0);
+  const ratioCostToIncome=tI?(totalDirectos/tI*100):0;
 
   // Ratios pedidos puntualmente por la líder de FAs -- por ahora solo se
   // muestran en su vista (no hay todavía un criterio definido para el
   // resto de las áreas).
   const esFAs=ST.role==='lideres'&&ST.area==='FAs';
-  let ratioCostToIncome=0,ratioComisiones=0,ratioFijosIngNetos=0;
+  let ratioComisiones=0,ratioFijosIngNetos=0;
   if(esFAs){
-    const totalDirectos=AREAS.reduce((s,a)=>s+(agg[a]?.gastos_dir||0),0);
-    ratioCostToIncome=tI?(totalDirectos/tI*100):0;
     const comisionesTot=comisionesProductoresDePeriodo(mes);
     ratioComisiones=tI?(comisionesTot/tI*100):0;
     const ingresosNetos=tI-comisionesTot;
@@ -2758,18 +2761,18 @@ function renderAnalisis(){
   const coberturaFijos=fv.fijos>0?+(tI/fv.fijos).toFixed(2):0;
   const eficiencia=tI-tR>0?+(tR/(tI-tR)*100).toFixed(1):0;
   return`<div class="sec-hd"><div class="sec-title">Análisis Neix</div><div class="sec-sub">${label} · USD</div></div>
-  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
     <div class="kc"><div class="kl">MARGEN NETO</div><div class="kv ${sgn(margen)}">${margen.toFixed(1)}%</div><div class="kh">Resultado / Facturación</div></div>
     <div class="kc"><div class="kl">COSTOS FIJOS / FACT.</div><div class="kv">${ratioFijos.toFixed(1)}%</div><div class="kh">Fijos sobre ingresos</div></div>
     <div class="kc"><div class="kl">SUELDOS / FACT.</div><div class="kv">${ratioSueldos.toFixed(1)}%</div><div class="kh">Sueldos y CS sobre ingresos</div></div>
+    <div class="kc"><div class="kl">COST TO INCOME</div><div class="kv">${ratioCostToIncome.toFixed(1)}%</div><div class="kh">Gastos directos / Facturación</div></div>
   </div>
   <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:28px">
     <div class="kc"><div class="kl">COBERTURA DE FIJOS</div><div class="kv">${coberturaFijos}x</div><div class="kh">Facturación / Costos fijos</div></div>
     <div class="kc"><div class="kl">EFICIENCIA</div><div class="kv ${sgn(eficiencia)}">${eficiencia}%</div><div class="kh">Resultado / Egresos</div></div>
     <div class="kc"><div class="kl">RESULTADO OPERATIVO</div><div class="kv ${sgn(tR)}">${$c(tR,true)}</div><div class="kh">Resultado neto total</div></div>
   </div>
-  ${esFAs?`<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:28px">
-    <div class="kc"><div class="kl">COST TO INCOME</div><div class="kv">${ratioCostToIncome.toFixed(1)}%</div><div class="kh">Gastos directos / Facturación</div></div>
+  ${esFAs?`<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:28px">
     <div class="kc"><div class="kl">COMISIONES PRODUCTORES / FACT.</div><div class="kv">${ratioComisiones.toFixed(1)}%</div><div class="kh">Comisiones Productores sobre ingresos</div></div>
     <div class="kc"><div class="kl">FIJOS / ING. NETOS</div><div class="kv">${ratioFijosIngNetos.toFixed(1)}%</div><div class="kh">Fijos / (Facturación − Comisiones Productores)</div></div>
   </div>`:''}
