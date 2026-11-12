@@ -72,6 +72,7 @@ code += `
 this.__APP__ = {
   ST, AREAS, getAreaVal, getClasifRubrosRanking, loadData, loadGastosFijosDetalleLazy, parseNum,
   BASE, SHEETS, parseCSV, getCapNAgg, calcFijosVariables, sueldosTotalDePeriodo,
+  comisionesProductoresDePeriodo,
 };`;
 const context = vm.createContext(sandbox);
 vm.runInContext(code, context, { filename: 'index.html#script' });
@@ -935,11 +936,16 @@ const APP = context.__APP__;
     // areaOverride, ver index.html) -- sin el prorrateo de indirectos entre
     // las 4 áreas, mismo criterio que kpiTrendPorArea. Alimenta los ratios
     // (Costos Fijos/Fact., Sueldos/Fact., Cobertura de Fijos, Eficiencia) del
-    // reporte por área (build_report_area.py).
+    // reporte por área (build_report_area.py). "comisiones" (Comisiones
+    // Productores, con areaOverride -- comisionesProductoresDePeriodo, mismo
+    // patrón que sueldosTotalDePeriodo) alimenta los 2 ratios extra de FAs
+    // (Comisiones Productores/Fact. y Fijos/Ingresos netos); da 0 para el
+    // resto de las áreas, que no tienen esta cuenta.
     ratiosTrendPorArea: Object.fromEntries(AREAS_.map(a => [a, mesesTrend.map(m => ({
       mes: m,
       fijos: APP.calcFijosVariables(m, a).fijos,
       sueldosTotal: APP.sueldosTotalDePeriodo(m, a),
+      comisiones: APP.comisionesProductoresDePeriodo(m, a),
     }))])),
     gastosTotalesActual: areaVals(mesActual, 'gastosTotalesRow'),
     gastosTotalesAnterior: mesAnterior ? areaVals(mesAnterior, 'gastosTotalesRow') : null,
