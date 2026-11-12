@@ -2640,6 +2640,20 @@ function renderAnalisis(){
   const suelTot=sueldosTotalDePeriodo(mes);
   const ratioSueldos=tI?(suelTot/tI*100):0;
 
+  // Ratios pedidos puntualmente por la líder de FAs -- por ahora solo se
+  // muestran en su vista (no hay todavía un criterio definido para el
+  // resto de las áreas).
+  const esFAs=ST.role==='lideres'&&ST.area==='FAs';
+  let ratioCostToIncome=0,ratioComisiones=0,ratioFijosIngNetos=0;
+  if(esFAs){
+    const totalDirectos=AREAS.reduce((s,a)=>s+(agg[a]?.gastos_dir||0),0);
+    ratioCostToIncome=tI?(totalDirectos/tI*100):0;
+    const comisionesTot=comisionesProductoresDePeriodo(mes);
+    ratioComisiones=tI?(comisionesTot/tI*100):0;
+    const ingresosNetos=tI-comisionesTot;
+    ratioFijosIngNetos=ingresosNetos?(fv.fijos/ingresosNetos*100):0;
+  }
+
   // Gasto fijo que más aumentó (solo consolidado — comparar último mes vs penúltimo)
   let gastoMayorAumento='';
   if(isCons&&ST.meses.length>=2){
@@ -2754,6 +2768,11 @@ function renderAnalisis(){
     <div class="kc"><div class="kl">EFICIENCIA</div><div class="kv ${sgn(eficiencia)}">${eficiencia}%</div><div class="kh">Resultado / Egresos</div></div>
     <div class="kc"><div class="kl">RESULTADO OPERATIVO</div><div class="kv ${sgn(tR)}">${$c(tR,true)}</div><div class="kh">Resultado neto total</div></div>
   </div>
+  ${esFAs?`<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:28px">
+    <div class="kc"><div class="kl">COST TO INCOME</div><div class="kv">${ratioCostToIncome.toFixed(1)}%</div><div class="kh">Gastos directos / Facturación</div></div>
+    <div class="kc"><div class="kl">COMISIONES PRODUCTORES / FACT.</div><div class="kv">${ratioComisiones.toFixed(1)}%</div><div class="kh">Comisiones Productores sobre ingresos</div></div>
+    <div class="kc"><div class="kl">FIJOS / ING. NETOS</div><div class="kv">${ratioFijosIngNetos.toFixed(1)}%</div><div class="kh">Fijos / (Facturación − Comisiones Productores)</div></div>
+  </div>`:''}
   ${chartsHtml}
   `;
 }
@@ -4051,6 +4070,31 @@ function sueldosTotalDePeriodo(mes,areaOverride){
       const nom=String(row['']||row[md.nameCol]||'').trim();
       if(!nom||PNAMES.has(nom))return;
       if(!/^Sueldos y CS/i.test(nom))return;
+      tot+=areaOverride?getAreaVal(row,areaOverride):AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
+    });
+  });
+  return tot;
+}
+
+// Mismo patrón que sueldosTotalDePeriodo -- NO reusa calcCostosBarMes()
+// (que para esto usa ST.clasifRubros, un total de TODA la empresa sin
+// desglose por área) porque esa cuenta no está acotada por líder de área
+// todavía (hoy no importa porque la pestaña que la usa no es visible para
+// líderes, pero generaría el mismo bug que el de sueldosTotalDePeriodo en
+// cuanto alguna pantalla de líder la llame). Para ratios en la pantalla de
+// una líder, calcular siempre fila por fila con filasDirectasLideres.
+function comisionesProductoresDePeriodo(mes,areaOverride){
+  const isCons=mes==='__consolidado__';
+  const meses=isCons?ST.meses:[mes];
+  let tot=0;
+  meses.forEach(m=>{
+    const md=ST.mesData[m];if(!md)return;
+    const filas=areaOverride?filasSoloDirectas(md):filasDirectasLideres(md);
+    filas.forEach(row=>{
+      const nom=String(row['']||row[md.nameCol]||'').trim();
+      if(nom!=='Comisiones Productores')return;
+      const note=String(row._allNotes||'').trim();
+      if(/ya\s+descontado|incluido\s+fac/i.test(note))return;
       tot+=areaOverride?getAreaVal(row,areaOverride):AREAS.reduce((s,a)=>s+getAreaVal(row,a),0);
     });
   });
