@@ -660,18 +660,45 @@ def build_area(data, area, mes_label, out_path):
             ]))
             story.append(fila1)
             story.append(Spacer(1, 4))
+            # Cost to income: igual en cualquier área (a diferencia de los 2
+            # ratios de abajo, que por ahora solo tienen sentido pedido/
+            # validado para FAs) -- mismo criterio que el dashboard (PR #407).
+            directos_pct = actual['gastosDirectos'] / actual['ingresos'] * 100
             cobertura_txt = f"{actual['ingresos'] / fijos_area_act:.2f}x" if fijos_area_act > 0 else "N/D"
-            eficiencia_pct = actual['resultadoDirecto'] / actual['gastosDirectos'] * 100 if actual['gastosDirectos'] else None
-            fila2_cards = [info_card("Cobertura de Fijos", cobertura_txt)]
-            if eficiencia_pct is not None:
-                fila2_cards.append(margen_card("Eficiencia (Resultado / Gastos Directos)", eficiencia_pct, width=87 * mm))
-            else:
-                fila2_cards.append(margen_na_card("Eficiencia (Resultado / Gastos Directos)", "Gastos directos en cero este mes", width=87 * mm))
-            fila2 = Table([fila2_cards], colWidths=[CONTENT_W / 2] * 2)
+            fila2 = Table(
+                [[info_card("Cost to Income (Gastos Directos / Facturación)", f"{directos_pct:.1f}%"),
+                  info_card("Cobertura de Fijos", cobertura_txt)]],
+                colWidths=[CONTENT_W / 2] * 2,
+            )
             fila2.setStyle(TableStyle([
                 ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
             story.append(fila2)
+            story.append(Spacer(1, 4))
+            eficiencia_pct = actual['resultadoDirecto'] / actual['gastosDirectos'] * 100 if actual['gastosDirectos'] else None
+            if eficiencia_pct is not None:
+                story.append(margen_card("Eficiencia (Resultado / Gastos Directos)", eficiencia_pct))
+            else:
+                story.append(margen_na_card("Eficiencia (Resultado / Gastos Directos)", "Gastos directos en cero este mes"))
+
+            # ── Ratios pedidos puntualmente por la líder de FAs (ver PR #406 del
+            # dashboard) -- por ahora solo para esta área, mismo criterio que
+            # ahí: no hay todavía un criterio definido para el resto. ──
+            if area == 'FAs':
+                comisiones_area_act = ratios_trend_area[-1]['comisiones']
+                story.append(Spacer(1, 4))
+                comisiones_pct = comisiones_area_act / actual['ingresos'] * 100
+                ingresos_netos = actual['ingresos'] - comisiones_area_act
+                fila3 = Table(
+                    [[info_card("Comisiones Productores / Facturación", f"{comisiones_pct:.1f}%"),
+                      info_card("Fijos / Ingresos Netos", f"{fijos_area_act / ingresos_netos * 100:.1f}%") if ingresos_netos > 0
+                      else margen_na_card("Fijos / Ingresos Netos", "Ingresos netos en cero o negativos este mes", width=87 * mm)]],
+                    colWidths=[CONTENT_W / 2] * 2,
+                )
+                fila3.setStyle(TableStyle([
+                    ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ]))
+                story.append(fila3)
 
     # ── Evolución últimos meses, en gráfico (Facturación/Gastos/Resultado) ──
     if len(trend) > 1:

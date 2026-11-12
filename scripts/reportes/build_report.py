@@ -394,12 +394,12 @@ def build(data, mes_label, out_path, bullets_extra=None):
         cell.setStyle(TableStyle(style_cmds))
         return cell
 
-    def na_card(label, note):
+    def na_card(label, note, width=87 * mm):
         cell = Table(
             [[Paragraph(label.upper(), styles['KpiLabel'])],
              [Paragraph('N/D', ParagraphStyle('nd', parent=styles['VarCell'], fontSize=15, textColor=MUTED))],
              [Paragraph(note, ParagraphStyle('ndnote', fontName='DMSans', fontSize=7, textColor=MUTED, alignment=TA_CENTER))]],
-            colWidths=[87 * mm],
+            colWidths=[width],
         )
         cell.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), CREMA),
@@ -426,13 +426,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
         ]))
         return cell
 
-    def margen_card(label, pct):
+    def margen_card(label, pct, width=87 * mm):
         # No reutiliza ratio_card: ratio_cell es "bueno si está por debajo
         # de un umbral" (sirve para costo), pero un margen es al revés --
         # "bueno" es positivo, sin importar qué tan alto.
         para, _tint = margen_cell(pct)
         para.style = ParagraphStyle('mc', parent=styles['VarCell'], fontSize=15)
-        cell = Table([[Paragraph(label.upper(), styles['KpiLabel'])], [para]], colWidths=[87 * mm])
+        cell = Table([[Paragraph(label.upper(), styles['KpiLabel'])], [para]], colWidths=[width])
         cell.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), CREMA),
             ('BOX', (0, 0), (-1, -1), 0.75, BORDER),
@@ -1220,18 +1220,32 @@ def build(data, mes_label, out_path, bullets_extra=None):
             ]))
             story.append(fila1)
             story.append(Spacer(1, 4))
+            # Cost to income: Gastos Directos (de las 4 áreas comerciales,
+            # sumados -- directosIndirectosActual) / Facturación -- a
+            # diferencia de "Gastos totales / Facturación" de más arriba
+            # (que es egresos, Directos + Indirectos prorrateados), esta
+            # mide solo el costo directo de negocio. Mismo criterio que el
+            # dashboard (PR #407) y el reporte por área.
+            di_total = data.get('directosIndirectosActual') or {}
+            directos_total = sum(v['directos'] for v in di_total.values()) if di_total else None
             cobertura_txt = f"{fact_act / fijos_act:.2f}x" if fijos_act > 0 else "N/D"
-            eficiencia_pct = result_act / gastos_act * 100 if gastos_act else None
-            fila2_cards = [info_card("Cobertura de Fijos", cobertura_txt)]
-            if eficiencia_pct is not None:
-                fila2_cards.append(margen_card("Eficiencia (Resultado / Egresos)", eficiencia_pct))
+            fila2_cards = []
+            if directos_total is not None:
+                fila2_cards.append(info_card("Cost to Income (Gastos Directos / Facturación)", f"{directos_total / fact_act * 100:.1f}%"))
             else:
-                fila2_cards.append(na_card("Eficiencia (Resultado / Egresos)", "Egresos en cero este mes"))
+                fila2_cards.append(na_card("Cost to Income (Gastos Directos / Facturación)", "No se pudo separar Gastos Directos este mes"))
+            fila2_cards.append(info_card("Cobertura de Fijos", cobertura_txt))
             fila2 = Table([fila2_cards], colWidths=[CONTENT_W / 2] * 2)
             fila2.setStyle(TableStyle([
                 ('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
             story.append(fila2)
+            story.append(Spacer(1, 4))
+            eficiencia_pct = result_act / gastos_act * 100 if gastos_act else None
+            if eficiencia_pct is not None:
+                story.append(margen_card("Eficiencia (Resultado / Egresos)", eficiencia_pct, width=CONTENT_W))
+            else:
+                story.append(na_card("Eficiencia (Resultado / Egresos)", "Egresos en cero este mes", width=CONTENT_W))
             story.append(Spacer(1, 4))
             story.append(accum_card("Resultado Operativo", result_act))
 
