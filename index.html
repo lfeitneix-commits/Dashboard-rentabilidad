@@ -1043,19 +1043,17 @@ function parseGastosFijosDetalle(csvText){
 // aplicarProveedoresManuales2026): si no se resta, queda contada dos
 // veces en el desglose -- una en su propia fila, otra de nuevo adentro
 // del residuo "Sin discriminar / Ajuste", que ya la incluía.
-// Santangelo Sofia (Cta 4.2.3.38.08 Hon. Profesionales RRHH en el mayor
-// contable) cobra todos los meses pero nunca tuvo línea propia acá. Montos
-// tomados de AJUSTES_DETALLE['honorarios profesionales'][año][mes].excluidos
-// (el detalle del mayor contable que la usuaria pasó), ya en USD -- son el
-// monto real, no una estimación. Enero suma dos pagos (el mes + un abono
-// retroactivo de diciembre 2025). Sacar en cuanto tenga su propia fila en
-// la hoja.
+// Alejandra Bazzo (Cta Honorarios Profesionales en el mayor contable) cobra
+// todos los meses pero nunca tuvo línea propia acá. Montos tomados de
+// AJUSTES_DETALLE['honorarios profesionales'][año][mes].excluidos (el
+// detalle del mayor contable que la usuaria pasó), ya en USD -- son el
+// monto real, no una estimación. Sacar en cuanto tenga su propia fila en
+// la hoja (Santangelo Sofia, que estaba acá con el mismo criterio, ya
+// salió: desde que tiene su propia fila en "Gastos Fijos - Proveedor x
+// Mes" para los 12 meses, esta entrada quedaba restando dos veces su
+// monto del ajuste de Enero-Agosto -- una vez acá y otra ya resuelta por
+// la hoja misma).
 const PROVEEDOR_MANUAL_2026={
-  'santangelo sofia':{
-    nombre:'Santangelo Sofia',
-    rubro:'Honorarios Profesionales',
-    montos:{'Enero':9502,'Febrero':0,'Marzo':3027,'Abril':3000,'Mayo':3546,'Junio':3466,'Julio':3342,'Agosto':6655},
-  },
   'alejandra bazzo':{
     nombre:'Alejandra Bazzo (Psicotécnica)',
     rubro:'Honorarios Profesionales',
@@ -3420,7 +3418,7 @@ function openAjusteModal(rubro,year,mes,cellV){
       <td class="c" style="white-space:nowrap;font-size:10px;color:var(--muted)">${it.grupo||''}</td>
       <td class="r" style="font-family:'DM Mono',monospace;white-space:nowrap">${it.monto?fmtD(it.monto):'—'}</td>
     </tr>`).join('');
-  // Los "excluidos" (ej. Santangelo Sofia en Honorarios Profesionales) ya
+  // Los "excluidos" (ej. Alejandra Bazzo en Honorarios Profesionales) ya
   // se muestran en la tabla como proveedor con nombre propio (ver
   // PROVEEDOR_MANUAL_2026, que además ya resta su monto de la celda de
   // ajuste en vivo -- aplicarProveedoresManuales2026) -- acá no van ni
