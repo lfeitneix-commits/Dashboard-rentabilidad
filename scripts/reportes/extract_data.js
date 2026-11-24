@@ -486,6 +486,36 @@ const APP = context.__APP__;
   // la atención" este mes), no acá -- por eso se exporta todo.
   let gastosFijosDetalleCuentas = {};
   const gfd = ST.gastosFijosDetalle;
+  // Total agregado (4 áreas) de una cuenta del EERR general en mesActual --
+  // para confirmar si "sin dato" en Gastos Fijos Detalle es de verdad un
+  // hueco de carga (el EERR general sí tiene el gasto, PERO desglosado por
+  // proveedor falta ese mes) o si, en cambio, el EERR general también da 0
+  // (ahí sí es una baja real, no falta de carga). Mismo caso que Alquiler
+  // P8 Buenavista en Octubre 2026, ahora generalizado: antes de octubre no
+  // había forma de que el reporte distinguiera "sin dato" real de un cero
+  // real que coincide con la celda vacía -- a pedido del usuario, que notó
+  // que marcarlo SIEMPRE como "sin dato" porque la celda vino "-" era
+  // incorrecto si ese mes el gasto fue de verdad cero.
+  const totalEnEerr = (nombreCuenta, mes) => {
+    const d = ST.mesData[mes];
+    if (!d) return null;
+    // Muchas cuentas del EERR vienen partidas en "<nombre> Directos" +
+    // "<nombre> Indirectos" (o "Directas"/"Indirectas") en vez de una sola
+    // fila -- ej. "Servicios Contratados Directos"/"Indirectos", "Sueldos y
+    // CS Directos"/"Indirectos". Match EXACTO contra esas variantes (nunca
+    // prefix/startsWith): varias cuentas tienen además filas HIJAS por
+    // sector con el mismo prefijo largo ("Sueldos y CS Mesa", "Suscripciones
+    // FAs", etc. -- a diferencia de "Serv. Contratados Mesa", que usa el
+    // prefijo abreviado y por eso no choca), y un match por prefijo las
+    // sumaría dos veces (una vez en el subtotal "Directos"/"Indirectos", y
+    // otra en cada fila hija).
+    const candidatos = new Set([nombreCuenta, `${nombreCuenta} Directos`, `${nombreCuenta} Indirectos`,
+      `${nombreCuenta} Directas`, `${nombreCuenta} Indirectas`].map(s => s.toLowerCase()));
+    const filas = (d.annotated || []).filter(r =>
+      (r._kind === 'account' || r._kind === 'subaccount') && candidatos.has(String(r._nom || '').trim().toLowerCase()));
+    if (!filas.length) return null;
+    return filas.reduce((s, row) => s + AREAS_.reduce((s2, a) => s2 + getAreaVal(row, a), 0), 0);
+  };
   if (gfd && mesAnterior) {
     const idxActual = gfd.valCols.indexOf(mesActual);
     const idxAnterior = gfd.valCols.indexOf(mesAnterior);
@@ -516,8 +546,11 @@ const APP = context.__APP__;
           // Proveedor x Mes" (ej. Alquiler P8 Buenavista en Octubre 2026,
           // visto en vivo: el EERR general sí tenía el gasto completo, solo
           // faltaba el desglose por proveedor de ese mes). Se marca para que
-          // el reporte lo avise como tal en vez de mostrarlo como una baja.
-          posibleFaltante: p.actual <= 0 && p.sinDatoActual,
+          // el reporte lo avise como tal en vez de mostrarlo como una baja --
+          // PERO solo si el EERR general confirma que esa cuenta sigue
+          // teniendo plata ese mes (si el EERR general también da 0, no es
+          // un hueco de carga: es una baja real, y se muestra como tal).
+          posibleFaltante: p.actual <= 0 && p.sinDatoActual && totalEnEerr(p.cuenta, mesActual) > 0,
         }))
         // Desempate por monto (p.anterior, lo que se dejó de gastar) --
         // un mes con más de una baja a cero empata todas en -100%, y sin
