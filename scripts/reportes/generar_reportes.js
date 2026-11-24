@@ -46,10 +46,21 @@ function chequearPDF(outRel) {
 const archivosTocados = [];
 
 // ── Consolidado ──
+// stdout de python NO se hereda (a diferencia de stderr): build_report.py/
+// build_report_area.py imprimen su propio "OK: <ruta>" al terminar, y como
+// el workflow captura TODO el stdout de este script con "$(node
+// generar_reportes.js ...)" para armar la lista de "git add", esas líneas
+// quedaban mezcladas con los paths reales de archivosTocados (de abajo) --
+// "OK:" terminaba como primer token suelto, un pathspec inválido que
+// rompía "git add" (visto en vivo: "fatal: pathspec 'OK:' did not match
+// any files"). chequearPDF ya valida el resultado por su cuenta (existe,
+// no vacío, sin placeholder), así que no hace falta leer el stdout de
+// python para nada -- stderr sigue heredado por si hay que debuggear un
+// traceback.
 const outConsolidado = `reportes/2026-${nn}-reporte-${slug}.pdf`;
 execFileSync('python3', [
   'build_report.py', '--data', dataPathAbs, '--out', path.resolve(REPO_ROOT, outConsolidado), '--mes-label', mesLabel,
-], { cwd: SCRIPT_DIR, stdio: 'inherit' });
+], { cwd: SCRIPT_DIR, stdio: ['ignore', 'ignore', 'inherit'] });
 chequearPDF(outConsolidado);
 archivosTocados.push(outConsolidado);
 
@@ -60,7 +71,7 @@ AREAS.forEach((area) => {
   const outArea = `reportes/area/2026-${nn}-reporte-${slug}-${areaSlug}.pdf`;
   execFileSync('python3', [
     'build_report_area.py', '--data', dataPathAbs, '--area', area, '--out', path.resolve(REPO_ROOT, outArea), '--mes-label', mesLabel,
-  ], { cwd: SCRIPT_DIR, stdio: 'inherit' });
+  ], { cwd: SCRIPT_DIR, stdio: ['ignore', 'ignore', 'inherit'] });
   chequearPDF(outArea);
   outsPorArea[area] = outArea;
   archivosTocados.push(outArea);
