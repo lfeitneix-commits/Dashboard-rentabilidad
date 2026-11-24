@@ -495,7 +495,12 @@ const APP = context.__APP__;
         cuenta.providers.forEach(p => {
           const anterior = p.vals[idxAnterior];
           const actual = p.vals[idxActual];
-          proveedores.push({ nombre: p.nombre, cuenta: cuenta.nombre, anterior, actual });
+          // sinDatoActual: la celda del mes actual vino "-"/vacía (no
+          // cargada todavía), no un "$0.00" real -- ver parseGastosFijosDetalle
+          // en index.html. Distingue "posible dato faltante" de una baja de
+          // verdad más abajo.
+          const sinDatoActual = !!(p.sinDato && p.sinDato[idxActual]);
+          proveedores.push({ nombre: p.nombre, cuenta: cuenta.nombre, anterior, actual, sinDatoActual });
           if (anterior > 0 || actual > 0) detalle.push({ nombre: p.nombre, anterior, actual });
         });
         gastosFijosDetalleCuentas[cuenta.nombre] = detalle.sort((a, b) => b.actual - a.actual);
@@ -503,7 +508,17 @@ const APP = context.__APP__;
       proveedores = proveedores
         .filter(p => (p.anterior > PROVEEDOR_MONTO_MIN && p.actual > PROVEEDOR_MONTO_MIN) ||
                      (p.anterior > PROVEEDOR_MONTO_MIN && p.actual <= 0))
-        .map(p => ({ ...p, deltaPct: p.actual > 0 ? (p.actual - p.anterior) / p.anterior * 100 : -100 }))
+        .map(p => ({
+          ...p,
+          deltaPct: p.actual > 0 ? (p.actual - p.anterior) / p.anterior * 100 : -100,
+          // Una "baja" a 0 con la celda del mes actual sin cargar todavía
+          // no es una baja real -- es un hueco de carga en "Gastos Fijos -
+          // Proveedor x Mes" (ej. Alquiler P8 Buenavista en Octubre 2026,
+          // visto en vivo: el EERR general sí tenía el gasto completo, solo
+          // faltaba el desglose por proveedor de ese mes). Se marca para que
+          // el reporte lo avise como tal en vez de mostrarlo como una baja.
+          posibleFaltante: p.actual <= 0 && p.sinDatoActual,
+        }))
         // Desempate por monto (p.anterior, lo que se dejó de gastar) --
         // un mes con más de una baja a cero empata todas en -100%, y sin
         // esto el orden entre ellas queda a la suerte de en qué orden
