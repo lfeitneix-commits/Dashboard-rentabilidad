@@ -1027,7 +1027,17 @@ function parseGastosFijosDetalle(csvText){
     const isHeaderRow=rawVals.every(v=>v===''||v==='-')&&totalNames.has(label.toLowerCase());
     if(isHeaderRow){ current={nombre:label,providers:[],ajuste:null,total:null}; cuentas.push(current); return; }
     if(!current) return;
-    current.providers.push({nombre:label,vals});
+    // sinDato marca, mes a mes, si la celda vino realmente vacía o con "-"
+    // (no cargada todavía) en vez de un monto real -- distingue eso de un
+    // "$0.00"/"($0.00)" explícito, que SÍ es un cero real (ver "Sin
+    // discriminar / Ajuste", que usa ese formato para un mes sin ajuste).
+    // Sin esta distinción, un proveedor recurrente que todavía no tiene
+    // cargado el mes actual se ve exactamente igual que uno que de verdad
+    // dejó de facturar -- ver posibleFaltante en extract_data.js, que usa
+    // esto para avisar "esto es un hueco de carga, no una baja real" en vez
+    // de dejarlo pasar como una baja más.
+    const sinDato=rawVals.map(v=>v===''||v==='-');
+    current.providers.push({nombre:label,vals,sinDato});
   });
   return{valCols,cuentas,grandTotal};
 }

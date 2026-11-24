@@ -203,6 +203,19 @@ def build(data, mes_label, out_path, bullets_extra=None):
         canvas.line(MARGIN, 13 * mm, PAGE_W - MARGIN, 13 * mm)
         canvas.restoreState()
 
+    def var_cell_sin_dato():
+        # Para un proveedor marcado posibleFaltante (ver extract_data.js):
+        # la celda del mes actual en "Gastos Fijos - Proveedor x Mes" vino
+        # sin cargar ("-"), no un "$0.00" real -- mostrarlo como "-100%" en
+        # rojo sería decir que el gasto bajó de verdad cuando en realidad
+        # nadie cargó el dato todavía (visto en vivo: Alquiler P8 Buenavista
+        # en Octubre 2026, con el gasto completo en el EERR general pero sin
+        # desglosar por proveedor ese mes). Mismo color que "0,0%" (MUTED,
+        # ninguna variación real que mostrar), texto distinto para que no se
+        # confunda con una baja real ni con un mes sin cambios.
+        html = f'<font color="{MUTED_HEX}">⚠ sin dato</font>'
+        return Paragraph(html, styles['VarCell']), MUTED_TINT
+
     def var_cell(pct):
         if pct == 0:
             icon, color_hex, tint = asset('tri_flat_muted.png'), MUTED_HEX, MUTED_TINT
@@ -1040,9 +1053,20 @@ def build(data, mes_label, out_path, bullets_extra=None):
             section_title("CUENTAS / PROVEEDORES CON MAYOR VARIACIÓN")
             rows = []
             for p in data['proveedores'][:PROVEEDORES_TOP_N]:
-                rows.append([p['nombre'], num(p['anterior']), num(p['actual']), var_cell(p['deltaPct'])])
+                var = var_cell_sin_dato() if p.get('posibleFaltante') else var_cell(p['deltaPct'])
+                rows.append([p['nombre'], num(p['anterior']), num(p['actual']), var])
             data_table(["Cuenta / Proveedor", data['mesAnterior'], data['mesActual'], "Variación"], rows,
                        [65 * mm, 26 * mm, 26 * mm, CONTENT_W - 65 * mm - 52 * mm], var_colidx=3)
+            faltantes = [p for p in data['proveedores'][:PROVEEDORES_TOP_N] if p.get('posibleFaltante')]
+            if faltantes:
+                nombres = ', '.join(p['nombre'] for p in faltantes)
+                story.append(Paragraph(
+                    f"⚠ Posible dato faltante, no una baja real: {nombres} tenían gasto en {data['mesAnterior']} "
+                    f"y en \"Gastos Fijos - Proveedor x Mes\" la celda de {data['mesActual']} está sin cargar "
+                    f"todavía (el gasto total del mes SÍ está en el EERR general -- falta el desglose de este "
+                    f"proveedor puntual).",
+                    styles['NotaChica'],
+                ))
 
     # ── Facturación por área: siempre tabla con signo (nunca %, por si
     # alguna área da negativa -- ver docstring). ──
