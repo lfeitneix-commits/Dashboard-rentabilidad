@@ -1783,7 +1783,7 @@ function getCapNAgg(mes){
   if(!d||!d.rows) return {ingresos:0,egresos:0,resultado:0,gastos_dir:0,gastos_ind:0};
   const isConsolidado=mes==='__consolidado__';
   const mesesCols=d.headers.filter(h=>h&&h!==''&&!/consolidado/i.test(h)&&h!=='Neix Banca Privada');
-  let ing=0,gasto=0,res=0;
+  let ing=0,gasto=0;
   d.rows.forEach(row=>{
     const nom=String(row['']||'').trim();
     if(!nom) return;
@@ -1796,13 +1796,19 @@ function getCapNAgg(mes){
       const suma=mesesCols.reduce((s,m)=>s+parseNum(row[m]||''),0);
       if(/^FACTURACI[OÓ]N/i.test(nom)) ing=suma;
       if(/^GASTOS$/i.test(nom))        gasto=suma;
-      if(/^RESULTADO/i.test(nom)&&!/antes/i.test(nom)) res=suma;
     } else {
       if(/^FACTURACI[OÓ]N/i.test(nom)) ing=parseNum(row[mes]||'');
       if(/^GASTOS$/i.test(nom))        gasto=parseNum(row[mes]||'');
-      if(/^RESULTADO/i.test(nom)&&!/antes/i.test(nom)) res=parseNum(row[mes]||'');
     }
   });
+  // resultado = facturación - gastos, calculado acá en vez de leído de la
+  // fila "RESULTADO" del Sheet -- esa fila es otra fórmula que puede no
+  // estar arrastrada todavía al mes nuevo (visto en vivo: Octubre con
+  // Facturación/Gastos cargados pero "RESULTADO" vacío, que daba
+  // resultado=0 en vez de los ~USD 173.582 reales). Confirmado que
+  // facturación-gastos coincide exacto con "RESULTADO" en todos los meses
+  // donde esa fila sí está cargada (ej. Enero: 138.949-30.608=108.341).
+  const res=ing-gasto;
   return{ingresos:ing,egresos:gasto,resultado:res,gastos_dir:gasto,gastos_ind:0};
 }
 function kpiGrid(data,capn){
