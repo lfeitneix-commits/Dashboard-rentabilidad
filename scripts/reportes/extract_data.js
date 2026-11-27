@@ -450,6 +450,13 @@ const APP = context.__APP__;
     // diferencia de rubrosVariacion) -- usado para ratios tipo
     // Sueldos/Facturación en build_report_capn.py.
     conceptosActual: capnMesesCols.includes(mesActual) ? capnConceptos(mesActual) : {},
+    // {ingresos,egresos,resultado,gastos_dir,gastos_ind} de mesActual --
+    // usado en build_report.py (reporte genérico) para la fila "Banca
+    // Privada + Cap N" en Margen por Área: a pedido del usuario, que quiere
+    // ver el resultado combinado de Banca Privada + la entidad Capital N
+    // (que hoy solo se le muestra al líder de Banca Privada en el dashboard,
+    // ver ST.role/ST.area en areaTable()), aparte del de Banca Privada sola.
+    actual: capnMesesCols.includes(mesActual) ? APP.getCapNAgg(mesActual) : null,
   } : null;
 
   // Proveedores (Gastos Fijos Detalle) que más variaron mes contra mes --

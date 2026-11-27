@@ -1171,6 +1171,12 @@ def build(data, mes_label, out_path, bullets_extra=None):
             section_title("MARGEN POR ÁREA · RESULTADO / FACTURACIÓN")
             rows = []
             hubo_na_margen = False
+            # Capital N es una entidad propia (hoja separada, ver
+            # build_report_capn.py) -- no una de las 4 AREAS -- pero a
+            # pedido del usuario se agrega acá una fila extra con el
+            # resultado combinado de Banca Privada + Cap N, aparte de la
+            # fila de Banca Privada sola (que no cambia).
+            capn_actual = (data.get('capn') or {}).get('actual')
             for a in AREAS:
                 fact = ing_area[a]
                 result = resultado_area.get(a, 0)
@@ -1180,6 +1186,15 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 else:
                     cell = margen_cell(result / fact * 100)
                 rows.append([a, usd(fact), usd(result), cell])
+                if a == 'Banca Privada' and capn_actual:
+                    fact_bp = fact + capn_actual['ingresos']
+                    result_bp = result + capn_actual['resultado']
+                    if fact_bp <= 0:
+                        cell_bp = na_cell()
+                        hubo_na_margen = True
+                    else:
+                        cell_bp = margen_cell(result_bp / fact_bp * 100)
+                    rows.append(["Banca Privada + Cap N", usd(fact_bp), usd(result_bp), cell_bp])
             data_table(["Área", "Facturación", "Resultado", "Margen"], rows,
                        [40 * mm, 42 * mm, 42 * mm, CONTENT_W - 40 * mm - 42 * mm - 42 * mm], var_colidx=3)
             story.append(Paragraph(
@@ -1188,6 +1203,13 @@ def build(data, mes_label, out_path, bullets_extra=None):
                 "bastante del \"Resultado\" de ese reporte.",
                 styles['NotaChica'],
             ))
+            if capn_actual:
+                story.append(Spacer(1, 2))
+                story.append(Paragraph(
+                    "\"Banca Privada + Cap N\" suma al resultado de Banca Privada el de Capital N (entidad propia, "
+                    "hoja separada) -- ver el reporte de Capital N para el detalle de esa entidad.",
+                    styles['NotaChica'],
+                ))
             if hubo_na_margen:
                 story.append(Spacer(1, 2))
                 story.append(Paragraph(
